@@ -1,5 +1,27 @@
 # 更新日志
 
+## 0.5.0 — 2026-11-16
+
+### 下载器（P4 基础版）
+
+- 队列落库 `download_tasks`：重启后 `downloading` 自动回到 `queued`，不会出现幽灵任务
+- HTTP 断点续传：`Range` 续传、206 追加、`416` 后从头重来、`.part` 完成后原子改名
+- HLS 走 ffmpeg；失败且声明了 `410` 刷新时，先重解详情再重试一次
+- 暂停/继续（全局 + 单条）、取消（删除 `.part`）、清理完成记录、解除占用
+- 并发：全局 `concurrent` + 每源上限 2；下载请求带浏览器 UA
+- 网络：**IPv4 优先**拨号（本机 IPv6 常无路由）；302 跨域重定向保留 Referer（CDN 热链校验）
+- 完成后回填台账：`file_name/file_path/file_size/file_date`、`status=done`，队列页与媒体库即时可见
+- 旧版 `.queue.json` 首次启动自动迁移（改名为 `.queue.json.migrated`）
+- `POST /api/download` 支持失败重试；`/api/state.download` 返回队列快照
+- 说明：`/api/download/repair` 目前是空操作（旧版用 ffprobe 判断 `.part` 是否完整，后续补）
+
+### 测试
+
+- HTTP 续传（预置半个文件，校验 Range 与最终 SHA256）
+- 410 刷新（假源 + 假 CDN，验证刷新后重试成功）
+- 取消（阻塞服务，验证状态与 `.part` 清理）
+- 旧 `.queue.json` 迁移
+
 ## 0.4.0 — 2026-11-16
 
 ### 登录源（手动 Cookie）

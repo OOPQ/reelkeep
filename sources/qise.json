@@ -6,7 +6,7 @@
   "author": "reelkeep",
   "description": "qise100 视频区。列表页给 /videos/view/<id>/<slug>/，详情页里是带签名的 mp4；登录 Cookie 用于高清/会员内容，并随媒体请求一起发送。",
   "baseUrl": "https://rfdjzz.qise100.com",
-  "hosts": ["cdn.cdnkdjs.com", "cdn2.jiuse2.cloud", "cdn3.jiuse3.cloud"],
+  "hosts": ["cdn.cdnkdjs.com", "cdn2.jiuse2.cloud", "cdn2.jiuse3.cloud", "cdn3.jiuse3.cloud", "cdn3.jiuse2.cloud"],
   "capabilities": ["scrape", "detail", "cover", "download"],
   "defaults": {
     "proxy": "system",

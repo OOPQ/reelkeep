@@ -94,3 +94,23 @@ type Collection struct {
 	Color string `json:"color"`
 	Count int    `json:"count"`
 }
+
+// DownloadTask 是一条下载任务（持久化在 download_tasks 表）。
+type DownloadTask struct {
+	Token        string `json:"token"`
+	Source       string `json:"source"`
+	SourceID     string `json:"sourceId"`
+	URL          string `json:"url"`
+	Mode         string `json:"mode"`    // http | hls
+	Headers      string `json:"headers"` // JSON: {"Referer":"..."}
+	UseAuth      bool   `json:"useAuth"`
+	RefreshOn410 bool   `json:"refreshOn410"`
+	State        string `json:"state"` // queued | downloading | paused | done | failed | cancelled
+	Bytes        int64  `json:"bytes"`
+	Total        int64  `json:"total"`
+	Error        string `json:"error"`
+	AddedAt      string `json:"addedAt"`
+	StartedAt    string `json:"startedAt"`
+	FinishedAt   string `json:"finishedAt"`
+	History      bool   `json:"history"`
+}

@@ -330,10 +330,19 @@ func safeDial(ctx context.Context, d *net.Dialer, network, addr string) (net.Con
 		return nil, fmt.Errorf("解析 %s 失败: %w", host, err)
 	}
 	var chosen net.IP
+	// 优先 IPv4：国内网络里 IPv6 经常没有路由
 	for _, ip := range ips {
-		if !isPrivateIP(ip.IP) {
+		if ip.IP.To4() != nil && !isPrivateIP(ip.IP) {
 			chosen = ip.IP
 			break
+		}
+	}
+	if chosen == nil {
+		for _, ip := range ips {
+			if !isPrivateIP(ip.IP) {
+				chosen = ip.IP
+				break
+			}
 		}
 	}
 	if chosen == nil {

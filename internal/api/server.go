@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/OOPQ/reelkeep/internal/config"
+	"github.com/OOPQ/reelkeep/internal/download"
 	"github.com/OOPQ/reelkeep/internal/model"
 	"github.com/OOPQ/reelkeep/internal/scan"
 	"github.com/OOPQ/reelkeep/internal/source"
@@ -128,6 +129,7 @@ type Server struct {
 	st       *store.Store
 	reg      *source.Registry
 	srcMgr   SourceManager
+	dl       *download.Manager
 	settings config.Settings
 	assets   fs.FS // dist 目录
 	started  time.Time
@@ -151,12 +153,14 @@ type Server struct {
 }
 
 // New 创建 Server。assets 应为 dist 的 fs.FS。
-func New(paths config.Paths, st *store.Store, reg *source.Registry, mgr SourceManager, settings config.Settings, assets fs.FS) *Server {
+func New(paths config.Paths, st *store.Store, reg *source.Registry, mgr SourceManager,
+	dl *download.Manager, settings config.Settings, assets fs.FS) *Server {
 	return &Server{
 		paths:    paths,
 		st:       st,
 		reg:      reg,
 		srcMgr:   mgr,
+		dl:       dl,
 		settings: settings,
 		assets:   assets,
 		started:  time.Now(),
@@ -443,24 +447,6 @@ func (s *Server) settingsPayload() map[string]any {
 	}
 }
 
-// DownloadInfo 是下载队列快照（P4 之前只有空壳）。
-type DownloadInfo struct {
-	Running     bool     `json:"running"`
-	Paused      bool     `json:"paused"`
-	Phase       string   `json:"phase"`
-	Total       int      `json:"total"`
-	Done        int      `json:"done"`
-	Failed      int      `json:"failed"`
-	Queued      int      `json:"queued"`
-	PausedCount int      `json:"pausedCount"`
-	Bytes       int64    `json:"bytes"`
-	Speed       int64    `json:"speed"`
-	PID         int      `json:"pid"`
-	Active      []string `json:"active"`
-	Errors      []any    `json:"errors"`
-	Items       []any    `json:"items"`
-}
-
 // ---------- 路由 ----------
 
 // Handler 返回完整的 HTTP 处理器。
@@ -510,13 +496,15 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/scrape", s.handleScrape)
 	mux.HandleFunc("POST /api/job/cancel", s.handleJobCancel)
 
+	// 下载队列
+	mux.HandleFunc("POST /api/download", s.handleDownloadAdd)
+	mux.HandleFunc("POST /api/download/pause", s.handleDownloadPause)
+	mux.HandleFunc("POST /api/download/cancel", s.handleDownloadCancel)
+	mux.HandleFunc("POST /api/download/clear-done", s.handleDownloadClearDone)
+	mux.HandleFunc("POST /api/download/reset", s.handleDownloadReset)
+	mux.HandleFunc("POST /api/download/repair", s.handleDownloadRepair)
+
 	// 尚未迁移到 Go 的能力：明确报错，不伪装成功
-	mux.HandleFunc("POST /api/download", s.handleNotYet("下载器正在迁移（P4），当前版本不能发起下载"))
-	mux.HandleFunc("POST /api/download/pause", s.handleNotYet("下载器正在迁移（P4）"))
-	mux.HandleFunc("POST /api/download/cancel", s.handleNotYet("下载器正在迁移（P4）"))
-	mux.HandleFunc("POST /api/download/clear-done", s.handleNotYet("下载器正在迁移（P4）"))
-	mux.HandleFunc("POST /api/download/reset", s.handleNotYet("下载器正在迁移（P4）"))
-	mux.HandleFunc("POST /api/download/repair", s.handleNotYet("下载器正在迁移（P4）"))
 	mux.HandleFunc("POST /api/snapshot", s.handleNotYet("时间轴快照正在迁移（P3）"))
 	mux.HandleFunc("POST /api/snapshot/delete", s.handleNotYet("时间轴快照正在迁移（P3）"))
 	mux.HandleFunc("POST /api/snapshot/cover", s.handleNotYet("时间轴快照正在迁移（P3）"))

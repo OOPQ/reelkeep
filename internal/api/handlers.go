@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/OOPQ/reelkeep/internal/config"
+	"github.com/OOPQ/reelkeep/internal/download"
 	"github.com/OOPQ/reelkeep/internal/jsonx"
 	"github.com/OOPQ/reelkeep/internal/model"
 	"github.com/OOPQ/reelkeep/internal/store"
@@ -64,17 +65,15 @@ func (s *Server) handleState(w http.ResponseWriter, r *http.Request) {
 	s.mu.RUnlock()
 
 	payload := map[string]any{
-		"ok":      true,
-		"api":     APIVersion,
-		"rev":     rev,
-		"rowsRev": rowsRev,
-		"stats":   st,
-		"log":     s.logbuf.Last(40),
-		"job":     s.jobInfo(),
-		"download": DownloadInfo{
-			Active: []string{}, Errors: []any{}, Items: []any{},
-		},
-		"project": proj,
+		"ok":       true,
+		"api":      APIVersion,
+		"rev":      rev,
+		"rowsRev":  rowsRev,
+		"stats":    st,
+		"log":      s.logbuf.Last(40),
+		"job":      s.jobInfo(),
+		"download": s.downloadInfo(),
+		"project":  proj,
 		"settings": map[string]any{
 			"proxy":      cfg.Proxy,
 			"concurrent": cfg.Concurrent,
@@ -319,10 +318,7 @@ func (s *Server) handleSnapshotImage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleDownloadInfo(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]any{
-		"ok":       true,
-		"download": DownloadInfo{Active: []string{}, Errors: []any{}, Items: []any{}},
-	})
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "download": s.downloadInfo()})
 }
 
 func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
@@ -774,6 +770,13 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 	s.mu.Unlock()
 	if s.srcMgr != nil {
 		s.srcMgr.SetProxy(cfg.Proxy)
+	}
+	if s.dl != nil {
+		s.dl.SetSettings(download.Settings{
+			Concurrent: cfg.Concurrent,
+			FFmpeg:     cfg.FFmpegPath,
+			Proxy:      cfg.Proxy,
+		})
 	}
 	s.logbuf.Add("config", fmt.Sprintf("代理=%s 并发=%d", cfg.Proxy, cfg.Concurrent))
 	writeJSON(w, http.StatusOK, map[string]any{

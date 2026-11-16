@@ -112,6 +112,16 @@ type DownloadResolver interface { Resolve(ctx, r) (DownloadSpec, error) }
 扫盘   → 只落真正变化的行（每 5 分钟或手动触发）
 ```
 
+## 下载器（P4）
+
+- 队列表 `download_tasks`：状态、字节数、错误、时间戳；启动时 `downloading → queued`
+- 调度：全局 `concurrent` + 每源上限 2；队列按加入时间
+- HTTP：`Range` 续传、206 追加、`416` 从头、`.part` 完成后原子改名
+- HLS：ffmpeg `-headers` 带 Referer/Cookie；失败且 `RefreshOn410` 时先 `Refresher` 再试一次
+- 认证：任务只存 `UseAuth` 标记，Cookie 由 secrets 在发请求时注入，不进任务表
+- 完成：写回 `items` 的文件字段和 `status=done`，并通过 `onRow` 刷新 API 内存行
+- 旧版 `.queue.json` 首次启动迁移并改名
+
 ## 后续阶段
 
 - **P2** 源适配器：pektino → hsex → qise → web；离线 fixture 回放 + 在线冒烟；诊断目录落原始响应

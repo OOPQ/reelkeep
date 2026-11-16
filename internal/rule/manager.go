@@ -172,6 +172,9 @@ func (m *Manager) cookie(id string) string {
 	return rec.Cookie
 }
 
+// Cookie 对外暴露当前 Cookie（下载器注入用）。
+func (m *Manager) Cookie(id string) string { return m.cookie(id) }
+
 // LoadAll 加载目录下的全部源包，并按索引恢复启用状态。
 func (m *Manager) LoadAll() []error {
 	if err := os.MkdirAll(m.dir, 0o755); err != nil {

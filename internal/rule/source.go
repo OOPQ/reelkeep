@@ -311,6 +311,19 @@ func (s *RuleSource) detailFor(ctx context.Context, id, pageURL string) (model.R
 	return s.rowFromFields(fields, pageRef, id)
 }
 
+// Refresh 重新解析一条记录的播放地址（签名过期时由下载器调用）。
+func (s *RuleSource) Refresh(ctx context.Context, r model.Row) (model.Row, error) {
+	if s.pkg.Detail == nil {
+		return r, nil
+	}
+	nr, err := s.detailFor(ctx, r.SourceID, r.PageURL)
+	if err != nil {
+		return r, err
+	}
+	mergeRow(&r, nr)
+	return r, nil
+}
+
 // Cover 解析封面地址（缺省回落到详情页）。
 func (s *RuleSource) Cover(ctx context.Context, r model.Row) (string, error) {
 	if r.CoverURL != "" {

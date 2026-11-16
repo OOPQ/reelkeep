@@ -26,6 +26,7 @@ import (
 
 	"github.com/OOPQ/reelkeep/internal/api"
 	"github.com/OOPQ/reelkeep/internal/config"
+	"github.com/OOPQ/reelkeep/internal/download"
 	"github.com/OOPQ/reelkeep/internal/rule"
 	"github.com/OOPQ/reelkeep/internal/source"
 	"github.com/OOPQ/reelkeep/internal/store"
@@ -124,9 +125,25 @@ func main() {
 		fatal("前端资源缺失: " + err.Error())
 	}
 
-	srv := api.New(paths, st, reg, mgr, settings, assets)
+	// 下载器：队列落库、HTTP 续传、HLS/ffmpeg
+	dl := download.NewManager(paths, st, reg, mgr.Cookie, nil, nil,
+		func(kind, msg string) { logf.Printf("[%s] %s", kind, msg) })
+	dl.SetSettings(download.Settings{
+		Concurrent: settings.Concurrent,
+		FFmpeg:     settings.FFmpegPath,
+		Proxy:      settings.Proxy,
+	})
+
+	srv := api.New(paths, st, reg, mgr, dl, settings, assets)
 	if err := srv.Boot(); err != nil {
 		fatal("启动失败: " + err.Error())
+	}
+	// 先挂好回填回调再启动队列，避免刚下载完时内存台账没刷新
+	dl.SetOnRow(srv.ReloadRow)
+	if err := dl.Start(context.Background()); err != nil {
+		logf.Printf("下载器启动失败: %v", err)
+	} else {
+		defer dl.Stop()
 	}
 	if installed := mgr.List(); len(installed) > 0 {
 		srv.LogBuffer().Add("source", fmt.Sprintf("已加载 %d 个外部源包", len(installed)))

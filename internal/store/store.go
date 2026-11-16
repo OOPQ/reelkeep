@@ -130,6 +130,25 @@ CREATE TABLE IF NOT EXISTS audit_log (
   token   TEXT DEFAULT '',
   detail  TEXT DEFAULT ''
 );
+CREATE TABLE IF NOT EXISTS download_tasks (
+  token          TEXT PRIMARY KEY,
+  source         TEXT DEFAULT '',
+  source_id      TEXT DEFAULT '',
+  url            TEXT DEFAULT '',
+  mode           TEXT DEFAULT 'http',
+  headers        TEXT DEFAULT '',
+  use_auth       INTEGER DEFAULT 0,
+  refresh_on_410 INTEGER DEFAULT 0,
+  state          TEXT DEFAULT 'queued',
+  bytes          INTEGER DEFAULT 0,
+  total          INTEGER DEFAULT 0,
+  error          TEXT DEFAULT '',
+  added_at       TEXT DEFAULT '',
+  started_at     TEXT DEFAULT '',
+  finished_at    TEXT DEFAULT '',
+  history        INTEGER DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_download_state ON download_tasks(state);
 `
 
 func (s *Store) ensureSchema() error {

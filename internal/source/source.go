@@ -103,6 +103,11 @@ type DownloadResolver interface {
 	Resolve(ctx context.Context, r model.Row) (DownloadSpec, error)
 }
 
+// Refresher 是可选能力：签名地址过期后重新解析这条记录。
+type Refresher interface {
+	Refresh(ctx context.Context, r model.Row) (model.Row, error)
+}
+
 // Registry 保存构造函数、动态导入的源和已启用的清单。
 type Registry struct {
 	mu        sync.RWMutex

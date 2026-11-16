@@ -98,7 +98,7 @@ function Sidebar() {
   const projectName = projectNameFromRoot((data?.project as { root?: string } | undefined)?.root)
 
   const counts: Record<string, number> = {
-    queue: stats?.new || 0,
+    queue: (data?.download?.items || []).filter(i => i.state === 'downloading' || i.state === 'queued' || i.state === 'paused').length,
     collections: 0,
     bin: stats?.recycled || 0,
   }

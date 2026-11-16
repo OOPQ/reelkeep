@@ -105,7 +105,7 @@ export function HistoryPage() {
   const totalPlays = played.reduce((sum, r) => sum + (Number(r.play_count) || 0), 0)
 
   return (
-    <div className="mx-auto flex w-full max-w-[1100px] flex-col gap-3 p-4">
+    <div className="flex w-full flex-col gap-3 p-4">
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
           <div className="flex items-center gap-1.5 text-[10px] tracking-[.18em] text-[color:var(--subtle)]">

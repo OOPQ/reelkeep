@@ -545,22 +545,19 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
           <Button size="sm" variant="ghost" className="ml-auto h-7" onClick={exitBatch}>退出本批</Button>
         </div>
       ) : null}
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="text-[10px] text-[color:var(--subtle)]">
-          共 <b className="text-[color:var(--foreground)]">{sorted.length}</b> 条
-          {source !== 'all' ? ` · ${sourceLabel}` : ''}
-          {flag !== 'none' ? ` · ${flagLabel}` : ''}
-          {query ? ` · 搜索“${query}”` : ''}
-          {collectionId ? ` · 合集「${collectionName || collectionId}」` : ''}
-          {collectionId ? (
-            <button type="button" onClick={() => setSearchParams({})} className="ml-1 text-[color:var(--primary-2)] hover:underline">清除合集</button>
-          ) : null}
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="text-[10px] text-[color:var(--subtle)]">
+            共 <b className="text-[color:var(--foreground)]">{sorted.length}</b> 条
+            {source !== 'all' ? ` · ${sourceLabel}` : ''}
+            {flag !== 'none' ? ` · ${flagLabel}` : ''}
+            {query ? ` · 搜索“${query}”` : ''}
+            {collectionId ? ` · 合集「${collectionName || collectionId}」` : ''}
+            {collectionId ? (
+              <button type="button" onClick={() => setSearchParams({})} className="ml-1 text-[color:var(--primary-2)] hover:underline">清除合集</button>
+            ) : null}
+          </div>
+          {isFetching ? <span className="text-[10px] text-[color:var(--primary-2)]">同步中…</span> : null}
         </div>
-        <div className="flex items-center gap-2 text-[10px] text-[color:var(--subtle)]">
-          {isFetching ? <span className="text-[color:var(--primary-2)]">同步中…</span> : null}
-          <span>共 {pages} 页</span>
-        </div>
-      </div>
 
       <div className={cn('min-h-0 flex-1', view === 'gallery' && 'ui-scroll overflow-auto pr-0.5')}>
         {view === 'table' ? (
@@ -584,7 +581,7 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
       </div>
 
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-[color:var(--border)] pt-3">
-        <div className="text-[10px] text-[color:var(--subtle)]">
+        <div className="text-[11.5px] text-[color:var(--subtle)]">
           {sorted.length ? `${(safePage - 1) * (per || sorted.length) + 1}-${Math.min(safePage * (per || sorted.length), sorted.length)} / ${sorted.length}` : '0 / 0'}
         </div>
         <div className="flex items-center gap-1.5">

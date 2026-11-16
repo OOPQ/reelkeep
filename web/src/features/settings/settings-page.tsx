@@ -159,6 +159,8 @@ export function SettingsPage() {
   if (isLoading) return <SettingsSkeleton />
 
   const project = data?.project as { root?: string; data?: string; media?: string; cache?: string; database?: string; dbMB?: number; videoCount?: number; videoGB?: number; coverCount?: number } | undefined
+  const videoGB = Number(project?.videoGB || data?.stats?.diskGB || 0)
+  const coverCount = project?.coverCount ?? Math.max(0, Number(data?.stats?.total || 0) - Number(data?.stats?.coverMissing || 0))
   const metrics = data?.metrics as { total?: number; avgMs?: number; maxMs?: number; maxPath?: string; uptime?: number; slow?: Array<{ path?: string; ms?: number }>; clientErrors?: Array<{ t?: string; msg?: string }> } | undefined
   const logs = (data?.log as Array<{ time?: string; kind?: string; message?: string }> | undefined) || []
 
@@ -174,8 +176,8 @@ export function SettingsPage() {
         </div>
         <div className="mt-3 grid grid-cols-3 gap-2">
           <MiniStat label="视频" value={formatCount(project?.videoCount || 0)} />
-          <MiniStat label="占用" value={`${Number(project?.videoGB || 0).toFixed(1)} GB`} />
-          <MiniStat label="封面" value={formatCount(project?.coverCount || 0)} />
+          <MiniStat label="占用" value={`${videoGB.toFixed(1)} GB`} />
+          <MiniStat label="封面" value={formatCount(coverCount)} />
         </div>
         <div className="mt-3 flex flex-wrap gap-1.5">
           <Button size="sm" variant="outline" onClick={openProject} disabled={busy === 'open'}><ExternalLink className="size-3.5" /> 打开项目文件夹</Button>

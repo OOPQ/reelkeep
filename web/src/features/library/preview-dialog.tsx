@@ -108,15 +108,16 @@ export function PreviewDialog({ rows, token, autoplay = false, media, onClose, o
     if (!pendingSnap) return
     const job = (snapshotJobsQuery.data?.items || []).find(item => item.id === pendingSnap.id)
     if (!job) return
+    const toastId = `snapshot-${token}`
     if (job.status === 'done') {
-      toast.success('快照已生成')
+      toast.success('快照已生成', { id: toastId })
       qc.invalidateQueries({ queryKey: ['snapshots', token] })
       setPendingSnap(null)
-    setAccelerating(false)
+      setAccelerating(false)
     } else if (job.status === 'failed') {
-      toast.error(job.error || '快照生成失败')
+      toast.error(job.error || '快照生成失败', { id: toastId })
       setPendingSnap(null)
-    setAccelerating(false)
+      setAccelerating(false)
     }
   }, [snapshotJobsQuery.data, pendingSnap, qc, token])
   const collectionsQuery = useQuery<{ items: Array<{ id: number; name: string; color: string; has: boolean }> }>({
@@ -288,20 +289,24 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
   const takeSnapshot = async () => {
     if (!canPlay || busySnap || pendingSnap) return
     setBusySnap(true)
+    const toastId = `snapshot-${row.token}`
     try {
-      const time = videoRef.current?.currentTime || 0
+      const raw = videoRef.current?.currentTime || 0
+      const duration = videoRef.current?.duration || 0
+      // 正好停在片尾时 ffmpeg 抽不到帧，往前让一点
+      const time = duration > 0 ? Math.min(raw, Math.max(0, duration - 0.3)) : raw
       const r = await post<{ ok: boolean; error?: string; time?: number; pending?: boolean; id?: string; name?: string }>('/api/snapshot', { token: row.token, time })
       if (!r.ok) throw new Error(r.error || '快照失败')
       if (r.pending && r.id && r.name) {
         setPendingSnap({ id: r.id, name: r.name })
-        toast.success(`快照生成中${r.time != null ? ` · ${formatTime(r.time)}` : ''}`)
+        toast.success(`快照生成中${r.time != null ? ` · ${formatTime(r.time)}` : ''}`, { id: toastId })
         return
       }
-      toast.success(`快照已保存${r.time != null ? ` · ${formatTime(r.time)}` : ''}`)
+      toast.success(`快照已保存${r.time != null ? ` · ${formatTime(r.time)}` : ''}`, { id: toastId })
       qc.invalidateQueries({ queryKey: ['snapshots', row.token] })
       bumpCoverRev()
     } catch (e) {
-      toast.error((e as Error).message)
+      toast.error((e as Error).message, { id: toastId })
     } finally {
       setBusySnap(false)
     }

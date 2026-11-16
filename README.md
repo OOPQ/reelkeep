@@ -150,7 +150,7 @@ qise 这类站点，高清/会员内容需要登录态。Reelkeep **不代填账
 `reelkeep-desktop.exe` 是 Wails v3 + WebView2 的原生窗口，内部仍然启动同一个 loopback HTTP 服务：
 
 - 窗口直接加载 `http://127.0.0.1:<port>/`；**没有第二套绑定/transport**，前端与 CLI 完全同一份
-- 窗口标题带项目名；Windows 原生标题栏使用深色主题，跟界面一致（无边框自绘标题栏因高 DPI 绘制问题暂缓）
+- 无边框自绘标题栏：左侧项目名（点击切换），右侧最小化/最大化/关闭；深色风格与界面一致
 - `CGO_ENABLED=0` 可构建；WebView2 运行时 Win10/11 一般已自带
 - 已有服务在跑时，双击桌面版只开窗口，不会重复启动服务
 - 构建：`.\scripts\build.ps1`（同时产出 `reelkeep.exe` 与 `reelkeep-desktop.exe`）

@@ -193,3 +193,10 @@ video::-webkit-media-controls-panel {
   height: 100vh;
   background: #000;
 }
+
+/* Sonner 在部分环境把 toast 设为 pointer-events:none，导致关闭按钮点不到 */
+[data-sonner-toast] { pointer-events: auto !important; }
+
+/* 桌面壳自绘标题栏：整条可拖动，按钮区域不拖动 */
+.app-drag { -webkit-app-region: drag; app-region: drag; }
+.app-no-drag { -webkit-app-region: no-drag; app-region: no-drag; }

@@ -58,12 +58,15 @@ func main() {
 		Height:           820,
 		MinWidth:         960,
 		MinHeight:        600,
+		Frameless:        true,
 		BackgroundColour: application.NewRGB(8, 12, 17),
 		Windows: application.WindowsWindow{
-			Theme: application.Dark,
+			Theme:                  application.Dark,
+			NonClientRegionSupport: true,
 		},
 		URL: inst.URL,
 	})
+	inst.Server.SetWindowController(winController{window})
 	inst.Server.SetFolderPicker(func() (string, error) {
 		return app.Dialog.OpenFile().
 			CanChooseDirectories(true).
@@ -82,4 +85,14 @@ func main() {
 	if err := app.Run(); err != nil {
 		logf.Printf("窗口退出: %v", err)
 	}
+}
+
+// winController 适配 Wails 窗口（Minimise 返回 Window，接口要求无返回值）。
+type winController struct{ w *application.WebviewWindow }
+
+func (c winController) Minimise()       { c.w.Minimise() }
+func (c winController) ToggleMaximise() { c.w.ToggleMaximise() }
+func (c winController) Close()          { c.w.Close() }
+func (c winController) IsMaximised() bool {
+	return c.w.IsMaximised()
 }

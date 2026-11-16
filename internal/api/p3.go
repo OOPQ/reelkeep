@@ -23,6 +23,7 @@ import (
 	"github.com/OOPQ/reelkeep/internal/cover"
 	"github.com/OOPQ/reelkeep/internal/jsonx"
 	"github.com/OOPQ/reelkeep/internal/model"
+	"github.com/OOPQ/reelkeep/internal/proc"
 	"github.com/OOPQ/reelkeep/internal/source"
 )
 
@@ -413,7 +414,9 @@ func (s *Server) makeLocalCover(video, dest string) bool {
 	defer cancel()
 	args := []string{"-y", "-nostdin", "-loglevel", "error", "-ss", "1", "-i", video,
 		"-frames:v", "1", "-q:v", "3", dest}
-	if err := exec.CommandContext(ctx, ff, args...).Run(); err != nil {
+	cmd := exec.CommandContext(ctx, ff, args...)
+	proc.HideWindow(cmd)
+	if err := cmd.Run(); err != nil {
 		return false
 	}
 	st, err := os.Stat(dest)
@@ -613,6 +616,7 @@ func (s *Server) runSnapshot(ff string, job *snapshotJob, input, out string) {
 		"-frames:v", "1", "-q:v", "3", "-y", out}
 	var stderr bytes.Buffer
 	cmd := exec.CommandContext(ctx, ff, args...)
+	proc.HideWindow(cmd)
 	cmd.Stderr = &stderr
 	err := cmd.Run()
 	s.snapMu.Lock()

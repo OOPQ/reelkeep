@@ -26,6 +26,7 @@ import { IconButton } from '@/components/ui/icon-button'
 import { Button } from '@/components/ui/button'
 import { ShortcutHelp } from '@/components/shortcut-help'
 import { CommandPalette } from '@/components/command-palette'
+import { TitleBar } from '@/components/title-bar'
 import { ProjectSwitcher } from '@/components/project-switcher'
 
 const NAV = [
@@ -333,6 +334,7 @@ export function AppShell() {
 
   return (
     <div className="flex h-screen flex-col overflow-hidden">
+      <TitleBar />
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <Sidebar />
         <ShortcutHelp open={helpOpen} onOpenChange={setHelpOpen} />

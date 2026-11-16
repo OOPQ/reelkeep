@@ -140,7 +140,8 @@ type DownloadResolver interface { Resolve(ctx, r) (DownloadSpec, error) }
   - 浏览器：选空闲端口启动新实例，返回 URL，前端跳转
 - `boot.Start` 的单实例判断按项目路径比较：同项目复用，不同项目自动换端口并行
 - 每个实例独立 store / 下载器 / 端口；关闭窗口只停自己的实例
-- 桌面窗口：原生深色标题栏 + 项目名；无边框自绘标题栏在 2x DPI 下右侧绘制异常，暂缓
+- 桌面窗口：无边框自绘标题栏（`app-region: drag` + `NonClientRegionSupport`），左侧项目名/切换，右侧窗口按钮；深色主题
+- 子进程（ffmpeg）用 `CREATE_NO_WINDOW` 启动，GUI 壳里不闪控制台
 
 ## 链接抓取（P2）
 

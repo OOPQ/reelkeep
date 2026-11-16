@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/OOPQ/reelkeep/internal/proc"
 	"github.com/OOPQ/reelkeep/internal/source"
 )
 
@@ -223,6 +224,7 @@ func (m *Manager) hlsOnce(ctx context.Context, t *Task, ff, part string) error {
 		"-movflags", "+faststart", "-f", "mp4", part)
 
 	cmd := exec.CommandContext(ctx, ff, args...)
+	proc.HideWindow(cmd)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	if err := cmd.Start(); err != nil {

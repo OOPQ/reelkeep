@@ -6,6 +6,7 @@ import { ConfirmDialog } from '@/components/confirm-dialog'
 import { useUiStore } from '@/store/ui'
 import { AppShell, PlaceholderPage } from '@/components/app-shell'
 import { LibraryPage } from '@/features/library/library-page'
+import { HistoryPage } from '@/features/history/history-page'
 import { QueuePage } from '@/features/queue/queue-page'
 import { CollectionsPage } from '@/features/collections/collections-page'
 import { SettingsPage } from '@/features/settings/settings-page'
@@ -33,6 +34,7 @@ export default function App() {
         <BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/$/, '') || undefined}>
           <Routes>
             <Route element={<AppShell />}>
+              <Route path="history" element={<HistoryPage />} />
               <Route index element={<LibraryPage />} />
               <Route path="queue" element={<QueuePage />} />
               <Route path="collections" element={<CollectionsPage />} />

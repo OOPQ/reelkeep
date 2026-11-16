@@ -94,11 +94,13 @@ type Settings struct {
 	Concurrent int    `json:"concurrent"`
 	FFmpegPath string `json:"ffmpegPath"`
 	QiseCookie string `json:"qiseCookie"`
+	RetryCount int    `json:"retryCount"`
+	RetryDelay int    `json:"retryDelay"`
 }
 
 // LoadSettings 读配置；缺省值与原版一致。
 func LoadSettings(p Paths) Settings {
-	s := Settings{Concurrent: 8}
+	s := Settings{Concurrent: 8, RetryCount: 4, RetryDelay: 1}
 	b, err := os.ReadFile(filepath.Join(p.DataDir, "config.json"))
 	if err != nil {
 		return s
@@ -106,6 +108,12 @@ func LoadSettings(p Paths) Settings {
 	_ = jsonx.Unmarshal(b, &s)
 	if s.Concurrent <= 0 {
 		s.Concurrent = 8
+	}
+	if s.RetryCount <= 0 {
+		s.RetryCount = 4
+	}
+	if s.RetryDelay <= 0 {
+		s.RetryDelay = 1
 	}
 	return s
 }
@@ -118,6 +126,8 @@ func SaveSettings(p Paths, s Settings) error {
 	out := map[string]any{
 		"proxy":      s.Proxy,
 		"concurrent": s.Concurrent,
+		"retryCount": s.RetryCount,
+		"retryDelay": s.RetryDelay,
 	}
 	if s.FFmpegPath != "" {
 		out["ffmpegPath"] = s.FFmpegPath

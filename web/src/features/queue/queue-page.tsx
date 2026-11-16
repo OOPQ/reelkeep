@@ -1,5 +1,6 @@
 import * as React from 'react'
 import { useQueryClient } from '@tanstack/react-query'
+import { useSearchParams } from 'react-router-dom'
 import {
   Ban,
   Check,
@@ -35,17 +36,30 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { PreviewDialog } from '@/features/library/preview-dialog'
 
 type Tab = 'active' | 'done' | 'failed' | 'cancelled'
-type DItem = { token: string; state: string; bytes: number; error?: string; history?: boolean; addedAt?: string }
+type DItem = { token: string; state: string; bytes: number; speed?: number; error?: string; history?: boolean; addedAt?: string }
 
 const ACTIVE = new Set(['downloading', 'queued', 'paused'])
+
+const formatSpeed = (speed?: number) => {
+  if (!speed || speed <= 0) return ''
+  const mb = speed / 1048576
+  return mb < 0.01 ? '<0.01' : mb.toFixed(2)
+}
 
 export function QueuePage() {
   const { data, isLoading, isFetching, refetch } = useAppState(3_000)
   const qc = useQueryClient()
   const actions = useLibraryActions()
-  const [tab, setTab] = React.useState<Tab>('active')
+  const [searchParams] = useSearchParams()
+  const tabParam = searchParams.get('tab')
+  const [tab, setTab] = React.useState<Tab>((tabParam as Tab) || 'active')
   const openPreview = useUiStore(s => s.openPreview)
-  const userPicked = React.useRef(false)
+  const userPicked = React.useRef(Boolean(tabParam))
+  React.useEffect(() => {
+    if (!tabParam) return
+    userPicked.current = true
+    setTab(tabParam as Tab)
+  }, [tabParam])
   const previewToken = useUiStore(s => s.previewToken)
   const previewAutoplay = useUiStore(s => s.previewAutoplay)
   const closePreview = useUiStore(s => s.closePreview)
@@ -112,6 +126,15 @@ export function QueuePage() {
     }
   }
   const retryFailed = () => { unlockAudio(); run(() => post('/api/download', { tokens: failedTokens, status: 'failed' }), '已重新加入失败条目') }
+  const retryItem = (token: string) => {
+    unlockAudio()
+    run(async () => {
+      const r = await post<{ ok: boolean; error?: string }>('/api/download', { tokens: [token], status: 'failed' })
+      if (!r.ok) throw new Error(r.error || '重试失败')
+      userPicked.current = true
+      setTab('active')
+    }, '已重新加入下载')
+  }
   const setConcurrent = (value: string) => run(() => post('/api/config', { concurrent: Number(value) }), `并发数已设为 ${value}`)
 
   const pauseItem = (token: string) => run(() => post('/api/download/pause', { on: true, tokens: [token] }), '已暂停')
@@ -130,6 +153,10 @@ export function QueuePage() {
 
   const activeCount = groups.active.length
   const paused = download?.paused || false
+  const runnableCount = items.filter(i => i.state === 'downloading' || i.state === 'queued').length
+  const pausedCount = items.filter(i => i.state === 'paused').length
+  const canPauseAll = runnableCount > 0 && !paused
+  const canResumeAll = paused || pausedCount > 0
 
   return (
     <div className="space-y-3 p-4">
@@ -143,13 +170,13 @@ export function QueuePage() {
             <div className="text-[9.5px] text-[color:var(--subtle)]">
               {download?.done || 0}/{download?.total || 0} 完成
               {download?.failed ? ` · ${download.failed} 失败` : ''}
-              {download?.speed ? ` · ${download.speed.toFixed(2)} MB/s` : ''}
+              {download?.speed ? ` · ${formatSpeed(download.speed)} MB/s` : ''}
             </div>
           </div>
         </div>
         <div className="ml-auto flex flex-wrap items-center gap-1.5">
-          <Button size="sm" variant="outline" disabled={!activeCount || paused} onClick={pauseAll}><Pause className="size-3.5" /> 全部暂停</Button>
-          <Button size="sm" variant="outline" disabled={!paused} onClick={resumeAll}><Play className="size-3.5" /> 继续</Button>
+          <Button size="sm" variant="outline" disabled={!canPauseAll} onClick={pauseAll}><Pause className="size-3.5" /> 全部暂停</Button>
+          <Button size="sm" variant="outline" disabled={!canResumeAll} onClick={resumeAll}><Play className="size-3.5" /> 全部继续</Button>
           <Button size="sm" variant="ghost" disabled={!activeCount} onClick={cancelAll}><Ban className="size-3.5" /> 全部取消</Button>
           <Button size="sm" variant="ghost" disabled={!groups.done.length} onClick={clearDone}><Trash2 className="size-3.5" /> 清理已完成</Button>
           <Button size="sm" variant="ghost" disabled={!failedTokens.length} onClick={retryFailed}><RotateCcw className="size-3.5" /> 重试失败</Button>
@@ -173,7 +200,6 @@ export function QueuePage() {
             <TabsTrigger value="active">进行中 <span className="rounded-full border border-[color:var(--border)] px-1.5 text-[8.5px]">{groups.active.length}</span></TabsTrigger>
             <TabsTrigger value="done">已完成 <span className="rounded-full border border-[color:var(--border)] px-1.5 text-[8.5px]">{groups.done.length}</span></TabsTrigger>
             <TabsTrigger value="failed">失败 <span className="rounded-full border border-[color:var(--border)] px-1.5 text-[8.5px]">{groups.failed.length}</span></TabsTrigger>
-            <TabsTrigger value="cancelled">已取消 <span className="rounded-full border border-[color:var(--border)] px-1.5 text-[8.5px]">{groups.cancelled.length}</span></TabsTrigger>
           </TabsList>
         </Tabs>
         <span className="text-[9.5px] text-[color:var(--subtle)]">
@@ -195,9 +221,9 @@ export function QueuePage() {
         ) : null}
 
         {queueGroups.map(([date, groupItems]) => (
-          <details key={date} open className="group overflow-hidden rounded-[var(--radius-card)] border border-[color:var(--border)] bg-[color:var(--surface)]">
+          <details key={date} open className="group/queue overflow-hidden rounded-[var(--radius-card)] border border-[color:var(--border)] bg-[color:var(--surface)]">
             <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-[10.5px] text-[color:var(--muted)] [&::-webkit-details-marker]:hidden">
-              <ChevronDown className="size-3.5 -rotate-90 text-[color:var(--subtle)] transition-transform group-open:rotate-0" />
+              <ChevronDown className="size-3.5 -rotate-90 text-[color:var(--subtle)] transition-transform group-open/queue:rotate-0" />
               <span className="font-medium text-[color:var(--foreground)]">{date}</span>
               <span className="text-[color:var(--subtle)]">{groupItems.length} 条</span>
               <span className="ml-auto text-[9.5px] text-[color:var(--subtle)]">{formatBytes(groupItems.reduce((sum, item) => sum + (Number(item.bytes) || 0), 0))}</span>
@@ -215,22 +241,28 @@ export function QueuePage() {
               <button
                 type="button"
                 onClick={() => open(row, item.token)}
-                className="relative block shrink-0 overflow-hidden rounded-lg"
-                aria-label="打开预览"
+                className="group/cover relative block shrink-0 overflow-hidden rounded-lg"
+                aria-label={row?.file_name ? '播放' : '预览'}
               >
-                <CoverImage token={item.token} className="h-[72px] w-[54px]" alt={row ? rowTitle(row) : item.token} />
-                {row?.file_name ? (
-                  <span className="absolute inset-x-0 bottom-0 grid h-5 place-items-center bg-black/55 text-white backdrop-blur">
+                <CoverImage
+                  token={item.token}
+                  className="h-[72px] w-[54px]"
+                  imgClassName="transition-transform duration-300 group-hover/cover:scale-105"
+                  alt={row ? rowTitle(row) : item.token}
+                />
+                <span className="pointer-events-none absolute inset-0 grid place-items-center bg-black/35 opacity-0 transition-opacity duration-200 group-hover/cover:opacity-100">
+                  <span className="flex items-center gap-1 rounded-full bg-black/70 px-2 py-1 text-[9px] font-medium text-white shadow">
                     <Play className="size-3 fill-current" />
+                    {row?.file_name ? '播放' : '预览'}
                   </span>
-                ) : null}
+                </span>
               </button>
 
               <div className="min-w-0 flex-1">
                 <div className="flex min-w-0 items-center gap-2">
                   <div className="truncate text-[11.5px] font-medium">{row ? rowTitle(row) : item.token}</div>
                   <StatusBadge status={item.state} />
-                  {item.state === 'downloading' ? <span className="text-[9px] text-[color:var(--primary-2)]">{download?.speed ? `${download.speed.toFixed(2)} MB/s` : '下载中'}</span> : null}
+                  {item.state === 'downloading' ? <span className="text-[9px] text-[color:var(--primary-2)]">{formatSpeed(item.speed ?? download?.speed) ? `${formatSpeed(item.speed ?? download?.speed)} MB/s` : '下载中'}</span> : null}
                 </div>
                 <div className="mt-0.5 truncate text-[9.5px] text-[color:var(--subtle)]">
                   <span className="ui-mono">{item.token}</span>
@@ -252,6 +284,9 @@ export function QueuePage() {
               <div className="flex shrink-0 items-center gap-1">
                 {canPause ? <IconButton label="暂停" size="sm" onClick={() => pauseItem(item.token)}><Pause className="size-3.5" /></IconButton> : null}
                 {canResume ? <IconButton label="继续" size="sm" onClick={() => resumeItem(item.token)}><Play className="size-3.5" /></IconButton> : null}
+                {item.state === 'failed' || item.state === 'dead' ? (
+                  <IconButton label="重试" size="sm" onClick={() => retryItem(item.token)}><RotateCcw className="size-3.5" /></IconButton>
+                ) : null}
                 {canCancel ? <IconButton label="取消" size="sm" tone="danger" onClick={() => cancelItem(item.token)}><Ban className="size-3.5" /></IconButton> : null}
                 <IconButton label="定位文件" size="sm" disabled={!row?.file_name} onClick={() => row && actions.reveal(row.token)}>
                   <FolderOpen className="size-3.5" />

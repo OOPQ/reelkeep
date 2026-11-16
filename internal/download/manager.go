@@ -19,6 +19,7 @@ import (
 	"github.com/OOPQ/reelkeep/internal/config"
 	"github.com/OOPQ/reelkeep/internal/jsonx"
 	"github.com/OOPQ/reelkeep/internal/model"
+	"github.com/OOPQ/reelkeep/internal/netproxy"
 	"github.com/OOPQ/reelkeep/internal/source"
 	"github.com/OOPQ/reelkeep/internal/store"
 )
@@ -28,6 +29,8 @@ type Settings struct {
 	Concurrent int
 	FFmpeg     string
 	Proxy      string
+	RetryCount int
+	RetryDelay time.Duration
 }
 
 // Manager 管理下载队列。
@@ -56,6 +59,7 @@ type Manager struct {
 type Task struct {
 	M         model.DownloadTask
 	cancel    context.CancelFunc
+	running   bool
 	speed     int64
 	lastBytes int64
 	lastAt    time.Time
@@ -73,11 +77,7 @@ func NewManager(paths config.Paths, st *store.Store, reg *source.Registry, cooki
 	m.client = &http.Client{
 		Transport: &http.Transport{
 			Proxy: func(req *http.Request) (*url.URL, error) {
-				p := strings.TrimSpace(m.getSettings().Proxy)
-				if p == "" {
-					return nil, nil
-				}
-				return url.Parse(p)
+				return netproxy.RequestProxy(strings.TrimSpace(m.getSettings().Proxy), req)
 			},
 			DialContext:           dialAny,
 			ResponseHeaderTimeout: 30 * time.Second,
@@ -208,12 +208,16 @@ func (m *Manager) dispatch() {
 		if m.running >= conc {
 			break
 		}
+		if t.running {
+			continue // 暂停后立刻继续时，旧 goroutine 可能还在退出
+		}
 		src := sourceKey(t.M.Source)
 		if m.active[src] >= perSourceLimit() {
 			continue
 		}
 		m.running++
 		m.active[src]++
+		t.running = true
 		t.M.State = "downloading"
 		t.M.StartedAt = now()
 		_ = m.st.SaveTask(t.M)
@@ -230,6 +234,7 @@ func (m *Manager) run(ctx context.Context, t *Task) {
 	defer func() {
 		src := sourceKey(t.M.Source)
 		m.mu.Lock()
+		t.running = false
 		m.running--
 		m.active[src]--
 		if m.active[src] <= 0 {
@@ -245,18 +250,19 @@ func (m *Manager) run(ctx context.Context, t *Task) {
 	} else {
 		err = m.runHTTP(ctx, t)
 	}
+	m.mu.Lock()
+	state := t.M.State
+	m.mu.Unlock()
+	if state == "cancelled" {
+		// 文件已关闭，这里再删 .part，避免 Windows 上删不掉正在写的文件
+		_, part := m.pathsFor(t)
+		_ = os.Remove(part)
+	}
+	// 暂停/取消/立刻继续后，旧 goroutine 不再写终态
+	if state != "downloading" {
+		return
+	}
 	if err != nil {
-		m.mu.Lock()
-		state := t.M.State
-		m.mu.Unlock()
-		if state == "cancelled" {
-			// 文件已关闭，这里再删 .part，避免 Windows 上删不掉正在写的文件
-			_, part := m.pathsFor(t)
-			_ = os.Remove(part)
-		}
-		if errors.Is(err, context.Canceled) || state == "paused" || state == "cancelled" {
-			return // 暂停/取消已经写好了状态
-		}
 		m.finish(t, "failed", err)
 		return
 	}
@@ -376,6 +382,10 @@ func (m *Manager) Pause(on bool, tokens []string) int {
 		return n
 	}
 	set := tokenSet(tokens)
+	if !on && m.paused {
+		// 全部暂停后单条继续：解除全局闸门，只把这一条放回队列
+		m.paused = false
+	}
 	for _, t := range m.tasks {
 		if !set[t.M.Token] {
 			continue

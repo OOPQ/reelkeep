@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -80,6 +81,8 @@ func (s *Server) handleState(w http.ResponseWriter, r *http.Request) {
 			"concurrent": cfg.Concurrent,
 			"ffmpegPath": cfg.FFmpegPath,
 			"qiseCookie": cfg.QiseCookie,
+			"retryCount": cfg.RetryCount,
+			"retryDelay": cfg.RetryDelay,
 		},
 		"sources": s.reg.Enabled(),
 		"media": map[string]any{
@@ -170,7 +173,62 @@ func (s *Server) handleCover(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	http.Error(w, "", http.StatusNotFound)
+	// 抓取只存了 cover_url；第一次打开时按需下载并缓存，默认走系统代理。
+	row, ok := s.rowByToken(tk)
+	if !ok || row.CoverURL == "" {
+		http.Error(w, "", http.StatusNotFound)
+		return
+	}
+	u, err := url.Parse(row.CoverURL)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") {
+		http.Error(w, "", http.StatusNotFound)
+		return
+	}
+	if _, err := os.Stat(s.coverPath(tk) + ".missing"); err == nil {
+		http.Redirect(w, r, row.CoverURL, http.StatusFound)
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+	defer cancel()
+	b, err := s.fetchImage(ctx, row.CoverURL)
+	if err != nil || len(b) <= 1024 {
+		http.Redirect(w, r, row.CoverURL, http.StatusFound)
+		return
+	}
+	if err := os.MkdirAll(s.paths.Covers, 0o755); err == nil {
+		if tmp, terr := os.CreateTemp(s.paths.Covers, "cover-*.tmp"); terr == nil {
+			_, werr := tmp.Write(b)
+			_ = tmp.Close()
+			if werr == nil {
+				_ = os.Rename(tmp.Name(), s.coverPath(tk))
+			} else {
+				_ = os.Remove(tmp.Name())
+			}
+		}
+	}
+	s.makeThumb(tk, s.coverPath(tk))
+	if !full {
+		if tb, terr := os.ReadFile(s.thumbPath(tk)); terr == nil {
+			w.Header().Set("Content-Type", "image/jpeg")
+			w.Header().Set("Cache-Control", "no-store")
+			_, _ = w.Write(tb)
+			return
+		}
+	}
+	w.Header().Set("Content-Type", http.DetectContentType(b))
+	w.Header().Set("Cache-Control", "no-store")
+	_, _ = w.Write(b)
+}
+
+func (s *Server) rowByToken(tk string) (model.Row, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for i := range s.rows {
+		if s.rows[i].Token == tk {
+			return s.rows[i], true
+		}
+	}
+	return model.Row{}, false
 }
 
 func (s *Server) handleLogo(w http.ResponseWriter, r *http.Request) {
@@ -733,6 +791,8 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 		Concurrent *int    `json:"concurrent"`
 		FFmpegPath *string `json:"ffmpegPath"`
 		QiseCookie *string `json:"qiseCookie"`
+		RetryCount *int    `json:"retryCount"`
+		RetryDelay *int    `json:"retryDelay"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "invalid json"})
@@ -779,6 +839,20 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 	if body.QiseCookie != nil {
 		cfg.QiseCookie = strings.TrimSpace(*body.QiseCookie)
 	}
+	if body.RetryCount != nil {
+		if *body.RetryCount < 1 || *body.RetryCount > 8 {
+			bad(w, "重试次数必须在 1–8 之间")
+			return
+		}
+		cfg.RetryCount = *body.RetryCount
+	}
+	if body.RetryDelay != nil {
+		if *body.RetryDelay < 1 || *body.RetryDelay > 30 {
+			bad(w, "重试间隔必须在 1–30 秒之间")
+			return
+		}
+		cfg.RetryDelay = *body.RetryDelay
+	}
 	if err := config.SaveSettings(s.paths, cfg); err != nil {
 		bad(w, err.Error())
 		return
@@ -796,6 +870,8 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 			Concurrent: cfg.Concurrent,
 			FFmpeg:     cfg.FFmpegPath,
 			Proxy:      cfg.Proxy,
+			RetryCount: cfg.RetryCount,
+			RetryDelay: time.Duration(cfg.RetryDelay) * time.Second,
 		})
 	}
 	s.logbuf.Add("config", fmt.Sprintf("代理=%s 并发=%d", cfg.Proxy, cfg.Concurrent))

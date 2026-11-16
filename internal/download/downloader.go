@@ -39,7 +39,19 @@ func (m *Manager) runHTTP(ctx context.Context, t *Task) error {
 	m.mu.Unlock()
 
 	refreshed := false
-	for attempt := 0; attempt < 4; attempt++ {
+	settings := m.getSettings()
+	attempts := settings.RetryCount
+	if attempts <= 0 {
+		attempts = 4
+	}
+	if attempts > 8 {
+		attempts = 8
+	}
+	delay := settings.RetryDelay
+	if delay <= 0 {
+		delay = time.Second
+	}
+	for attempt := 0; attempt < attempts; attempt++ {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
@@ -56,8 +68,8 @@ func (m *Manager) runHTTP(ctx context.Context, t *Task) error {
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
-			if attempt < 2 {
-				sleepCtx(ctx, time.Duration(attempt+1)*time.Second)
+			if attempt < attempts-1 {
+				sleepCtx(ctx, retryWait(delay, attempt))
 				continue
 			}
 			return err
@@ -80,14 +92,14 @@ func (m *Manager) runHTTP(ctx context.Context, t *Task) error {
 				offset = 0
 				continue
 			}
-			return errors.New("HTTP 410：地址已失效")
+			return errors.New("retry attempts exhausted")
 		case code == http.StatusForbidden:
 			_ = resp.Body.Close()
 			return errors.New("HTTP 403：源站拒绝（可能需要登录或 Referer）")
 		case code >= 500:
 			_ = resp.Body.Close()
-			if attempt < 2 {
-				sleepCtx(ctx, time.Duration(attempt+1)*time.Second)
+			if attempt < attempts-1 {
+				sleepCtx(ctx, retryWait(delay, attempt))
 				continue
 			}
 			return fmt.Errorf("HTTP %d", code)
@@ -135,16 +147,24 @@ func (m *Manager) runHTTP(ctx context.Context, t *Task) error {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		if attempt < 2 {
+		if attempt < attempts-1 {
 			if st, serr := os.Stat(part); serr == nil {
 				offset = st.Size()
 			}
-			sleepCtx(ctx, time.Duration(attempt+1)*time.Second)
+			sleepCtx(ctx, retryWait(delay, attempt))
 			continue
 		}
 		return err
 	}
 	return errors.New("重试次数用尽")
+}
+
+func retryWait(base time.Duration, attempt int) time.Duration {
+	d := base * time.Duration(attempt+1)
+	if d > 30*time.Second {
+		d = 30 * time.Second
+	}
+	return d
 }
 
 // parseContentRange 解析 "bytes 100-199/1234"。
@@ -234,12 +254,9 @@ func (m *Manager) runHLS(ctx context.Context, t *Task) error {
 	if err := os.MkdirAll(filepath.Dir(final), 0o755); err != nil {
 		return err
 	}
-	ff := strings.TrimSpace(m.getSettings().FFmpeg)
+	ff := proc.FindFFmpeg(strings.TrimSpace(m.getSettings().FFmpeg))
 	if ff == "" {
-		ff, _ = exec.LookPath("ffmpeg")
-	}
-	if ff == "" {
-		return errors.New("HLS 下载需要 ffmpeg：请在「设置 → FFmpeg 路径」里填写，或加入 PATH")
+		return errors.New("HLS 下载需要 ffmpeg：已自动查找 PATH、程序目录和旧项目配置；也可以把 ffmpeg.exe 放到程序目录，或在「设置 → FFmpeg 路径」里填写")
 	}
 	err := m.hlsOnce(ctx, t, ff, part)
 	if err != nil && ctx.Err() == nil && t.M.RefreshOn410 {

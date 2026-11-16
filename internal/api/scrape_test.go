@@ -34,7 +34,7 @@ func TestApplyScrapeMergesWithoutClobberingUserFields(t *testing.T) {
 	}
 	s.deleted["dead"] = model.DeletedToken{Token: "dead"}
 
-	added, updated, skipped, err := s.applyScrape([]model.Row{
+	added, updated, skipped, _, err := s.applyScrape([]model.Row{
 		{Token: "old", Title: "新标题", URL: "https://x/old.mp4", CoverURL: "https://x/old.jpg"},
 		{Token: "gone", Title: "回收站", URL: "https://x/gone.mp4"},
 		{Token: "dead", Title: "已删除", URL: "https://x/dead.mp4"},
@@ -79,7 +79,7 @@ func TestApplyScrapeSkipDeletedFalse(t *testing.T) {
 	s, cleanup := newTestServer(t)
 	defer cleanup()
 	s.deleted["dead"] = model.DeletedToken{Token: "dead"}
-	added, _, skipped, err := s.applyScrape([]model.Row{
+	added, _, skipped, _, err := s.applyScrape([]model.Row{
 		{Token: "dead", Title: "已删除", URL: "https://x/dead.mp4"},
 	}, false)
 	if err != nil || added != 1 || skipped != 0 {

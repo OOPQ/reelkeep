@@ -205,7 +205,7 @@ func cmdSourceTest(args []string) int {
 	file := args[0]
 	fs := flag.NewFlagSet("source test", flag.ContinueOnError)
 	rank := fs.String("rank", "", "榜单 key，默认第一个")
-	pages := fs.String("pages", "1", "页码，逗号分隔")
+	pages := fs.String("pages", "", "页码，逗号分隔；留空=按 limit 自动翻页")
 	limit := fs.Int("limit", 5, "最多输出多少条")
 	fixtureList := fs.String("fixture-list", "", "用本地 HTML 代替列表页")
 	fixtureDetail := fs.String("fixture-detail", "", "用本地 HTML 代替详情页")
@@ -228,7 +228,7 @@ func cmdSourceTest(args []string) int {
 			pageNums = append(pageNums, n)
 		}
 	}
-	if len(pageNums) == 0 {
+	if len(pageNums) == 0 && *fixtureList != "" {
 		pageNums = []int{1}
 	}
 
@@ -239,7 +239,7 @@ func cmdSourceTest(args []string) int {
 			fmt.Fprintln(os.Stderr, "读取 fixture 失败:", err)
 			return 1
 		}
-		ff := &rule.FixtureFetcher{ListURL: p.ListURL(*rank, pageNums[0]), List: listHTML}
+		ff := &rule.FixtureFetcher{ListURL: p.ListURL(*rank, 1), List: listHTML}
 		if *fixtureDetail != "" {
 			ff.Detail, err = os.ReadFile(*fixtureDetail)
 			if err != nil {

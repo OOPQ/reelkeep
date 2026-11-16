@@ -21,7 +21,7 @@ description: Generate and validate a Reelkeep source package (declarative JSON) 
 | 站点有 DRM | ❌ 不做 |
 
 判断方法：`curl.exe -sL --max-time 20 <url>` 看返回里有没有真实数据。
-很多站点（pektino 就是）在 `<script type="application/ld+json">` 里直接给了视频对象，优先用它。
+很多站点（pektino 就是）在 `<script type="application/ld+json">` 里直接给了视频对象，优先用它；但注意 ItemList 可能只列前 10 条（pektino 就是这样），列表页 HTML 卡片才是全量时，应该用 `list.item` + CSS。
 
 ## 工作流
 
@@ -46,6 +46,7 @@ curl.exe -sL --max-time 20 "https://site.example/video/123"      -o detail.html
 - `baseUrl`：站点根地址
 - `hosts`：封面/媒体 CDN 的域名（**不写就会拒绝访问**）
 - `list.url`：`{rank}` `{page}` 占位符
+- `ranks[].path`：可选的 rank 级 URL 模板，覆盖 `list.url`；日榜在根路径、分类页路径不同时用
 - `list.item` + `list.fields`：CSS 选择器，字段在列表项节点内查找
 - `detail.fields`：优先用 `jsonld`（schema.org `VideoObject`），其次 CSS
 - `download`：`kind` 是 `http` 或 `hls`，`url` 用 `{playable}` 或模板
@@ -125,6 +126,8 @@ reelkeep.exe source install .\source.json --overwrite
 5. **CDN 拒绝第三方 Referer**：把域名写进 `download.excludeHeaderHosts`（如 `video.twimg.com`）。
 6. **签名地址会过期**：`onStatus.410.action = "refreshDetail"` 会让下载器遇到 410 先重解详情再重试一次。
 7. **不要一次抓全部页**：先 1 页 3 条验证，再放大。
+8. **先数一数 HTML 条目**：JSON-LD 可能只有前 10 条；如果 HTML 卡片有 50 条，就用 HTML 选择器，而不是 JSON-LD。
+9. **同站多个榜单路径不同**（日榜 `/`、分类 `/category/x`）时，用 `ranks[].path` 覆盖，不要复制多个源包。
 
 ## 交付前自检
 

@@ -23,6 +23,20 @@ import { Dialog, DialogContent } from '@/components/ui/dialog'
 
 type Rank = { key: string; label: string; group?: string }
 
+type RankTestResult = {
+  rank: string
+  label: string
+  ok: boolean
+  count: number
+  listURL?: string
+  listOK?: boolean
+  detailOK?: boolean
+  coverOK?: boolean
+  resolveOK?: boolean
+  mode?: string
+  error?: string
+}
+
 type SourceItem = {
   id: string
   name: string
@@ -68,6 +82,7 @@ export function SourcesPage() {
   const [overwrite, setOverwrite] = React.useState(false)
   const [error, setError] = React.useState('')
   const [busy, setBusy] = React.useState<string | null>(null)
+  const [rankReport, setRankReport] = React.useState<{ id: string; name: string; results: RankTestResult[] } | null>(null)
   const [preview, setPreview] = React.useState<{ id: string; rows: PreviewRow[] } | null>(null)
   const [authFor, setAuthFor] = React.useState<string | null>(null)
   const [cookieDraft, setCookieDraft] = React.useState('')
@@ -193,6 +208,29 @@ export function SourcesPage() {
       setPreview({ id: item.id, rows: r.rows || [] })
       toast.success(`测试通过：抓到 ${r.count ?? r.rows?.length ?? 0} 条`)
       await refresh()
+    } catch (e) {
+      toast.error((e as Error).message)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const testAll = async (item: SourceItem) => {
+    setBusy('testall:' + item.id)
+    try {
+      const r = await post<{
+        ok: boolean
+        error?: string
+        passed?: number
+        total?: number
+        results?: RankTestResult[]
+      }>('/api/sources/test-all', { id: item.id, limit: 1 })
+      if (!r.ok) {
+        toast.error(r.error || '测试失败')
+        return
+      }
+      setRankReport({ id: item.id, name: item.name, results: r.results || [] })
+      toast.success(`榜单测试完成：${r.passed ?? 0}/${r.total ?? r.results?.length ?? 0} 通过`)
     } catch (e) {
       toast.error((e as Error).message)
     } finally {
@@ -483,6 +521,16 @@ export function SourcesPage() {
                 >
                   {busy === 'test:' + item.id ? '测试中…' : '测试'}
                 </Button>
+                {item.ranks.length > 1 ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => void testAll(item)}
+                    disabled={busy !== null || !item.enabled}
+                  >
+                    {busy === 'testall:' + item.id ? '测试中…' : '全部榜单'}
+                  </Button>
+                ) : null}
                 {item.authType ? (
                   <Button size="sm" variant="outline" onClick={() => openAuth(item)} disabled={busy !== null}>
                     <KeyRound className="size-3.5" />
@@ -610,6 +658,35 @@ export function SourcesPage() {
           </Card>
         ))
       )}
+
+      <Dialog open={!!rankReport} onOpenChange={open => { if (!open) setRankReport(null) }}>
+        <DialogContent
+          title={`全部榜单测试 · ${rankReport?.name || ''}`}
+          description="每个榜单抓 1 条验证列表页和详情页；不写台账。"
+          className="w-[min(680px,calc(100vw-40px))]"
+        >
+          <div className="max-h-[60vh] overflow-auto p-3">
+            <div className="mb-2 text-[10px] text-[color:var(--muted)]">
+              通过 {rankReport?.results.filter(r => r.ok).length || 0} / {rankReport?.results.length || 0}
+            </div>
+            {rankReport?.results.map(r => (
+              <div key={r.rank} className="border-b border-[color:var(--border)] py-2 text-[10px] last:border-b-0">
+                <div className="flex items-center gap-2">
+                  <span className="w-48 shrink-0 truncate font-medium" title={`${r.rank} · ${r.label}`}>{r.label || r.rank}</span>
+                  <Badge tone={r.ok ? 'ok' : 'bad'}>{r.ok ? '通过' : '失败'}</Badge>
+                  <span className="text-[9px] text-[color:var(--subtle)]">列表 {r.count} 条</span>
+                  <span className={cn('text-[9px]', r.detailOK ? 'text-[color:var(--success)]' : 'text-[color:var(--danger)]')}>详情 {r.detailOK ? '✓' : '✗'}</span>
+                  <span className={cn('text-[9px]', r.coverOK ? 'text-[color:var(--success)]' : 'text-[color:var(--warning)]')}>封面 {r.coverOK ? '✓' : '✗'}</span>
+                  <span className={cn('text-[9px]', r.resolveOK ? 'text-[color:var(--success)]' : 'text-[color:var(--danger)]')}>解析 {r.resolveOK ? '✓' : '✗'}</span>
+                  {r.mode ? <span className="text-[9px] text-[color:var(--subtle)]">{r.mode}</span> : null}
+                </div>
+                {r.error ? <div className="mt-1 line-clamp-2 text-[9px] text-[color:var(--danger)]" title={r.error}>{r.error}</div> : null}
+                {r.listURL ? <div className="mt-0.5 truncate font-mono text-[8.5px] text-[color:var(--subtle)]" title={r.listURL}>{r.listURL}</div> : null}
+              </div>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!jsonFor} onOpenChange={open => { if (!open) setJsonFor(null) }}>
         <DialogContent

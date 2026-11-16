@@ -34,3 +34,8 @@ Thumbs.db
 
 # 构建备份
 *~
+
+# release staging
+/release-assets/
+/dist-ci/
+/ci101/

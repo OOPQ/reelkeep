@@ -102,6 +102,10 @@ CREATE TABLE IF NOT EXISTS items (
 );
 CREATE INDEX IF NOT EXISTS idx_items_status ON items(status);
 CREATE INDEX IF NOT EXISTS idx_items_fav ON items(fav);
+CREATE INDEX IF NOT EXISTS idx_items_source ON items(source);
+CREATE INDEX IF NOT EXISTS idx_items_first_seen ON items(first_seen);
+CREATE INDEX IF NOT EXISTS idx_items_last_play ON items(last_play);
+CREATE INDEX IF NOT EXISTS idx_items_rating ON items(rating);
 CREATE TABLE IF NOT EXISTS deleted_tokens (
   token      TEXT PRIMARY KEY,
   source     TEXT DEFAULT '',

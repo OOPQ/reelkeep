@@ -4,6 +4,7 @@ import {
   CircleHelp,
   Download,
   FolderOpen,
+  History,
   Layers,
   Library,
   PanelLeftClose,
@@ -19,6 +20,8 @@ import {
 import { useQueryClient } from '@tanstack/react-query'
 import { useAppState } from '@/features/use-app-state'
 import { useUiStore } from '@/store/ui'
+import { useLibraryActions } from '@/features/library/use-library-actions'
+import { PreviewDialog } from '@/features/library/preview-dialog'
 import { playDownloadChime } from '@/lib/sound'
 import { cn, formatCount, projectNameFromRoot } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -31,6 +34,7 @@ import { ProjectSwitcher } from '@/components/project-switcher'
 
 const NAV = [
   { to: '/', label: '媒体库', icon: Library, key: 'library' },
+  { to: '/history', label: '历史', icon: History, key: 'history' },
   { to: '/queue', label: '下载队列', icon: Download, key: 'queue' },
   { to: '/collections', label: '合集', icon: Layers, key: 'collections' },
   { to: '/bin', label: '回收站', icon: Trash2, key: 'bin' },
@@ -40,6 +44,7 @@ const NAV = [
 
 const PAGE_META: Record<string, { kicker: string; title: string }> = {
   '/': { kicker: 'LIBRARY', title: '媒体库' },
+  '/history': { kicker: 'HISTORY', title: '浏览历史' },
   '/queue': { kicker: 'QUEUE', title: '下载队列' },
   '/collections': { kicker: 'COLLECTIONS', title: '合集' },
   '/bin': { kicker: 'RECYCLE', title: '回收站' },
@@ -239,20 +244,37 @@ export function AppShell() {
   const setTheme = useUiStore(s => s.setTheme)
   const { data } = useAppState()
   const navigate = useNavigate()
+  const actions = useLibraryActions()
+  const previewToken = useUiStore(s => s.previewToken)
+  const previewAutoplay = useUiStore(s => s.previewAutoplay)
+  const openPreview = useUiStore(s => s.openPreview)
+  const closePreview = useUiStore(s => s.closePreview)
+  const previewRows = React.useMemo(
+    () => (data?.rows || []).filter(r => r.status !== 'recycled'),
+    [data?.rows],
+  )
+  const previewDownload = previewToken
+    ? (data?.download?.items || []).find(i => i.token === previewToken)
+    : undefined
   const wasRunning = React.useRef(false)
   const lastResult = React.useRef('')
   const downloadWasRunning = React.useRef(false)
   const lastDownloadResult = React.useRef('')
+  const lastDownloadCounts = React.useRef({ done: 0, failed: 0 })
 
   React.useEffect(() => {
     const d = data?.download
     if (!d) return
     if (d.running) {
       downloadWasRunning.current = true
+      lastDownloadCounts.current = { done: d.done || 0, failed: d.failed || 0 }
       return
     }
     if (!downloadWasRunning.current) return
     downloadWasRunning.current = false
+    // 单条暂停/取消也会让 running 变 false；只有完成或失败数量真的增加才提示
+    const prev = lastDownloadCounts.current
+    if ((d.done || 0) <= prev.done && (d.failed || 0) <= prev.failed) return
     const key = `${d.phase || ''}|${d.done || 0}|${d.failed || 0}|${d.bytes || 0}`
     if (key === lastDownloadResult.current) return
     lastDownloadResult.current = key
@@ -264,7 +286,7 @@ export function AppShell() {
       toast.error('下载失败', {
         description: d.errors?.[0]?.error || '下载进程异常结束',
         duration: 8000,
-        action: { label: '查看队列', onClick: () => navigate('/queue') },
+        action: { label: '查看队列', onClick: () => navigate('/queue?tab=failed') },
       })
       return
     }
@@ -272,7 +294,7 @@ export function AppShell() {
     toast.success(failed > 0 ? '下载结束' : '下载完成', {
       description: `${done || d.done || 0} 完成${failed ? ` · ${failed} 失败` : ''}`,
       duration: 7000,
-      action: { label: '查看队列', onClick: () => navigate('/queue') },
+      action: { label: '查看已完成', onClick: () => navigate('/queue?tab=done') },
     })
   }, [data?.download, data?.download?.running, data?.download?.done, data?.download?.failed, data?.download?.phase, data?.download?.items])
   const [helpOpen, setHelpOpen] = React.useState(false)
@@ -346,6 +368,16 @@ export function AppShell() {
           </main>
         </div>
       </div>
+      <PreviewDialog
+        rows={previewRows}
+        token={previewToken}
+        autoplay={previewAutoplay}
+        media={data?.media}
+        downloadItem={previewDownload}
+        onClose={closePreview}
+        onNavigate={openPreview}
+        onFav={row => actions.fav([row.token], row.fav !== '1')}
+      />
     </div>
   )
 }

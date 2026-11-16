@@ -28,7 +28,7 @@
 | `url` | 列表页模板，占位符 `{rank}` `{page}` `{baseUrl}` |
 | `pageStart` | 起始页，默认 1（仅元数据，实际页码由调用方传入） |
 | `pageSize` | 单页最多取多少条，默认 24 |
-| `ranks` | 榜单数组：`{key,label,group?,path?}` |
+| `ranks` | 榜单数组：`{key,label,group?,path?}`；`path` 是该榜单的 URL 模板，覆盖 `list.url` |
 | `item` | HTML 列表项 CSS 选择器 |
 | `jsonPath` | JSON 列表项的 RFC 9535 路径（与 `item` 二选一） |
 | `jsonld` | 从 HTML 的 schema.org JSON-LD 里取一个对象（如 `ItemList`）再套 `jsonPath` |

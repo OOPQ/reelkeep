@@ -2,11 +2,11 @@
   "schema": 1,
   "id": "pektino",
   "name": "Pektino",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": "reelkeep",
-  "description": "Pektino 周榜/月榜/总榜。列表页自带 schema.org ItemList，详情页 VideoObject 直接给 mp4；video.twimg.com 不能带第三方 Referer。",
+  "description": "Pektino 日榜/周榜/月榜/总榜。列表页 HTML 卡片 50 条/页；详情页读 schema.org VideoObject，直接给 mp4；video.twimg.com 不带第三方 Referer。",
   "baseUrl": "https://pektino.com",
-  "hosts": ["video.twimg.com"],
+  "hosts": ["video.twimg.com", "pbs.twimg.com"],
   "capabilities": ["scrape", "detail", "cover", "download"],
   "defaults": {
     "timeoutSec": 30,
@@ -16,15 +16,17 @@
     "url": "/zh-CN/{rank}?page={page}",
     "pageSize": 50,
     "ranks": [
+      { "key": "daily", "label": "日榜", "path": "/zh-CN?page={page}" },
       { "key": "weekly", "label": "周榜" },
       { "key": "monthly", "label": "月榜" },
       { "key": "all", "label": "总榜" }
     ],
-    "jsonld": "ItemList",
-    "jsonPath": "$.itemListElement[*]",
+    "item": "a[href^='/zh-CN/movie/']",
     "fields": {
-      "id": { "jsonPath": "$.url", "regex": "/movie/([A-Za-z0-9_-]+)" },
-      "pageUrl": { "jsonPath": "$.url" }
+      "id": { "selector": "a", "attr": "href", "regex": "/movie/([A-Za-z0-9_-]+)" },
+      "pageUrl": { "selector": "a", "attr": "href", "absolute": true },
+      "cover": { "selector": "img", "attr": "src", "absolute": true },
+      "duration": { "selector": "div.absolute.bottom-2.right-2", "text": true }
     }
   },
   "detail": {

@@ -41,7 +41,7 @@ export function LibraryGallery({ rows, downloads, selected, onToggle, onOpen, on
           <RowContextMenu key={row.token} row={row} actions={menu}>
             <Card
               className={cn(
-                'group cursor-pointer overflow-hidden transition-[border-color,transform] hover:-translate-y-0.5 hover:border-[color:var(--border-strong)]',
+                'group cursor-pointer overflow-hidden transition-[border-color,transform] hover:-translate-y-0.5 hover:border-[color:var(--border-strong)] [content-visibility:auto] [contain-intrinsic-size:340px]',
                 isSelected && 'border-[color:var(--primary)]',
               )}
               onClick={() => multi ? onToggle(row.token) : onOpen(row.token, true)}

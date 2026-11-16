@@ -10,6 +10,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
   Clock3,
+  Columns3,
   Download,
   FolderCheck,
   FolderX,
@@ -29,11 +30,13 @@ import { useAppState } from '@/features/use-app-state'
 import { confirmAction } from '@/store/confirm'
 import { useLibraryActions } from './use-library-actions'
 import { useUiStore } from '@/store/ui'
+import { TABLE_COL_LABELS, type TableColKey } from '@/store/ui'
 import { cn, formatCount } from '@/lib/utils'
 import { post } from '@/lib/api'
 import { Progress } from '@/components/ui/progress'
 import type { DownloadItem, Row } from '@/types'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -41,7 +44,6 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { StatCard } from '@/components/stat-card'
 import { LibraryTable } from './library-table'
 import { LibraryGallery } from './library-gallery'
-import { PreviewDialog } from './preview-dialog'
 import { filterRows, sortRows, type LibraryFilters, type SortDir, type SortKey } from './library-filters'
 import { SelectionBar } from './selection-bar'
 import { CollectionPicker } from './collection-picker'
@@ -115,9 +117,7 @@ export function LibraryPage() {
   const clearSelected = useUiStore(s => s.clearSelected)
   const toggleSelected = useUiStore(s => s.toggleSelected)
   const previewToken = useUiStore(s => s.previewToken)
-  const previewAutoplay = useUiStore(s => s.previewAutoplay)
   const openPreview = useUiStore(s => s.openPreview)
-  const closePreview = useUiStore(s => s.closePreview)
 
 const [query, setQuery] = React.useState(searchParams.get('q') || '')
   const deferredQuery = React.useDeferredValue(query)
@@ -131,6 +131,10 @@ const [sortDir, setSortDir] = React.useState<SortDir>((searchParams.get('sort')?
 const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
   const [page, setPage] = React.useState(1)
   const [filterOpen, setFilterOpen] = React.useState(false)
+  const [colsOpen, setColsOpen] = React.useState(false)
+  const tableCols = useUiStore(s => s.tableCols)
+  const setTableCol = useUiStore(s => s.setTableCol)
+  const resetTableCols = useUiStore(s => s.resetTableCols)
   const [pickerTokens, setPickerTokens] = React.useState<string[] | null>(null)
   const [scrapeOpen, setScrapeOpen] = React.useState(false)
   const [linkOpen, setLinkOpen] = React.useState(false)
@@ -301,6 +305,18 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
 
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || !multi) return
+      if (document.querySelectorAll('[role="dialog"]').length > 0) return
+      e.preventDefault()
+      setMulti(false)
+      clearSelected()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [multi, setMulti, clearSelected])
+
+  React.useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
       if (e.ctrlKey || e.metaKey || e.altKey || e.key.toLowerCase() !== 'r') return
       const target = e.target as HTMLElement | null
       if (target instanceof Element && target.closest('input,textarea,select,[contenteditable]')) return
@@ -315,7 +331,15 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
     return () => window.removeEventListener('keydown', onKey)
   }, [previewToken, data?.rows])
 
-  const addedTokens = (data?.job?.progress?.addedTokens || []).filter(Boolean)
+  const addedTokens = React.useMemo(() => {
+    const fromJob = (data?.job?.progress?.addedTokens || []).filter(Boolean)
+    if (fromJob.length) return fromJob
+    try {
+      return (JSON.parse(sessionStorage.getItem('pektino.batchTokens') || '[]') as string[]).filter(Boolean)
+    } catch {
+      return []
+    }
+  }, [data?.job?.progress?.addedTokens])
   const enterBatch = () => {
     if (!addedTokens.length) return
     setQuery('')
@@ -424,6 +448,29 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
             </div>
           </PopoverContent>
         </Popover>
+        <Popover open={colsOpen} onOpenChange={setColsOpen}>
+          <PopoverTrigger asChild>
+            <Button size="sm" variant="outline">
+              <Columns3 className="size-3.5" /> 列
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-[220px] p-3">
+            <div className="space-y-1.5">
+              {(Object.keys(TABLE_COL_LABELS) as TableColKey[]).map(key => (
+                <label key={key} className="flex cursor-pointer items-center justify-between gap-2 text-[11px]">
+                  <span>{TABLE_COL_LABELS[key]}</span>
+                  <Checkbox
+                    checked={tableCols[key]?.visible !== false}
+                    onCheckedChange={v => setTableCol(key, { visible: v === true })}
+                  />
+                </label>
+              ))}
+              <Button size="sm" variant="ghost" className="mt-1 w-full" onClick={resetTableCols}>
+                <RotateCcw className="size-3.5" /> 恢复默认
+              </Button>
+            </div>
+          </PopoverContent>
+        </Popover>
         <Button size="sm" variant="ghost" onClick={reset} disabled={!hasFilters}>
           <RotateCcw className="size-3.5" /> 重置
         </Button>
@@ -515,7 +562,7 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
         </div>
       </div>
 
-      <div className="ui-scroll min-h-0 flex-1 overflow-auto pr-0.5">
+      <div className={cn('min-h-0 flex-1', view === 'gallery' && 'ui-scroll overflow-auto pr-0.5')}>
         {view === 'table' ? (
           <LibraryTable
             rows={visible}
@@ -552,17 +599,6 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
           <Button size="icon-sm" variant="ghost" disabled={safePage >= pages} onClick={() => setPage(pages)} aria-label="最后一页"><ChevronsRight className="size-3.5" /></Button>
         </div>
       </div>
-
-      <PreviewDialog
-        rows={sorted}
-        token={previewToken}
-        downloadItem={previewToken ? downloadMap.get(previewToken) : undefined}
-        autoplay={previewAutoplay}
-        media={data?.media}
-        onClose={closePreview}
-        onNavigate={openPreview}
-        onFav={onFav}
-      />
 
       <SelectionBar
         count={multi ? selected.length : 0}

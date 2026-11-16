@@ -41,6 +41,8 @@ export function SettingsPage() {
   const [cookie, setCookie] = React.useState('')
   const [ffmpeg, setFfmpeg] = React.useState('')
   const [concurrent, setConcurrent] = React.useState('3')
+  const [retryCount, setRetryCount] = React.useState('4')
+  const [retryDelay, setRetryDelay] = React.useState('1')
   const [showCookie, setShowCookie] = React.useState(false)
   const [busy, setBusy] = React.useState<string | null>(null)
   const [checking, setChecking] = React.useState(false)
@@ -66,6 +68,8 @@ export function SettingsPage() {
     setCookie(data.settings.qiseCookie || '')
     setFfmpeg(data.settings.ffmpegPath || '')
     setConcurrent(String(data.settings.concurrent || 3))
+    setRetryCount(String(data.settings.retryCount || 4))
+    setRetryDelay(String(data.settings.retryDelay || 1))
   }, [data?.settings])
 
   const after = () => qc.invalidateQueries({ queryKey: ['state'] })
@@ -107,6 +111,8 @@ export function SettingsPage() {
         qiseCookie: cookie.trim(),
         ffmpegPath: ffmpeg.trim(),
         concurrent: Number(concurrent) || 3,
+        retryCount: Number(retryCount) || 4,
+        retryDelay: Number(retryDelay) || 1,
       })
       if (!r.ok) throw new Error(r.error || '保存失败')
       toast.success('下载设置已保存')
@@ -194,9 +200,18 @@ export function SettingsPage() {
           </Field>
           <Field label="FFmpeg 路径">
             <Input value={ffmpeg} onChange={e => setFfmpeg(e.target.value)} placeholder="D:\ffmpeg\bin\ffmpeg.exe（留空 = 自动查找）" />
+            <div className="mt-1 text-[9px] text-[color:var(--subtle)]">留空会依次查找 PATH、程序目录、常见安装目录和旧版项目配置。</div>
           </Field>
           <Field label="并发下载数">
             <Select value={concurrent} onValueChange={setConcurrent} options={Array.from({ length: 16 }, (_, i) => ({ value: String(i + 1), label: String(i + 1) }))} className="w-[100px]" aria-label="并发下载数" />
+          </Field>
+          <Field label="失败重试">
+            <div className="flex items-center gap-2">
+              <Input type="number" min={1} max={8} value={retryCount} onChange={e => setRetryCount(e.target.value)} className="w-[72px]" aria-label="重试次数" />
+              <span className="text-[10px] text-[color:var(--subtle)]">次，间隔</span>
+              <Input type="number" min={1} max={30} value={retryDelay} onChange={e => setRetryDelay(e.target.value)} className="w-[72px]" aria-label="重试间隔秒" />
+              <span className="text-[10px] text-[color:var(--subtle)]">秒</span>
+            </div>
           </Field>
         </div>
         <Button className="mt-3" size="sm" onClick={save} disabled={busy === 'save'}>

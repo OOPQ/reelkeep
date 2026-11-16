@@ -267,6 +267,18 @@ func (r *Registry) Enabled() []Manifest {
 	}
 	all = append(all, r.extra...)
 	sort.SliceStable(all, func(i, j int) bool {
+		if all[i].Key == "pektino" {
+			return all[j].Key != "pektino"
+		}
+		if all[j].Key == "pektino" {
+			return false
+		}
+		if all[i].Key == "local" {
+			return false
+		}
+		if all[j].Key == "local" {
+			return true
+		}
 		if all[i].Order != all[j].Order {
 			return all[i].Order < all[j].Order
 		}

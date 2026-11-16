@@ -21,7 +21,9 @@ export function ScrapeDialog({
   sources: Source[]
 }) {
   const qc = useQueryClient()
-  const scrapeSources = React.useMemo(() => sources.filter(s => (s.capabilities || []).includes('scrape')), [sources])
+  const scrapeSources = React.useMemo(() => sources
+    .filter(s => s.key !== 'web' && (s.capabilities || []).includes('scrape'))
+    .sort((a, b) => a.key === 'pektino' ? -1 : b.key === 'pektino' ? 1 : 0), [sources])
   const [mode, setMode] = React.useState('online')
   const [source, setSource] = React.useState('')
   const [rank, setRank] = React.useState('')
@@ -198,9 +200,9 @@ export function LinkScrapeDialog({
         }
       >
         <div className="space-y-3 p-4">
-          <Input value={url} onChange={e => setUrl(e.target.value)} placeholder="视频页，或 .m3u8 / .mp4 直链" autoFocus />
+          <Input value={url} onChange={e => setUrl(e.target.value)} placeholder="视频页 URL" autoFocus />
           <div className="text-[10px] leading-5 text-[color:var(--subtle)]">
-            支持 qise / hsex / pektino 视频页与直链；填一条抓一条，不影响榜单设置。
+            支持 qise / hsex / pektino 视频页；填一条抓一条，不影响榜单设置。
           </div>
         </div>
       </DialogContent>

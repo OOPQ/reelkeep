@@ -21,6 +21,7 @@ import (
 	"github.com/OOPQ/reelkeep/internal/api"
 	"github.com/OOPQ/reelkeep/internal/config"
 	"github.com/OOPQ/reelkeep/internal/download"
+	"github.com/OOPQ/reelkeep/internal/proc"
 	"github.com/OOPQ/reelkeep/internal/rule"
 	"github.com/OOPQ/reelkeep/internal/source"
 	websource "github.com/OOPQ/reelkeep/internal/source/web"
@@ -94,6 +95,13 @@ func Start(ctx context.Context, opt Options) (*Instance, error) {
 	cleanup := func() { _ = st.Close() }
 
 	settings := config.LoadSettings(paths)
+	if strings.TrimSpace(settings.FFmpegPath) == "" {
+		if ff := proc.FindFFmpeg(""); ff != "" {
+			settings.FFmpegPath = ff
+			_ = config.SaveSettings(paths, settings)
+			logf("自动检测到 ffmpeg: %s", ff)
+		}
+	}
 	reg, err := source.NewRegistry(source.DefaultConfigPath())
 	if err != nil {
 		logf("源清单加载失败（抓取不可用）: %v", err)
@@ -124,6 +132,7 @@ func Start(ctx context.Context, opt Options) (*Instance, error) {
 		func(kind, msg string) { logf("[%s] %s", kind, msg) })
 	dl.SetSettings(download.Settings{
 		Concurrent: settings.Concurrent, FFmpeg: settings.FFmpegPath, Proxy: settings.Proxy,
+		RetryCount: settings.RetryCount, RetryDelay: time.Duration(settings.RetryDelay) * time.Second,
 	})
 
 	srv := api.New(paths, st, reg, mgr, dl, settings, assets)

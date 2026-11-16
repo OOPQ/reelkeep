@@ -23,6 +23,7 @@ import (
 	"github.com/OOPQ/reelkeep/internal/cover"
 	"github.com/OOPQ/reelkeep/internal/jsonx"
 	"github.com/OOPQ/reelkeep/internal/model"
+	"github.com/OOPQ/reelkeep/internal/netproxy"
 	"github.com/OOPQ/reelkeep/internal/proc"
 	"github.com/OOPQ/reelkeep/internal/source"
 )
@@ -250,13 +251,8 @@ func (s *Server) thumbPath(token string) string {
 }
 
 func (s *Server) hasCover(token string) bool {
-	if st, err := os.Stat(s.coverPath(token)); err == nil && st.Size() > 1024 {
-		return true
-	}
-	if _, err := os.Stat(s.coverPath(token) + ".missing"); err == nil {
-		return true
-	}
-	return false
+	st, err := os.Stat(s.coverPath(token))
+	return err == nil && st.Size() > 1024
 }
 
 func (s *Server) makeThumb(token, coverPath string) {
@@ -267,13 +263,7 @@ func (s *Server) ffmpegPath() string {
 	s.mu.RLock()
 	ff := strings.TrimSpace(s.settings.FFmpegPath)
 	s.mu.RUnlock()
-	if ff != "" {
-		return ff
-	}
-	if p, err := exec.LookPath("ffmpeg"); err == nil {
-		return p
-	}
-	return ""
+	return proc.FindFFmpeg(ff)
 }
 
 func (s *Server) handleCoversRepair(w http.ResponseWriter, r *http.Request) {
@@ -444,9 +434,13 @@ func (s *Server) fetchImage(ctx context.Context, rawURL string) ([]byte, error) 
 		ResponseHeaderTimeout: 15 * time.Second,
 		MaxIdleConnsPerHost:   4,
 	}
-	if proxy != "" {
-		if pu, err := url.Parse(proxy); err == nil {
-			tr.Proxy = http.ProxyURL(pu)
+	if pu, perr := netproxy.ProxyURL(proxy); perr == nil && pu != nil {
+		tr.Proxy = http.ProxyURL(pu)
+		tr.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+			if netproxy.IsProxyAddr(addr, pu) {
+				return (&net.Dialer{Timeout: 10 * time.Second}).DialContext(ctx, network, addr)
+			}
+			return imageDial(ctx, network, addr)
 		}
 	}
 	client := &http.Client{Timeout: 25 * time.Second, Transport: tr}

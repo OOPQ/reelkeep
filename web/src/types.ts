@@ -87,6 +87,8 @@ export type AppSettings = {
   concurrent?: number
   ffmpegPath?: string
   qiseCookie?: string
+  retryCount?: number
+  retryDelay?: number
 }
 
 export type Snapshot = {

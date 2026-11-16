@@ -177,7 +177,14 @@ func (p *Package) ListURL(rank string, page int) string {
 	if rank == "" {
 		rank = p.firstRank()
 	}
-	return absoluteURL(p.BaseURL, subst(p.List.URL, map[string]string{
+	tmpl := p.List.URL
+	for _, r := range p.List.Ranks {
+		if r.Key == rank && r.Path != "" {
+			tmpl = r.Path
+			break
+		}
+	}
+	return absoluteURL(p.BaseURL, subst(tmpl, map[string]string{
 		"baseUrl": p.BaseURL,
 		"rank":    rank,
 		"page":    strconv.Itoa(page),

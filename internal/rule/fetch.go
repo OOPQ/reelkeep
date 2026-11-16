@@ -10,9 +10,12 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
-	"os"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
+
+	"github.com/OOPQ/reelkeep/internal/netproxy"
 )
 
 const defaultUA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Safari/537.36"
@@ -29,6 +32,7 @@ type HTTPFetcher struct {
 	ua       string
 	maxBytes int64
 	timeout  time.Duration
+	limiter  *hostLimiter
 
 	auth     *Auth
 	baseHost string
@@ -53,6 +57,7 @@ func NewHTTPFetcher(p *Package, proxyFn func() string) (*HTTPFetcher, error) {
 	f := &HTTPFetcher{
 		allowed: allowed, ua: p.Defaults.UserAgent, maxBytes: p.Defaults.MaxBytes,
 		auth: p.Auth, baseHost: strings.ToLower(u.Hostname()),
+		limiter: newHostLimiter(200 * time.Millisecond),
 	}
 	if f.ua == "" {
 		f.ua = defaultUA
@@ -89,8 +94,10 @@ func NewHTTPFetcher(p *Package, proxyFn func() string) (*HTTPFetcher, error) {
 		if raw != "" {
 			return url.Parse(raw)
 		}
-		if strings.EqualFold(p.Defaults.Proxy, "system") {
-			return http.ProxyFromEnvironment(req)
+		if !strings.EqualFold(p.Defaults.Proxy, "none") {
+			if pu, err := netproxy.RequestProxy("", req); err == nil && pu != nil {
+				return pu, nil
+			}
 		}
 		return nil, nil
 	}
@@ -148,7 +155,7 @@ func (f *HTTPFetcher) Get(ctx context.Context, rawURL string, headers map[string
 	// 单次尝试的超时由 client.Timeout 控制，失败重试会重新计时。
 
 	var lastErr error
-	for attempt := 0; attempt < 2; attempt++ {
+	for attempt := 0; attempt < 4; attempt++ {
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 		if err != nil {
 			return nil, err
@@ -156,6 +163,9 @@ func (f *HTTPFetcher) Get(ctx context.Context, rawURL string, headers map[string
 		req.Header.Set("User-Agent", f.ua)
 		for k, v := range headers {
 			req.Header.Set(k, v)
+		}
+		if err := f.limiter.Wait(ctx, u.Hostname()); err != nil {
+			return nil, err
 		}
 		// 登录 Cookie：只注入到 auth.domains（缺省为 baseUrl 及其子域）
 		if f.auth != nil && f.cookieFn != nil && authHost(u.Hostname(), f.auth, f.baseHost) {
@@ -175,6 +185,16 @@ func (f *HTTPFetcher) Get(ctx context.Context, rawURL string, headers map[string
 		if resp.StatusCode >= 400 {
 			snippet, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
 			_ = resp.Body.Close()
+			// Cloudflare / 站点限流：429、503 退避后重试，避免把整轮榜单测试判死
+			if (resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode == http.StatusServiceUnavailable) && attempt < 3 {
+				delay := retryDelay(resp, attempt)
+				select {
+				case <-ctx.Done():
+					return nil, ctx.Err()
+				case <-time.After(delay):
+				}
+				continue
+			}
 			return nil, fmt.Errorf("HTTP %d %s", resp.StatusCode, strings.TrimSpace(string(snippet)))
 		}
 		b, rerr := readBody(resp.Body, f.maxBytes)
@@ -195,6 +215,68 @@ func (f *HTTPFetcher) Get(ctx context.Context, rawURL string, headers map[string
 		return b, nil
 	}
 	return nil, lastErr
+}
+
+// retryDelay 优先用 Retry-After，其次 1s/2s/3s 退避；最多等 20 秒。
+func retryDelay(resp *http.Response, attempt int) time.Duration {
+	if resp != nil {
+		if v := strings.TrimSpace(resp.Header.Get("Retry-After")); v != "" {
+			if n, err := strconv.Atoi(v); err == nil && n > 0 {
+				d := time.Duration(n) * time.Second
+				if d > 20*time.Second {
+					d = 20 * time.Second
+				}
+				return d
+			}
+		}
+	}
+	return time.Duration(attempt+1) * time.Second
+}
+
+// hostLimiter 给同一 host 的请求加最小间隔，降低触发 Cloudflare 限流的概率。
+type hostLimiter struct {
+	mu       sync.Mutex
+	next     map[string]time.Time
+	interval time.Duration
+}
+
+func newHostLimiter(interval time.Duration) *hostLimiter {
+	return &hostLimiter{next: map[string]time.Time{}, interval: interval}
+}
+
+func (l *hostLimiter) Wait(ctx context.Context, host string) error {
+	if l == nil || l.interval <= 0 || isLocalHost(host) {
+		return nil
+	}
+	l.mu.Lock()
+	now := time.Now()
+	next := l.next[host]
+	if next.Before(now) {
+		next = now
+	}
+	wait := next.Sub(now)
+	l.next[host] = next.Add(l.interval)
+	l.mu.Unlock()
+	if wait <= 0 {
+		return nil
+	}
+	timer := time.NewTimer(wait)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
+}
+
+func isLocalHost(host string) bool {
+	host = strings.Trim(host, "[]")
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
 
 // readBody 读到 </html> 就停：有些站点发完正文却不关连接，ReadAll 会一直等。
@@ -256,14 +338,10 @@ func effectiveProxy(p *Package, proxyFn func() string) string {
 			return raw
 		}
 	}
-	if strings.EqualFold(p.Defaults.Proxy, "system") {
-		for _, k := range []string{"HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy"} {
-			if v := strings.TrimSpace(os.Getenv(k)); v != "" {
-				return v
-			}
-		}
+	if strings.EqualFold(p.Defaults.Proxy, "none") {
+		return ""
 	}
-	return ""
+	return netproxy.URL("")
 }
 
 // isProxyAddr 判断这次拨号是不是在连本地代理。

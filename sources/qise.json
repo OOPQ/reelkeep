@@ -2,12 +2,25 @@
   "schema": 1,
   "id": "qise",
   "name": "Qise / 91视频",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": "reelkeep",
-  "description": "qise100 视频区。列表页给 /videos/view/<id>/<slug>/，详情页里是带签名的 mp4；登录 Cookie 用于高清/会员内容，并随媒体请求一起发送。",
+  "description": "qise100 视频区。/videos 分类列表 + 详情页 mp4；登录 Cookie 用于高清/会员内容，并随媒体请求一起发送。",
   "baseUrl": "https://rfdjzz.qise100.com",
-  "hosts": ["cdn.cdnkdjs.com", "cdn2.jiuse2.cloud", "cdn2.jiuse3.cloud", "cdn3.jiuse3.cloud", "cdn3.jiuse2.cloud"],
-  "capabilities": ["scrape", "detail", "cover", "download"],
+  "hosts": [
+    "cdn.cdnkdjs.com",
+    "cdn2.jiuse2.cloud",
+    "cdn2.jiuse3.cloud",
+    "cdn3.jiuse3.cloud",
+    "cdn3.jiuse2.cloud",
+    "int.qiniuyun56.xyz",
+    "int.ucloud165.xyz"
+  ],
+  "capabilities": [
+    "scrape",
+    "detail",
+    "cover",
+    "download"
+  ],
   "defaults": {
     "proxy": "system",
     "timeoutSec": 30
@@ -15,37 +28,212 @@
   "auth": {
     "type": "cookie",
     "loginUrl": "/login",
-    "domains": ["qise100.com"]
+    "domains": [
+      "qise100.com"
+    ]
   },
   "list": {
-    "url": "/videos/{rank}/{page}",
+    "url": "/videos/latest-updates/{page}",
     "pageSize": 24,
     "ranks": [
-      { "key": "latest-updates", "label": "最近更新" },
-      { "key": "top-rated", "label": "最高评分" },
-      { "key": "most-popular", "label": "最受欢迎" }
+      {
+        "key": "latest-updates",
+        "label": "最近更新",
+        "group": "视频区",
+        "path": "/videos/latest-updates/{page}"
+      },
+      {
+        "key": "top-rated",
+        "label": "最高评分",
+        "group": "视频区",
+        "path": "/videos/top-rated/{page}"
+      },
+      {
+        "key": "most-popular",
+        "label": "最受欢迎",
+        "group": "视频区",
+        "path": "/videos/most-popular/{page}"
+      },
+      {
+        "key": "europe-america",
+        "label": "欧美",
+        "group": "分类",
+        "path": "/videos/categories/europe-america/{page}"
+      },
+      {
+        "key": "pixelated",
+        "label": "有码",
+        "group": "分类",
+        "path": "/videos/categories/pixelated/{page}"
+      },
+      {
+        "key": "chinese",
+        "label": "国产",
+        "group": "分类",
+        "path": "/videos/categories/chinese/{page}"
+      },
+      {
+        "key": "fornication",
+        "label": "乱伦",
+        "group": "分类",
+        "path": "/videos/categories/fornication/{page}"
+      },
+      {
+        "key": "japan-korea",
+        "label": "日韩",
+        "group": "分类",
+        "path": "/videos/categories/japan-korea/{page}"
+      },
+      {
+        "key": "anime",
+        "label": "动漫",
+        "group": "分类",
+        "path": "/videos/categories/anime/{page}"
+      },
+      {
+        "key": "gangbang",
+        "label": "群交",
+        "group": "分类",
+        "path": "/videos/categories/gangbang/{page}"
+      },
+      {
+        "key": "homosexual",
+        "label": "同性",
+        "group": "分类",
+        "path": "/videos/categories/homosexual/{page}"
+      },
+      {
+        "key": "hd",
+        "label": "高清AV",
+        "group": "分类",
+        "path": "/videos/categories/hd/{page}"
+      },
+      {
+        "key": "unpixelated",
+        "label": "无码",
+        "group": "分类",
+        "path": "/videos/categories/unpixelated/{page}"
+      },
+      {
+        "key": "sm",
+        "label": "SM专区",
+        "group": "分类",
+        "path": "/videos/categories/sm/{page}"
+      },
+      {
+        "key": "jijin",
+        "label": "片商集锦",
+        "group": "分类",
+        "path": "/videos/categories/jijin/{page}"
+      },
+      {
+        "key": "guodong",
+        "label": "果冻传媒",
+        "group": "分类",
+        "path": "/videos/categories/guodong/{page}"
+      },
+      {
+        "key": "xingkong",
+        "label": "星空传媒",
+        "group": "分类",
+        "path": "/videos/categories/xingkong/{page}"
+      },
+      {
+        "key": "madou",
+        "label": "麻豆传媒",
+        "group": "分类",
+        "path": "/videos/categories/madou/{page}"
+      },
+      {
+        "key": "tianmei",
+        "label": "天美传媒",
+        "group": "分类",
+        "path": "/videos/categories/tianmei/{page}"
+      },
+      {
+        "key": "jingdong",
+        "label": "精东影业",
+        "group": "分类",
+        "path": "/videos/categories/jingdong/{page}"
+      },
+      {
+        "key": "swag",
+        "label": "台湾SWAG",
+        "group": "分类",
+        "path": "/videos/categories/swag/{page}"
+      },
+      {
+        "key": "tuzi",
+        "label": "兔子先生",
+        "group": "分类",
+        "path": "/videos/categories/tuzi/{page}"
+      },
+      {
+        "key": "mitao",
+        "label": "蜜桃传媒",
+        "group": "分类",
+        "path": "/videos/categories/mitao/{page}"
+      },
+      {
+        "key": "huangjia",
+        "label": "皇家华人",
+        "group": "分类",
+        "path": "/videos/categories/huangjia/{page}"
+      }
     ],
     "item": "div.video-elem",
     "fields": {
-      "id": { "selector": "a[href^='/videos/view/']", "attr": "href", "regex": "/videos/view/(\\d+)/" },
-      "title": { "selector": "a.title" },
-      "cover": { "selector": "div.img", "attr": "style", "regex": "url\\('([^']+)'\\)" },
-      "duration": { "selector": "small.layer" },
-      "pageUrl": { "selector": "a[href^='/videos/view/']", "attr": "href", "absolute": true }
+      "id": {
+        "selector": "a[href^='/videos/view/']",
+        "attr": "href",
+        "regex": "/videos/view/(\\d+)/"
+      },
+      "title": {
+        "selector": "a.title"
+      },
+      "cover": {
+        "selector": "div.img",
+        "attr": "style",
+        "regex": "url\\('([^']+)'\\)"
+      },
+      "duration": {
+        "selector": "small.layer"
+      },
+      "pageUrl": {
+        "selector": "a[href^='/videos/view/']",
+        "attr": "href",
+        "absolute": true
+      }
     }
   },
   "detail": {
     "url": "{pageUrl}",
     "fields": {
-      "title": { "selector": "meta[property='og:title']", "attr": "content" },
-      "cover": { "selector": "meta[property='og:image']", "attr": "content" },
-      "playable": { "raw": true, "regex": "data-src=\"(https?://[^\"]+\\.mp4[^\"]*)\"" }
+      "title": {
+        "selector": "meta[property='og:title']",
+        "attr": "content"
+      },
+      "cover": {
+        "selector": "meta[property='og:image']",
+        "attr": "content"
+      },
+      "playable": {
+        "raw": true,
+        "regex": "data-src=\"(https?://[^\"]+\\.mp4[^\"]*)\""
+      }
     }
   },
   "download": {
     "kind": "http",
     "url": "{playable}",
-    "headers": { "Referer": "{baseUrl}/" },
-    "onStatus": { "410": { "action": "refreshDetail", "retryOnce": true } }
+    "headers": {
+      "Referer": "{baseUrl}/"
+    },
+    "onStatus": {
+      "410": {
+        "action": "refreshDetail",
+        "retryOnce": true
+      }
+    }
   }
 }

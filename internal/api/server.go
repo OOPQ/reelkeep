@@ -421,6 +421,28 @@ func round2(v float64) float64 {
 	return float64(int64(v*100+0.5)) / 100
 }
 
+// countCovers 只扫封面目录（O(文件数)），避免 /api/state 轮询时逐行 stat。
+func countCovers(dir string) int {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return 0
+	}
+	n := 0
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		name := strings.ToLower(e.Name())
+		if !strings.HasSuffix(name, ".jpg") {
+			continue
+		}
+		if st, err := e.Info(); err == nil && st.Size() > 1024 {
+			n++
+		}
+	}
+	return n
+}
+
 // Project 是 /api/state 和 /api/project 的项目快照。
 type Project struct {
 	Root       string  `json:"root"`
@@ -429,6 +451,8 @@ type Project struct {
 	Covers     string  `json:"covers"`
 	Exists     bool    `json:"exists"`
 	VideoCount int     `json:"videoCount"`
+	VideoGB    float64 `json:"videoGB"`
+	CoverCount int     `json:"coverCount"`
 	DiskGB     float64 `json:"diskGB"`
 	Ledger     string  `json:"ledger"`
 	Database   string  `json:"database"`
@@ -437,10 +461,29 @@ type Project struct {
 func (s *Server) project() Project {
 	s.mu.RLock()
 	idx := s.index
+	rows := append([]model.Row(nil), s.rows...)
 	s.mu.RUnlock()
 	var gb float64
 	for _, f := range idx.Files {
 		gb += float64(f.Size)
+	}
+	videoCount := len(idx.Files)
+	var rowBytes float64
+	rowVideos := 0
+	for i := range rows {
+		if rows[i].FileName == "" {
+			continue
+		}
+		rowVideos++
+		if v, err := strconv.ParseFloat(rows[i].FileSize, 64); err == nil && v > 0 {
+			rowBytes += v
+		}
+	}
+	if rowVideos > videoCount {
+		videoCount = rowVideos
+	}
+	if rowBytes > gb {
+		gb = rowBytes
 	}
 	return Project{
 		Root:       s.paths.Root,
@@ -448,7 +491,9 @@ func (s *Server) project() Project {
 		Media:      s.paths.Content,
 		Covers:     s.paths.Covers,
 		Exists:     idx.Exists,
-		VideoCount: len(idx.Files),
+		VideoCount: videoCount,
+		VideoGB:    round2(gb / (1 << 30)),
+		CoverCount: countCovers(s.paths.Covers),
 		DiskGB:     round2(gb / (1 << 30)),
 		Ledger:     s.paths.LedgerCSV,
 		Database:   s.paths.Database,
@@ -465,6 +510,8 @@ func (s *Server) settingsPayload() map[string]any {
 		"concurrent": cfg.Concurrent,
 		"ffmpegPath": cfg.FFmpegPath,
 		"qiseCookie": cfg.QiseCookie,
+		"retryCount": cfg.RetryCount,
+		"retryDelay": cfg.RetryDelay,
 	}
 }
 
@@ -529,6 +576,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/sources/remove", s.handleSourceRemove)
 	mux.HandleFunc("GET /api/sources/export", s.handleSourceExport)
 	mux.HandleFunc("POST /api/sources/test", s.handleSourceTest)
+	mux.HandleFunc("POST /api/sources/test-all", s.handleSourceTestAll)
 	mux.HandleFunc("GET /api/sources/auth", s.handleSourceAuth)
 	mux.HandleFunc("POST /api/sources/auth", s.handleSourceAuthSave)
 	mux.HandleFunc("POST /api/sources/auth/clear", s.handleSourceAuthClear)

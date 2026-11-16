@@ -131,6 +131,17 @@ export function PreviewDialog({ rows, token, autoplay = false, media, onClose, o
     staleTime: 3_000,
   })
   const canPlay = Boolean(row?.file_name && media?.base && media?.key)
+  const recordedPlay = React.useRef<string | null>(null)
+  React.useEffect(() => {
+    if (!token) recordedPlay.current = null
+  }, [token])
+  const recordPlay = React.useCallback(() => {
+    if (!row?.token || recordedPlay.current === row.token) return
+    recordedPlay.current = row.token
+    void post<{ ok: boolean }>('/api/play', { token: row.token, countOnly: true })
+      .then(r => { if (r.ok) qc.invalidateQueries({ queryKey: ['state'] }) })
+      .catch(() => {})
+  }, [row?.token, qc])
 
   React.useEffect(() => {
     setPlaying(Boolean(autoplay && canPlay))
@@ -313,7 +324,6 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
   }
 
   const deleteSnapshot = async (name: string) => {
-    if (!(await confirmAction({ title: '删除快照', description: '删除这张进度快照？只删除图片，不删除视频。', confirmText: '删除', danger: true }))) return
     try {
       const r = await post<{ ok: boolean; error?: string }>('/api/snapshot/delete', { token: row.token, name })
       if (!r.ok) throw new Error(r.error || '删除失败')
@@ -541,7 +551,7 @@ onLoadedMetadata={e => { const d = e.currentTarget.duration || Number(row.second
               onDurationChange={e => setDuration(e.currentTarget.duration || Number(row.seconds) || 0)}
               onPlaying={() => { setVideoReady(true); setIsPlaying(true) }}
 onPause={() => { setIsPlaying(false); saveResume() }}
-onPlay={() => { setIsPlaying(true); if (videoRef.current) videoRef.current.playbackRate = playbackRate }}
+onPlay={() => { setIsPlaying(true); if (videoRef.current) videoRef.current.playbackRate = playbackRate; recordPlay() }}
               onVolumeChange={e => { setIsMuted(e.currentTarget.muted); setVolume(e.currentTarget.volume) }}
               onCanPlay={() => setVideoReady(true)}
               onError={() => { setVideoError(true); setPlaying(false); setIsPlaying(false) }}

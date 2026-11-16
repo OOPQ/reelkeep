@@ -74,7 +74,7 @@
         "key": { "type": "string", "pattern": "^[a-z0-9-]+$" },
         "label": { "type": "string", "minLength": 1 },
         "group": { "type": "string" },
-        "path": { "type": "string" }
+        "path": { "type": "string", "description": "该榜单的 URL 模板，覆盖 list.url" }
       }
     },
     "field": {

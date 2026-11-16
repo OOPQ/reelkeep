@@ -270,8 +270,9 @@ func (s *Server) handleDownloadRepair(w http.ResponseWriter, r *http.Request) {
 // ffprobePath 优先找 ffmpeg 同目录的 ffprobe，其次 PATH。
 func (s *Server) ffprobePath() string {
 	s.mu.RLock()
-	ff := strings.TrimSpace(s.settings.FFmpegPath)
+	raw := strings.TrimSpace(s.settings.FFmpegPath)
 	s.mu.RUnlock()
+	ff := proc.FindFFmpeg(raw)
 	names := []string{"ffprobe", "ffprobe.exe"}
 	if ff != "" {
 		dir := filepath.Dir(ff)

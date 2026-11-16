@@ -13,7 +13,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"os"
 	"path"
 	"regexp"
 	"strconv"
@@ -24,6 +23,7 @@ import (
 	"github.com/PuerkitoBio/goquery"
 
 	"github.com/OOPQ/reelkeep/internal/model"
+	"github.com/OOPQ/reelkeep/internal/netproxy"
 	"github.com/OOPQ/reelkeep/internal/source"
 )
 
@@ -254,8 +254,11 @@ func fetchReal(ctx context.Context, rawURL string) ([]byte, error) {
 		ResponseHeaderTimeout: 20 * time.Second,
 		MaxIdleConnsPerHost:   4,
 	}
-	if p := proxyFromEnv(); p != nil {
-		tr.Proxy = http.ProxyURL(p)
+	tr.Proxy = func(req *http.Request) (*url.URL, error) {
+		proxyMu.RLock()
+		p := proxyAddr
+		proxyMu.RUnlock()
+		return netproxy.RequestProxy(p, req)
 	}
 	client := &http.Client{Timeout: 30 * time.Second, Transport: tr}
 	resp, err := client.Do(req)
@@ -267,25 +270,6 @@ func fetchReal(ctx context.Context, rawURL string) ([]byte, error) {
 		return nil, fmt.Errorf("HTTP %d", resp.StatusCode)
 	}
 	return readUntilHTML(resp.Body, 8<<20)
-}
-
-func proxyFromEnv() *url.URL {
-	proxyMu.RLock()
-	p := proxyAddr
-	proxyMu.RUnlock()
-	if p != "" {
-		if u, err := url.Parse(p); err == nil {
-			return u
-		}
-	}
-	for _, k := range []string{"HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy"} {
-		if v := strings.TrimSpace(os.Getenv(k)); v != "" {
-			if u, err := url.Parse(v); err == nil {
-				return u
-			}
-		}
-	}
-	return nil
 }
 
 func readUntilHTML(r io.Reader, max int64) ([]byte, error) {

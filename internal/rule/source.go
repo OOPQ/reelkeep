@@ -72,7 +72,8 @@ func (s *RuleSource) Scrape(ctx context.Context, req source.ScrapeRequest, emit 
 		return fmt.Errorf("源 %s 没有榜单 %q（可用：%s）", s.pkg.ID, rank, strings.Join(s.pkg.rankKeys(), ", "))
 	}
 	pages := req.Pages
-	if len(pages) == 0 {
+	auto := len(pages) == 0
+	if auto {
 		pages = []int{1}
 	}
 	pageSize := req.PageSize
@@ -84,7 +85,8 @@ func (s *RuleSource) Scrape(ctx context.Context, req source.ScrapeRequest, emit 
 	emitted := 0
 	seen := map[string]bool{}
 	var firstErr error
-	for _, page := range pages {
+	for idx := 0; idx < len(pages); idx++ {
+		page := pages[idx]
 		listURL := s.pkg.ListURL(rank, page)
 		body, err := s.fetcher.Get(ctx, listURL, s.headers(nil))
 		if err != nil {
@@ -94,6 +96,7 @@ func (s *RuleSource) Scrape(ctx context.Context, req source.ScrapeRequest, emit 
 		if err != nil {
 			return err
 		}
+		pageNew := 0
 		for i := range rows {
 			if limit > 0 && emitted >= limit {
 				return nil
@@ -124,9 +127,23 @@ func (s *RuleSource) Scrape(ctx context.Context, req source.ScrapeRequest, emit 
 				return err
 			}
 			emitted++
+			pageNew++
 			if req.Progress != nil {
 				req.Progress("details", emitted, 0)
 			}
+		}
+		if auto {
+			if limit > 0 && emitted >= limit {
+				return nil
+			}
+			// 站点忽略 page 参数或本页全是重复项时停止，避免无限翻页
+			if pageNew == 0 || page >= 50 {
+				if emitted == 0 && firstErr != nil {
+					return firstErr
+				}
+				return nil
+			}
+			pages = append(pages, page+1)
 		}
 	}
 	if emitted == 0 && firstErr != nil {

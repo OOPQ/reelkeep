@@ -18,24 +18,25 @@ import (
 
 // scrapeJob 是一次抓取任务（同一时间只允许一个）。
 type scrapeJob struct {
-	mu        sync.Mutex
-	Source    string
-	Rank      string
-	Pages     []int
-	Limit     int
-	TargetURL string
-	Running   bool
-	Started   time.Time
-	Finished  time.Time
-	Phase     string
-	Done      int
-	Total     int
-	Added     int
-	Updated   int
-	Skipped   int
-	Err       string
-	Logs      []string
-	Cancel    context.CancelFunc
+	mu          sync.Mutex
+	Source      string
+	Rank        string
+	Pages       []int
+	Limit       int
+	TargetURL   string
+	Running     bool
+	Started     time.Time
+	Finished    time.Time
+	Phase       string
+	Done        int
+	Total       int
+	Added       int
+	Updated     int
+	Skipped     int
+	AddedTokens []string
+	Err         string
+	Logs        []string
+	Cancel      context.CancelFunc
 }
 
 func (j *scrapeJob) logf(format string, args ...any) {
@@ -101,7 +102,8 @@ func (j *scrapeJob) info() map[string]any {
 		"elapsed": round1(elapsed), "speed": round1(speed), "eta": round1(eta),
 		"at":    time.Now().Format("15:04:05"),
 		"added": j.Added, "updated": j.Updated, "count": j.Added + j.Updated,
-		"kind": "scrape", "error": j.Err,
+		"addedTokens": append([]string{}, j.AddedTokens...),
+		"kind":        "scrape", "error": j.Err,
 	}
 	if !j.Finished.IsZero() {
 		progress["finishedAt"] = j.Finished.UnixMilli()
@@ -178,7 +180,7 @@ func (s *Server) handleScrape(w http.ResponseWriter, r *http.Request) {
 		}
 		ctx, cancel := context.WithCancel(context.Background())
 		j := &scrapeJob{
-			Source: srcKey, Rank: "url", TargetURL: body.URL,
+			Source: srcKey, Rank: "url", TargetURL: body.URL, Total: 1,
 			Running: true, Started: time.Now(), Phase: "details", Cancel: cancel,
 		}
 		s.jobMu.Lock()
@@ -218,7 +220,8 @@ func (s *Server) handleScrape(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	pages := body.Pages
-	if len(pages) == 0 {
+	// 只给 limit 时由 rule.Scrape 自动翻页，直到够数或没有新条目
+	if len(pages) == 0 && body.Limit <= 0 {
 		pages = []int{1}
 	}
 	if len(pages) > 20 {
@@ -236,7 +239,7 @@ func (s *Server) handleScrape(w http.ResponseWriter, r *http.Request) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	j := &scrapeJob{
-		Source: body.Source, Rank: body.Rank, Pages: pages, Limit: body.Limit,
+		Source: body.Source, Rank: body.Rank, Pages: pages, Limit: body.Limit, Total: body.Limit,
 		Running: true, Started: time.Now(), Phase: "list", Cancel: cancel,
 	}
 	s.jobMu.Lock()
@@ -250,7 +253,11 @@ func (s *Server) handleScrape(w http.ResponseWriter, r *http.Request) {
 	s.jobMu.Unlock()
 
 	go s.runScrape(ctx, j, src, skipDeleted)
-	s.logbuf.Add("scrape", fmt.Sprintf("开始抓取 %s / %s（%d 页）", body.Source, body.Rank, len(pages)))
+	pageLabel := fmt.Sprintf("%d 页", len(pages))
+	if len(pages) == 0 {
+		pageLabel = "自动翻页"
+	}
+	s.logbuf.Add("scrape", fmt.Sprintf("开始抓取 %s / %s（%s）", body.Source, body.Rank, pageLabel))
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "job": j.info()})
 }
 
@@ -286,7 +293,7 @@ func (s *Server) runScrape(ctx context.Context, j *scrapeJob, src source.Source,
 		return
 	}
 
-	added, updated, skipped, mergeErr := s.applyScrape(rows, skipDeleted)
+	added, updated, skipped, addedTokens, mergeErr := s.applyScrape(rows, skipDeleted)
 	if mergeErr != nil {
 		j.logf("入库失败: %v", mergeErr)
 		s.writeScrapeDiag(runID, j, rows, "failed", mergeErr.Error(), added, updated, skipped)
@@ -299,6 +306,7 @@ func (s *Server) runScrape(ctx context.Context, j *scrapeJob, src source.Source,
 
 	j.mu.Lock()
 	j.Added, j.Updated, j.Skipped = added, updated, skipped
+	j.AddedTokens = addedTokens
 	j.Total = len(rows)
 	j.mu.Unlock()
 	j.logf("完成: 抓取 %d，新增 %d，更新 %d，跳过 %d", len(rows), added, updated, skipped)
@@ -326,7 +334,7 @@ func (s *Server) runScrapeURL(ctx context.Context, j *scrapeJob, us source.URLSc
 		s.logbuf.Add("scrape", "链接抓取失败："+err.Error())
 		return
 	}
-	added, updated, skipped, mergeErr := s.applyScrape([]model.Row{row}, skipDeleted)
+	added, updated, skipped, addedTokens, mergeErr := s.applyScrape([]model.Row{row}, skipDeleted)
 	if mergeErr != nil {
 		j.logf("入库失败: %v", mergeErr)
 		s.writeScrapeDiag(runID, j, []model.Row{row}, "failed", mergeErr.Error(), added, updated, skipped)
@@ -338,6 +346,7 @@ func (s *Server) runScrapeURL(ctx context.Context, j *scrapeJob, us source.URLSc
 	}
 	j.mu.Lock()
 	j.Added, j.Updated, j.Skipped = added, updated, skipped
+	j.AddedTokens = addedTokens
 	j.Total, j.Done = 1, 1
 	j.mu.Unlock()
 	j.logf("完成: 新增 %d，更新 %d，跳过 %d", added, updated, skipped)
@@ -442,7 +451,7 @@ func (s *Server) handleRefreshURL(w http.ResponseWriter, r *http.Request) {
 }
 
 // applyScrape 把抓取结果合并进台账：新条目入库，旧条目只覆盖抓取字段，用户字段保持。
-func (s *Server) applyScrape(in []model.Row, skipDeleted bool) (added, updated, skipped int, err error) {
+func (s *Server) applyScrape(in []model.Row, skipDeleted bool) (added, updated, skipped int, addedTokens []string, err error) {
 	now := time.Now().Format("2006-01-02 15:04:05")
 	s.mu.Lock()
 	idx := make(map[string]int, len(s.rows))
@@ -482,6 +491,7 @@ func (s *Server) applyScrape(in []model.Row, skipDeleted bool) (added, updated, 
 		idx[key] = len(s.rows) - 1
 		dirty = append(dirty, r)
 		added++
+		addedTokens = append(addedTokens, r.Token)
 	}
 	if added+updated > 0 {
 		s.rev++
@@ -491,10 +501,10 @@ func (s *Server) applyScrape(in []model.Row, skipDeleted bool) (added, updated, 
 
 	if len(dirty) > 0 {
 		if err := s.st.UpsertRows(dirty); err != nil {
-			return 0, 0, 0, err
+			return 0, 0, 0, nil, err
 		}
 	}
-	return added, updated, skipped, nil
+	return added, updated, skipped, addedTokens, nil
 }
 
 func mergeScraped(dst *model.Row, src model.Row, now string) {

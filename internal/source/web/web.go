@@ -69,7 +69,7 @@ var fetchPage = fetchReal
 // ScrapeURL 解析一个页面或直链。
 func (a *Adapter) ScrapeURL(ctx context.Context, rawURL string) (model.Row, error) {
 	if strings.HasPrefix(strings.ToLower(strings.TrimSpace(rawURL)), "magnet:") {
-		return magnetRow(rawURL)
+		return MagnetRow(rawURL)
 	}
 	u, err := url.Parse(rawURL)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
@@ -144,7 +144,7 @@ func (a *Adapter) ScrapeURL(ctx context.Context, rawURL string) (model.Row, erro
 }
 
 // 兼容不同参数数量的构建（Go 不支持重载，这里用变参）。
-func magnetRow(raw string) (model.Row, error) {
+func MagnetRow(raw string) (model.Row, error) {
 	raw = strings.TrimSpace(raw)
 	u, err := url.Parse(raw)
 	if err != nil {

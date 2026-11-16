@@ -604,6 +604,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/download/reset", s.handleDownloadReset)
 	mux.HandleFunc("POST /api/download/repair", s.handleDownloadRepair)
 	mux.HandleFunc("POST /api/torrent/files", s.handleTorrentFiles)
+	mux.HandleFunc("POST /api/torrent/add", s.handleTorrentAdd)
 
 	// 尚未迁移到 Go 的能力：明确报错，不伪装成功
 	mux.HandleFunc("POST /api/refresh-url", s.handleRefreshURL)

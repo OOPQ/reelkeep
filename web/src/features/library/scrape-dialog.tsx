@@ -1,9 +1,11 @@
 import * as React from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { Link2, RefreshCw } from 'lucide-react'
+import { Check, Download, FileVideo, Link2, RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Source } from '@/types'
 import { post } from '@/lib/api'
+import { formatBytes } from '@/lib/utils'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -163,12 +165,45 @@ export function LinkScrapeDialog({
   onOpenChange: (open: boolean) => void
 }) {
   const qc = useQueryClient()
+  const navigate = useNavigate()
   const [url, setUrl] = React.useState('')
   const [busy, setBusy] = React.useState(false)
+  const [step, setStep] = React.useState<'input' | 'files'>('input')
+  const [files, setFiles] = React.useState<{ index: number; path: string; length: number }[]>([])
+  const [selected, setSelected] = React.useState<number[]>([])
+
+  const reset = () => {
+    setUrl('')
+    setBusy(false)
+    setStep('input')
+    setFiles([])
+    setSelected([])
+  }
+  const close = () => { reset(); onOpenChange(false) }
 
   const start = async () => {
     const value = url.trim()
     if (!value) return
+    if (value.toLowerCase().startsWith('magnet:')) {
+      setBusy(true)
+      try {
+        const r = await post<{ ok: boolean; error?: string; files?: { index: number; path: string; length: number }[] }>('/api/torrent/files', { url: value })
+        if (!r.ok) throw new Error(r.error || '读取磁力文件失败')
+        const list = (r.files || []).filter(f => f.length > 0)
+        if (!list.length) throw new Error('磁力任务没有可下载文件')
+        setFiles(list)
+        const video = list
+          .filter(f => /\.(mp4|mkv|webm|mov|m4v|avi|ts|flv|wmv)$/i.test(f.path))
+          .sort((a, b) => b.length - a.length)[0]
+        setSelected(video ? [video.index] : [])
+        setStep('files')
+      } catch (e) {
+        toast.error((e as Error).message)
+      } finally {
+        setBusy(false)
+      }
+      return
+    }
     setBusy(true)
     try {
       const r = await post<{ ok: boolean; error?: string }>('/api/scrape', { url: value })
@@ -176,8 +211,7 @@ export function LinkScrapeDialog({
       toast.success('已开始抓取链接')
       try { sessionStorage.setItem('pektino.scrapePending', '1'); sessionStorage.setItem('pektino.scrapePendingAt', String(Date.now())) } catch { }
       qc.invalidateQueries({ queryKey: ['state'] })
-      setUrl('')
-      onOpenChange(false)
+      close()
     } catch (e) {
       toast.error((e as Error).message)
     } finally {
@@ -185,25 +219,75 @@ export function LinkScrapeDialog({
     }
   }
 
+  const confirm = async () => {
+    if (!selected.length) return
+    setBusy(true)
+    try {
+      const r = await post<{ ok: boolean; error?: string }>('/api/torrent/add', { url: url.trim(), files: selected })
+      if (!r.ok) throw new Error(r.error || '加入下载失败')
+      toast.success('已开始磁力下载', { action: { label: '查看队列', onClick: () => navigate('/queue') } })
+      qc.invalidateQueries({ queryKey: ['state'] })
+      close()
+    } catch (e) {
+      toast.error((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const toggle = (index: number, checked: boolean) => {
+    setSelected(prev => checked ? [...new Set([...prev, index])] : prev.filter(i => i !== index))
+  }
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={o => { if (!o) reset(); onOpenChange(o) }}>
       <DialogContent
-        title="通过链接抓取"
-        className="w-[min(460px,calc(100vw-40px))]"
+        title={step === 'files' ? '选择磁力下载内容' : '通过链接抓取'}
+        className="w-[min(520px,calc(100vw-40px))]"
         footer={
           <div className="ml-auto flex gap-2">
-            <Button size="sm" variant="outline" onClick={() => onOpenChange(false)}>取消</Button>
-            <Button size="sm" onClick={start} disabled={busy || !url.trim()}>
-              {busy ? <RefreshCw className="size-3.5 animate-spin" /> : <Link2 className="size-3.5" />} 开始抓取
-            </Button>
+            <Button size="sm" variant="outline" onClick={close}>取消</Button>
+            {step === 'files' ? (
+              <Button size="sm" onClick={() => void confirm()} disabled={busy || !selected.length}>
+                <Download className="size-3.5" /> {busy ? '加入中…' : `下载 ${selected.length} 个文件`}
+              </Button>
+            ) : (
+              <Button size="sm" onClick={start} disabled={busy || !url.trim()}>
+                {busy ? <RefreshCw className="size-3.5 animate-spin" /> : <Link2 className="size-3.5" />} 确认链接
+              </Button>
+            )}
           </div>
         }
       >
         <div className="space-y-3 p-4">
-          <Input value={url} onChange={e => setUrl(e.target.value)} placeholder="视频页 / .m3u8 / .mp4 / magnet:" autoFocus />
-          <div className="text-[10px] leading-5 text-[color:var(--subtle)]">
-            支持 qise / hsex / pektino 视频页、直链和磁力链接；填一条抓一条，不影响榜单设置。
-          </div>
+          {step === 'input' ? (
+            <>
+              <Input value={url} onChange={e => setUrl(e.target.value)} placeholder="视频页 / .m3u8 / .mp4 / magnet:" autoFocus />
+              <div className="text-[10px] leading-5 text-[color:var(--subtle)]">
+                磁力链接确认后必须先勾选文件并确认下载；取消则不会入库、不会创建任务。
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="text-[10px] leading-5 text-[color:var(--subtle)]">
+                已读取磁力元数据，勾选要下载的文件。取消会放弃本次磁力任务。
+              </div>
+              <div className="max-h-[42vh] overflow-auto rounded-lg border border-[color:var(--border)]">
+                {files.map(file => {
+                  const checked = selected.includes(file.index)
+                  return (
+                    <label key={file.index} className="flex cursor-pointer items-center gap-2 border-b border-[color:var(--border)] px-2.5 py-2 last:border-0 hover:bg-[color:var(--surface-2)]">
+                      <Checkbox checked={checked} onCheckedChange={v => toggle(file.index, v === true)} />
+                      <FileVideo className="size-3.5 shrink-0 text-[color:var(--subtle)]" />
+                      <span className="min-w-0 flex-1 truncate text-[10.5px]" title={file.path}>{file.path}</span>
+                      <span className="shrink-0 text-[9px] text-[color:var(--subtle)]">{formatBytes(file.length)}</span>
+                      {checked ? <Check className="size-3 shrink-0 text-[color:var(--success)]" /> : null}
+                    </label>
+                  )
+                })}
+              </div>
+            </>
+          )}
         </div>
       </DialogContent>
     </Dialog>

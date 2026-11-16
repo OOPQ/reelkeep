@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -20,6 +21,7 @@ import (
 	"github.com/OOPQ/reelkeep/internal/jsonx"
 	"github.com/OOPQ/reelkeep/internal/model"
 	"github.com/OOPQ/reelkeep/internal/netproxy"
+	"github.com/OOPQ/reelkeep/internal/proc"
 	"github.com/OOPQ/reelkeep/internal/source"
 	"github.com/OOPQ/reelkeep/internal/store"
 )
@@ -314,8 +316,35 @@ func (m *Manager) updateLedger(t *Task) {
 		m.logf("download", "回填台账失败: "+err.Error())
 		return
 	}
+	m.autoCover(t.M.Token, final)
 	if m.onRow != nil {
 		m.onRow(t.M.Token)
+	}
+}
+
+// autoCover 用视频第一帧生成本地封面；已有缓存封面则保留。
+func (m *Manager) autoCover(token, video string) {
+	if token == "" {
+		return
+	}
+	cover := filepath.Join(m.paths.Covers, token+".jpg")
+	if st, err := os.Stat(cover); err == nil && st.Size() > 1024 {
+		return
+	}
+	ff := proc.FindFFmpeg(strings.TrimSpace(m.getSettings().FFmpeg))
+	if ff == "" {
+		m.logf("download", "未找到 ffmpeg，跳过自动封面")
+		return
+	}
+	if err := os.MkdirAll(m.paths.Covers, 0o755); err != nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, ff, "-y", "-ss", "0", "-i", video, "-frames:v", "1", "-vf", "scale=640:-2", "-q:v", "3", cover)
+	proc.HideWindow(cmd)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		m.logf("download", "自动封面失败: "+strings.TrimSpace(string(out)))
 	}
 }
 

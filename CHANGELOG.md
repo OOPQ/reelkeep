@@ -1,5 +1,19 @@
 # 更新日志
 
+## 0.9.7 — 2026-11-16
+
+### P0 验收基线
+
+- 新增 `docs/api-contract.md`：冻结 `/api/*` 路由、状态码与业务错误约定
+- 移植旧版 25 项 HTTP 验收为 Go 测试 `TestP0Acceptance`：
+  首页/静态资源/路径穿越、state、cover、export、project、scan、收藏、评分、配置校验、scrape、下载、SSE、rowsRev、项目导入
+- 新增金标字段基线 `TestGoldenStateShape` + `internal/api/testdata/*.golden`：
+  固定 `rows[].34 字段`、`stats`、`project`、`download` 的字段集合
+- 新增诊断基线 `TestScrapeDiagnosticsBaseline`：
+  固定 `meta.json / progress.json / result.csv / scrape.log` 的目录与关键字段
+- `POST /api/download` 在一条都没入队时返回 `ok:false + error`（不再假装成功）
+- 现有 41 项路由冒烟、`.part` 修复测试继续保留
+
 ## 0.9.6 — 2026-11-16
 
 - 图标改为「R.」：自绘 R 路径 + 右下圆点，替换上一版胶片盘/书签标记；同步 logo/ico/syso/安装器

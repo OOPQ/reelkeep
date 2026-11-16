@@ -140,6 +140,14 @@ func (s *Server) handleDownloadAdd(w http.ResponseWriter, r *http.Request) {
 	}
 	s.logbuf.Add("download", "加入下载队列 "+strconv.Itoa(started)+" 条")
 	s.Bump(false)
+	if started == 0 {
+		msg := "没有可加入队列的条目（可能已有文件或不在台账里）"
+		if len(errs) > 0 {
+			msg = strings.Join(errs, "; ")
+		}
+		bad(w, msg)
+		return
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"ok": true, "started": started, "skipped": skipped, "errors": errs,
 	})

@@ -4,7 +4,7 @@
 
 **Reelkeep 是 Pektino 的 Go 重写版。** 同一套 React 前端、同一份 SQLite 数据、同一套 `/api/*` 契约；后端从 PowerShell 5.1 换成单二进制 Go，为多端（Windows / macOS / Linux，后续 Android）留出同源代码。
 
-当前状态：**P1 / P2 / P3 / P6 完成，P4 下载器基础版，P5 桌面壳与项目管理可用（Windows）**。可以打开任意文件夹作为项目、切换最近项目、桌面新窗口/浏览器新实例、导入媒体、浏览台账、封面/缩略图、时间轴快照、播放、榜单/链接抓取、刷新地址、下载（HTTP 续传 / HLS）。安装器/签名/自动更新（P5）、macOS/Linux 桌面包尚未完成。
+当前状态：**P0 / P1 / P2 / P3 / P6 完成，P4 下载器 90%，P5 桌面壳/安装器/CI 可用（Windows）**。可以打开任意文件夹作为项目、切换最近项目、桌面新窗口/浏览器新实例、导入媒体、浏览台账、封面/缩略图、时间轴快照、播放、榜单/链接抓取、刷新地址、下载（HTTP 续传 / HLS）。安装器/签名钩子/更新检查/五平台 CI 已就绪；自动安装更新与 macOS/Linux 安装包尚未完成。
 
 ![源管理：导入、测试、启用/禁用外部源](docs/sources-page.png)
 
@@ -216,6 +216,7 @@ skills/reelkeep-source  指导 LLM 生成/校验/安装源包的 skill
 - `deleted.json` / `deleted_tokens` 双向保留；彻底删除在扫盘路径上必须过滤
 - token 语义不变：默认源裸 token，其他源 `<source>@<id>`
 - 媒体索引规则不变：递归 4 层、去掉 ` (1)` 重名后缀、大小写不敏感
+- HTTP 契约冻结在 [docs/api-contract.md](docs/api-contract.md)（25 项验收 + 金标字段 + 诊断基线）
 
 ## 开发
 
@@ -239,7 +240,7 @@ CI（`.github/workflows/ci.yml`）：Linux 跑测试；五个平台出 CLI；Win
 
 | 阶段 | 内容 | 状态 |
 |---|---|---|
-| P0 | 契约冻结、诊断基线、25 项 HTTP 验收测试 | 🟡 41 项 HTTP 契约冒烟完成；基准/金标待补 |
+| P0 | 契约冻结、诊断基线、25 项 HTTP 验收测试 | **完成**（见 [docs/api-contract.md](docs/api-contract.md)） |
 | P1 | Go 内核骨架：store / scan / API / 静态资源 / 媒体流 | **完成** |
 | P2 | 四个源适配器迁移（pektino / hsex / qise / web）+ 链接抓取/刷新地址 | **完成** |
 | P3 | 写路径补齐：封面/缩略图/快照/导入/播放器调用 | **完成** |

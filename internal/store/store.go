@@ -46,7 +46,17 @@ func Open(path string) (*Store, error) {
 		return nil, err
 	}
 	s.cols = strings.Join(quotedCoalesce(), ", ")
+	if err := s.rebuildFTSIfNeeded(); err != nil {
+		db.Close()
+		return nil, err
+	}
 	return s, nil
+}
+
+func (s *Store) rebuildFTSIfNeeded() error {
+	// 外部内容表的 COUNT(*) 会读 items，无法判断倒排索引是否为空；启动时重建一次最稳妥。
+	_, err := s.db.Exec("INSERT INTO items_fts(items_fts) VALUES('rebuild')")
+	return err
 }
 
 // Close 关闭数据库。
@@ -63,8 +73,7 @@ func quotedCoalesce() []string {
 	return out
 }
 
-const schema = `
-CREATE TABLE IF NOT EXISTS items (
+const schema = `CREATE TABLE IF NOT EXISTS items (
   token      TEXT PRIMARY KEY,
   status     TEXT DEFAULT 'new',
   fav        TEXT DEFAULT '',
@@ -106,6 +115,10 @@ CREATE INDEX IF NOT EXISTS idx_items_source ON items(source);
 CREATE INDEX IF NOT EXISTS idx_items_first_seen ON items(first_seen);
 CREATE INDEX IF NOT EXISTS idx_items_last_play ON items(last_play);
 CREATE INDEX IF NOT EXISTS idx_items_rating ON items(rating);
+CREATE VIRTUAL TABLE IF NOT EXISTS items_fts USING fts5(
+  token, title, source, site, note,
+  content='items', content_rowid='rowid', tokenize='trigram'
+);
 CREATE TABLE IF NOT EXISTS deleted_tokens (
   token      TEXT PRIMARY KEY,
   source     TEXT DEFAULT '',
@@ -140,6 +153,7 @@ CREATE TABLE IF NOT EXISTS download_tasks (
   source_id      TEXT DEFAULT '',
   url            TEXT DEFAULT '',
   mode           TEXT DEFAULT 'http',
+  files          TEXT DEFAULT '[]',
   headers        TEXT DEFAULT '',
   use_auth       INTEGER DEFAULT 0,
   refresh_on_410 INTEGER DEFAULT 0,
@@ -155,6 +169,23 @@ CREATE TABLE IF NOT EXISTS download_tasks (
 CREATE INDEX IF NOT EXISTS idx_download_state ON download_tasks(state);
 `
 
+var ftsTriggers = []string{
+	`CREATE TRIGGER IF NOT EXISTS items_fts_ai AFTER INSERT ON items BEGIN
+  INSERT INTO items_fts(rowid, token, title, source, site, note)
+  VALUES (new.rowid, new.token, new.title, new.source, new.site, new.note);
+END;`,
+	`CREATE TRIGGER IF NOT EXISTS items_fts_ad AFTER DELETE ON items BEGIN
+  INSERT INTO items_fts(items_fts, rowid, token, title, source, site, note)
+  VALUES ('delete', old.rowid, old.token, old.title, old.source, old.site, old.note);
+END;`,
+	`CREATE TRIGGER IF NOT EXISTS items_fts_au AFTER UPDATE OF token, title, source, site, note ON items BEGIN
+  INSERT INTO items_fts(items_fts, rowid, token, title, source, site, note)
+  VALUES ('delete', old.rowid, old.token, old.title, old.source, old.site, old.note);
+  INSERT INTO items_fts(rowid, token, title, source, site, note)
+  VALUES (new.rowid, new.token, new.title, new.source, new.site, new.note);
+END;`,
+}
+
 func (s *Store) ensureSchema() error {
 	for _, stmt := range strings.Split(schema, ";") {
 		if strings.TrimSpace(stmt) == "" {
@@ -162,6 +193,11 @@ func (s *Store) ensureSchema() error {
 		}
 		if _, err := s.db.Exec(stmt); err != nil {
 			return fmt.Errorf("建表失败: %w", err)
+		}
+	}
+	for _, stmt := range ftsTriggers {
+		if _, err := s.db.Exec(stmt); err != nil {
+			return fmt.Errorf("建全文索引失败: %w", err)
 		}
 	}
 	// 老库补列：collections.color
@@ -181,6 +217,26 @@ func (s *Store) ensureSchema() error {
 	}
 	if !has["color"] {
 		if _, err := s.db.Exec("ALTER TABLE collections ADD COLUMN color TEXT DEFAULT ''"); err != nil {
+			return err
+		}
+	}
+	// 老库补列：download_tasks.files（磁力文件选择）
+	has = map[string]bool{}
+	rows, err = s.db.Query("PRAGMA table_info(download_tasks)")
+	if err == nil {
+		for rows.Next() {
+			var cid int
+			var name, typ string
+			var notnull, pk int
+			var dflt sql.NullString
+			if rows.Scan(&cid, &name, &typ, &notnull, &dflt, &pk) == nil {
+				has[name] = true
+			}
+		}
+		rows.Close()
+	}
+	if !has["files"] {
+		if _, err := s.db.Exec("ALTER TABLE download_tasks ADD COLUMN files TEXT DEFAULT '[]'"); err != nil {
 			return err
 		}
 	}

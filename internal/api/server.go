@@ -534,6 +534,7 @@ func (s *Server) Handler() http.Handler {
 
 	// 只读
 	mux.HandleFunc("GET /api/state", s.handleState)
+	mux.HandleFunc("GET /api/rows", s.handleRows)
 	mux.HandleFunc("GET /api/update", s.handleUpdate)
 	mux.HandleFunc("POST /api/update/apply", s.handleUpdateApply)
 	mux.HandleFunc("GET /api/desktop", s.handleDesktop)
@@ -602,6 +603,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/download/clear-done", s.handleDownloadClearDone)
 	mux.HandleFunc("POST /api/download/reset", s.handleDownloadReset)
 	mux.HandleFunc("POST /api/download/repair", s.handleDownloadRepair)
+	mux.HandleFunc("POST /api/torrent/files", s.handleTorrentFiles)
 
 	// 尚未迁移到 Go 的能力：明确报错，不伪装成功
 	mux.HandleFunc("POST /api/refresh-url", s.handleRefreshURL)

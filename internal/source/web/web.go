@@ -7,6 +7,7 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html"
 	"io"
@@ -67,6 +68,9 @@ var fetchPage = fetchReal
 
 // ScrapeURL 解析一个页面或直链。
 func (a *Adapter) ScrapeURL(ctx context.Context, rawURL string) (model.Row, error) {
+	if strings.HasPrefix(strings.ToLower(strings.TrimSpace(rawURL)), "magnet:") {
+		return magnetRow(rawURL)
+	}
 	u, err := url.Parse(rawURL)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
 		return model.Row{}, fmt.Errorf("链接不合法: %s", rawURL)
@@ -140,6 +144,34 @@ func (a *Adapter) ScrapeURL(ctx context.Context, rawURL string) (model.Row, erro
 }
 
 // 兼容不同参数数量的构建（Go 不支持重载，这里用变参）。
+func magnetRow(raw string) (model.Row, error) {
+	raw = strings.TrimSpace(raw)
+	u, err := url.Parse(raw)
+	if err != nil {
+		return model.Row{}, fmt.Errorf("磁力链接不合法: %w", err)
+	}
+	hash := ""
+	for _, xt := range u.Query()["xt"] {
+		if strings.HasPrefix(strings.ToLower(xt), "urn:btih:") {
+			hash = strings.TrimSpace(xt[len("urn:btih:"):])
+			break
+		}
+	}
+	hash = strings.ToUpper(hash)
+	if hash == "" || (len(hash) != 40 && len(hash) != 32) {
+		return model.Row{}, errors.New("磁力链接缺少有效的 btih infohash")
+	}
+	title := strings.TrimSpace(u.Query().Get("dn"))
+	if title == "" {
+		title = "磁力任务 " + hash[:8]
+	}
+	return model.Row{
+		Token: "magnet@" + strings.ToLower(hash), Status: "new",
+		Source: "web", SourceID: hash, Site: "magnet",
+		Title: title, PageURL: raw, URL: raw, DownloadKind: "torrent",
+	}, nil
+}
+
 func buildRow(token, id, title, rawURL, cover, media, now, duration, seconds string) model.Row {
 	kind := "http"
 	if isMediaURL(media) && strings.Contains(strings.ToLower(media), ".m3u8") {

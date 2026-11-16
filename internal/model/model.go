@@ -101,7 +101,8 @@ type DownloadTask struct {
 	Source       string `json:"source"`
 	SourceID     string `json:"sourceId"`
 	URL          string `json:"url"`
-	Mode         string `json:"mode"`    // http | hls
+	Mode         string `json:"mode"` // http | hls | torrent
+	Files        []int  `json:"files,omitempty"`
 	Headers      string `json:"headers"` // JSON: {"Referer":"..."}
 	UseAuth      bool   `json:"useAuth"`
 	RefreshOn410 bool   `json:"refreshOn410"`

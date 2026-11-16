@@ -245,9 +245,12 @@ func (m *Manager) run(ctx context.Context, t *Task) {
 	}()
 
 	var err error
-	if strings.EqualFold(t.M.Mode, "hls") {
+	switch {
+	case strings.EqualFold(t.M.Mode, "hls"):
 		err = m.runHLS(ctx, t)
-	} else {
+	case strings.EqualFold(t.M.Mode, "torrent"):
+		err = m.runTorrent(ctx, t)
+	default:
 		err = m.runHTTP(ctx, t)
 	}
 	m.mu.Lock()

@@ -56,6 +56,7 @@ func (s *Server) handleDownloadAdd(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Tokens []string `json:"tokens"`
 		Status string   `json:"status"`
+		Files  []int    `json:"files"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "invalid json"})
@@ -126,6 +127,9 @@ func (s *Server) handleDownloadAdd(w http.ResponseWriter, r *http.Request) {
 			URL: row.URL, Mode: mode, Headers: headers,
 			UseAuth: useAuth, RefreshOn410: refresh,
 			State: "queued", AddedAt: time.Now().Format("2006-01-02 15:04:05"),
+		}
+		if len(body.Tokens) == 1 && len(body.Files) > 0 {
+			task.Files = body.Files
 		}
 		added, err := s.dl.Enqueue(task)
 		if err != nil {

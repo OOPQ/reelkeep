@@ -45,9 +45,11 @@ import { StatCard } from '@/components/stat-card'
 import { LibraryTable } from './library-table'
 import { LibraryGallery } from './library-gallery'
 import { filterRows, sortRows, type LibraryFilters, type SortDir, type SortKey } from './library-filters'
+import { useLibraryRows } from './use-library-rows'
 import { SelectionBar } from './selection-bar'
 import { CollectionPicker } from './collection-picker'
-import { ScrapeDialog, LinkScrapeDialog } from './scrape-dialog'
+import { LinkScrapeDialog, ScrapeDialog } from './scrape-dialog'
+import { TorrentPickerDialog } from './torrent-picker-dialog'
 import type { RowMenuActions } from './row-context-menu'
 
 const STATUS_OPTIONS = [
@@ -138,6 +140,7 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
   const [pickerTokens, setPickerTokens] = React.useState<string[] | null>(null)
   const [scrapeOpen, setScrapeOpen] = React.useState(false)
   const [linkOpen, setLinkOpen] = React.useState(false)
+  const [torrentRow, setTorrentRow] = React.useState<Row | null>(null)
   const [savedViews, setSavedViews] = React.useState<SavedView[]>(() => {
     try { return JSON.parse(localStorage.getItem('pektino.views.v1') || '[]') } catch { return [] }
   })
@@ -164,9 +167,10 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
   })
   const collectionName = collections.data?.items?.find(c => c.id === collectionId)?.name
   const collectionTokens = React.useMemo(() => new Set(collectionItems.data?.tokens || []), [collectionItems.data?.tokens])
+  const serverMode = !collectionId && !batchMode && per > 0
   const baseRows = React.useMemo(() => collectionId ? (data?.rows || []).filter(r => collectionTokens.has(r.token)) : (data?.rows || []), [data?.rows, collectionId, collectionTokens])
   const filters: LibraryFilters = { q: deferredQuery, status, source, flag, res, minDur }
-  const filtered = React.useMemo(() => filterRows(baseRows, filters), [baseRows, deferredQuery, status, source, flag, res, minDur])
+  const filtered = React.useMemo(() => serverMode ? [] : filterRows(baseRows, filters), [baseRows, deferredQuery, status, source, flag, res, minDur, serverMode])
   const batchSet = React.useMemo(() => {
     if (!batchMode) return null
     let tokens: string[] = []
@@ -174,14 +178,31 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
     if (!tokens.length) tokens = (data?.job?.progress?.addedTokens || []).filter(Boolean)
     return new Set(tokens)
   }, [batchMode, data?.job?.progress?.addedTokens])
-  const batchRows = React.useMemo(() => batchSet ? filtered.filter(row => batchSet.has(row.token)) : filtered, [filtered, batchSet])
-  const sorted = React.useMemo(() => sortRows(batchRows, sortKey, sortDir), [batchRows, sortKey, sortDir])
+  const batchRows = React.useMemo(() => serverMode ? [] : (batchSet ? filtered.filter(row => batchSet.has(row.token)) : filtered), [filtered, batchSet, serverMode])
+  const sorted = React.useMemo(() => serverMode ? [] : sortRows(batchRows, sortKey, sortDir), [batchRows, sortKey, sortDir, serverMode])
   const pages = per > 0 ? Math.max(1, Math.ceil(sorted.length / per)) : 1
   const safePage = Math.min(page, pages)
   const visible = per > 0 ? sorted.slice((safePage - 1) * per, safePage * per) : sorted
 
+  const serverQuery = useLibraryRows({
+    q: deferredQuery,
+    status,
+    source,
+    flag,
+    res,
+    minDur,
+    sort: sortKey,
+    dir: sortDir,
+    offset: Math.max(0, (page - 1) * per),
+    limit: per,
+  }, serverMode)
+  const displayRows = serverMode ? (serverQuery.data?.rows || []) : visible
+  const displayTotal = serverMode ? (serverQuery.data?.total || 0) : sorted.length
+  const displayPages = serverMode ? Math.max(1, Math.ceil(displayTotal / per)) : pages
+  const displayPage = Math.min(page, displayPages)
+
   React.useEffect(() => { setPage(1) }, [deferredQuery, status, source, flag, res, minDur, per, sortKey, sortDir, collectionId, batchMode])
-  React.useEffect(() => { if (page > pages) setPage(pages) }, [page, pages])
+  React.useEffect(() => { if (page > displayPages) setPage(displayPages) }, [page, displayPages])
 
   React.useEffect(() => {
     const next = new URLSearchParams(window.location.search)
@@ -251,7 +272,7 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
   }
 
   const togglePage = (checked: boolean) => {
-    const pageTokens = visible.map(r => r.token)
+    const pageTokens = displayRows.map(r => r.token)
     const pageSet = new Set(pageTokens)
     if (checked) setSelected([...new Set([...selected, ...pageTokens])])
     else setSelected(selected.filter(t => !pageSet.has(t)))
@@ -266,6 +287,10 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
   const menu: RowMenuActions = {
     open: openPreview,
     download: async row => {
+      if (row.download_kind === 'torrent' || row.url?.toLowerCase().startsWith('magnet:')) {
+        setTorrentRow(row)
+        return
+      }
       if (await confirmAction({ title: '开始下载', description: `把「${row.title?.trim() || row.token}」加入下载队列？`, confirmText: '开始下载' })) {
         await actions.download([row.token])
       }
@@ -547,7 +572,7 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
       ) : null}
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="text-[10px] text-[color:var(--subtle)]">
-            共 <b className="text-[color:var(--foreground)]">{sorted.length}</b> 条
+            共 <b className="text-[color:var(--foreground)]">{displayTotal}</b> 条
             {source !== 'all' ? ` · ${sourceLabel}` : ''}
             {flag !== 'none' ? ` · ${flagLabel}` : ''}
             {query ? ` · 搜索“${query}”` : ''}
@@ -562,7 +587,7 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
       <div className={cn('min-h-0 flex-1', view === 'gallery' && 'ui-scroll overflow-auto pr-0.5')}>
         {view === 'table' ? (
           <LibraryTable
-            rows={visible}
+            rows={displayRows}
             selected={selected}
             onToggle={toggleSelected}
             onTogglePage={togglePage}
@@ -576,24 +601,24 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
             onSort={sort}
           />
         ) : (
-            <LibraryGallery rows={visible} downloads={downloadMap} selected={selected} onToggle={toggleSelected} onOpen={openPreview} onFav={onFav} onRate={menu.rate} onDownload={menu.download} menu={menu} />
+            <LibraryGallery rows={displayRows} downloads={downloadMap} selected={selected} onToggle={toggleSelected} onOpen={openPreview} onFav={onFav} onRate={menu.rate} onDownload={menu.download} menu={menu} />
         )}
       </div>
 
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-[color:var(--border)] pt-3">
         <div className="text-[11.5px] text-[color:var(--subtle)]">
-          {sorted.length ? `${(safePage - 1) * (per || sorted.length) + 1}-${Math.min(safePage * (per || sorted.length), sorted.length)} / ${sorted.length}` : '0 / 0'}
+          {displayTotal ? `${(displayPage - 1) * (per || displayTotal) + 1}-${Math.min(displayPage * (per || displayTotal), displayTotal)} / ${displayTotal}` : '0 / 0'}
         </div>
         <div className="flex items-center gap-1.5">
           <span className="mr-1 text-[10px] text-[color:var(--subtle)]">每页</span>
           <Select value={String(per)} onValueChange={v => setPer(Number(v))} options={PER_OPTIONS} className="w-[76px] h-8" aria-label="每页条数" />
-          <Button size="icon-sm" variant="ghost" disabled={safePage <= 1} onClick={() => setPage(1)} aria-label="第一页"><ChevronsLeft className="size-3.5" /></Button>
-          <Button size="icon-sm" variant="ghost" disabled={safePage <= 1} onClick={() => setPage(p => Math.max(1, p - 1))} aria-label="上一页"><ChevronLeft className="size-3.5" /></Button>
-          {pageNumbers(safePage, pages).map(n => (
-            <Button key={n} size="icon-sm" variant={n === safePage ? 'default' : 'ghost'} onClick={() => setPage(n)} aria-label={`第 ${n} 页`}>{n}</Button>
+          <Button size="icon-sm" variant="ghost" disabled={displayPage <= 1} onClick={() => setPage(1)} aria-label="第一页"><ChevronsLeft className="size-3.5" /></Button>
+          <Button size="icon-sm" variant="ghost" disabled={displayPage <= 1} onClick={() => setPage(p => Math.max(1, p - 1))} aria-label="上一页"><ChevronLeft className="size-3.5" /></Button>
+          {pageNumbers(displayPage, displayPages).map(n => (
+            <Button key={n} size="icon-sm" variant={n === displayPage ? 'default' : 'ghost'} onClick={() => setPage(n)} aria-label={`第 ${n} 页`}>{n}</Button>
           ))}
-          <Button size="icon-sm" variant="ghost" disabled={safePage >= pages} onClick={() => setPage(p => Math.min(pages, p + 1))} aria-label="下一页"><ChevronRight className="size-3.5" /></Button>
-          <Button size="icon-sm" variant="ghost" disabled={safePage >= pages} onClick={() => setPage(pages)} aria-label="最后一页"><ChevronsRight className="size-3.5" /></Button>
+          <Button size="icon-sm" variant="ghost" disabled={displayPage >= displayPages} onClick={() => setPage(p => Math.min(displayPages, p + 1))} aria-label="下一页"><ChevronRight className="size-3.5" /></Button>
+          <Button size="icon-sm" variant="ghost" disabled={displayPage >= displayPages} onClick={() => setPage(displayPages)} aria-label="最后一页"><ChevronsRight className="size-3.5" /></Button>
         </div>
       </div>
 
@@ -616,6 +641,7 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
       />
       <ScrapeDialog open={scrapeOpen} onOpenChange={setScrapeOpen} sources={data?.sources || []} />
       <LinkScrapeDialog open={linkOpen} onOpenChange={setLinkOpen} />
+      <TorrentPickerDialog row={torrentRow} onClose={() => setTorrentRow(null)} />
     </div>
   )
 }

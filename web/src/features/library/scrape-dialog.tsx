@@ -200,9 +200,9 @@ export function LinkScrapeDialog({
         }
       >
         <div className="space-y-3 p-4">
-          <Input value={url} onChange={e => setUrl(e.target.value)} placeholder="视频页 URL" autoFocus />
+          <Input value={url} onChange={e => setUrl(e.target.value)} placeholder="视频页 / .m3u8 / .mp4 / magnet:" autoFocus />
           <div className="text-[10px] leading-5 text-[color:var(--subtle)]">
-            支持 qise / hsex / pektino 视频页；填一条抓一条，不影响榜单设置。
+            支持 qise / hsex / pektino 视频页、直链和磁力链接；填一条抓一条，不影响榜单设置。
           </div>
         </div>
       </DialogContent>

@@ -3,12 +3,18 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"io/fs"
 	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/OOPQ/reelkeep/internal/download"
 	"github.com/OOPQ/reelkeep/internal/model"
+	"github.com/OOPQ/reelkeep/internal/proc"
 	"github.com/OOPQ/reelkeep/internal/source"
 )
 
@@ -191,5 +197,113 @@ func (s *Server) handleDownloadReset(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleDownloadRepair(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "renamed": 0, "deleted": 0})
+	renamed, deleted, skipped := 0, 0, 0
+	probe := s.ffprobePath()
+	ffmpeg := s.ffmpegPath()
+	validator := ""
+	switch {
+	case probe != "":
+		validator = "ffprobe"
+	case ffmpeg != "":
+		validator = "ffmpeg"
+	}
+
+	_ = filepath.WalkDir(s.paths.Content, func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return nil
+		}
+		if !strings.HasSuffix(strings.ToLower(path), ".mp4.part") {
+			return nil
+		}
+		final := strings.TrimSuffix(path, ".part")
+		if st, err := os.Stat(final); err == nil {
+			// 已有正片：.part 比正片小就删掉，避免重复
+			if pst, err := os.Stat(path); err == nil && st.Size() >= pst.Size() {
+				if os.Remove(path) == nil {
+					deleted++
+				}
+			} else {
+				skipped++
+			}
+			return nil
+		}
+		if validator == "" {
+			skipped++
+			return nil
+		}
+		ok := false
+		if probe != "" {
+			ok = validPartProbe(probe, path)
+		} else {
+			ok = validPartFrame(ffmpeg, path)
+		}
+		if !ok {
+			skipped++
+			return nil
+		}
+		if err := os.Rename(path, final); err != nil {
+			skipped++
+		} else {
+			renamed++
+		}
+		return nil
+	})
+
+	note := ""
+	if validator == "" {
+		note = "未找到 ffprobe/ffmpeg，未校验 .part"
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ok": true, "renamed": renamed, "deleted": deleted, "skipped": skipped,
+		"validator": validator, "note": note,
+	})
+}
+
+// ffprobePath 优先找 ffmpeg 同目录的 ffprobe，其次 PATH。
+func (s *Server) ffprobePath() string {
+	s.mu.RLock()
+	ff := strings.TrimSpace(s.settings.FFmpegPath)
+	s.mu.RUnlock()
+	names := []string{"ffprobe", "ffprobe.exe"}
+	if ff != "" {
+		dir := filepath.Dir(ff)
+		for _, n := range names {
+			p := filepath.Join(dir, n)
+			if st, err := os.Stat(p); err == nil && !st.IsDir() {
+				return p
+			}
+		}
+	}
+	for _, n := range names {
+		if p, err := exec.LookPath(n); err == nil {
+			return p
+		}
+	}
+	return ""
+}
+
+// validPartProbe 用 ffprobe 读时长，能读出正数才认为文件完整。
+func validPartProbe(probe, path string) bool {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, probe,
+		"-v", "error", "-show_entries", "format=duration",
+		"-of", "default=nw=1:nk=1", path)
+	proc.HideWindow(cmd)
+	out, err := cmd.Output()
+	if err != nil {
+		return false
+	}
+	d, err := strconv.ParseFloat(strings.TrimSpace(string(out)), 64)
+	return err == nil && d > 0
+}
+
+// validPartFrame 没有 ffprobe 时的兜底：让 ffmpeg 解一帧视频，成功即说明容器可读。
+func validPartFrame(ffmpeg, path string) bool {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, ffmpeg,
+		"-v", "error", "-i", path, "-map", "0:v:0", "-frames:v", "1", "-f", "null", "-")
+	proc.HideWindow(cmd)
+	return cmd.Run() == nil
 }

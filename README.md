@@ -10,9 +10,9 @@
 
 ---
 
-## 安装（Windows）
+## 安装（Windows / macOS / Linux）
 
-从 Release 下载 `Reelkeep-Setup-<版本>.exe` 双击安装：
+**Windows**：从 Release 下载 `Reelkeep-Setup-<版本>.exe` 双击安装：
 
 - 按用户安装到 `%LOCALAPPDATA%\Programs\Reelkeep`，**不需要管理员权限**
 - 创建开始菜单与桌面快捷方式，可在「应用和功能」里卸载
@@ -20,6 +20,16 @@
 - 需要 Microsoft Edge WebView2 Runtime（Win10/11 一般已自带；安装器会检测并提示）
 
 也可以直接用绿色版 `reelkeep-desktop.exe`，不需要安装。
+
+**macOS**：下载 `.dmg`，拖入「应用程序」。当前是 ad-hoc 签名、未公证，首次打开请右键 → 打开。
+
+**Linux**：下载 `.deb` 安装（amd64 / arm64）：
+
+```bash
+sudo dpkg -i reelkeep_<版本>_amd64.deb
+# 需要 libgtk-3-0、libwebkit2gtk-4.1-0（Ubuntu 24.04 通常已具备）
+```
+
 
 ## 快速开始
 
@@ -176,7 +186,7 @@ qise 这类站点，高清/会员内容需要登录态。Reelkeep **不代填账
 - 已有服务在跑时，双击桌面版只开窗口，不会重复启动服务
 - 构建：`.\scripts\build.ps1`（CLI + Windows 桌面版）；`.\scripts\installer.ps1`（NSIS 安装器）
 
-> Windows 安装器已提供；CI 另有 macOS/Linux 裸二进制（暂无 .app/.deb）。代码签名需要自备证书（CI 已留 secrets 钩子）；自动下载安装更新尚未实现。
+> Windows 安装器、macOS `.dmg`、Linux `.deb` 均已提供。代码签名需要自备证书（CI 已留 secrets 钩子）；自动下载安装更新尚未实现。
 
 ## 架构
 
@@ -234,7 +244,7 @@ cd ..
 
 构建脚本会把 `web/dist` 一起 embed；改了前端必须重新构建二进制。
 
-CI（`.github/workflows/ci.yml`）：Linux 跑测试；五个平台出 CLI；Windows 出桌面版 + NSIS 安装器；macOS/Linux 出桌面裸二进制；配置 `WINDOWS_PFX_BASE64` 后自动签名；推 `v*` tag 自动发布 Release。
+CI（`.github/workflows/ci.yml`）：Linux 跑测试；五个平台出 CLI；Windows 出桌面版 + NSIS 安装器；macOS 出 `.app/.dmg`；Linux 出 `.deb`（amd64/arm64）；配置 `WINDOWS_PFX_BASE64` 后自动签名；推 `v*` tag 自动发布 Release。
 
 ## 路线图
 
@@ -245,7 +255,7 @@ CI（`.github/workflows/ci.yml`）：Linux 跑测试；五个平台出 CLI；Win
 | P2 | 四个源适配器迁移（pektino / hsex / qise / web）+ 链接抓取/刷新地址 | **完成** |
 | P3 | 写路径补齐：封面/缩略图/快照/导入/播放器调用 | **完成** |
 | P4 | 下载器 + 队列持久化 + 410 刷新 + 续传 | ✅ 90%（`.part` 修复已补） |
-| P5 | 打包（Windows 单文件）+ CI + Wails 壳 + macOS/Linux | 桌面壳/安装器/CI/签名钩子/更新检查完成；自动安装更新与 mac/linux 安装包待做 |
+| P5 | 打包（Windows 单文件）+ CI + Wails 壳 + macOS/Linux | 安装器/dmg/deb/CI/签名钩子/更新检查完成；自动安装更新待做 |
 | P6 | 外部源包：格式/校验/安全抓取/CLI/skill/源管理/抓取任务 | **完成** |
 
 ## 许可

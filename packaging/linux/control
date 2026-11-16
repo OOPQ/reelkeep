@@ -1,0 +1,10 @@
+Package: reelkeep
+Version: __VERSION__
+Section: video
+Priority: optional
+Architecture: __ARCH__
+Maintainer: OOPQ <oopq@users.noreply.github.com>
+Depends: libgtk-3-0 | libgtk-3-0t64, libwebkit2gtk-4.1-0, libjavascriptcoregtk-4.1-0
+Description: Reelkeep local media ledger and download manager
+ Reelkeep keeps a local ledger of videos, manages sources and downloads,
+ and plays them from a local loopback server.

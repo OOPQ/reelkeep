@@ -1,5 +1,18 @@
 # 更新日志
 
+## 0.9.8 — 2026-11-16
+
+### macOS / Linux 桌面包
+
+- macOS：`scripts/package-macos.sh` 生成 `Reelkeep.app` + `.dmg`（Intel / Apple Silicon）
+  - Info.plist、`.icns`（从 512 PNG 生成）、ad-hoc `codesign`
+  - 未公证：首次打开需右键 → 打开
+- Linux：`scripts/package-deb.sh` 生成 `.deb`（amd64 / arm64）
+  - 安装到 `/usr/bin`，带 `.desktop` 与图标
+  - 依赖系统 `libgtk-3-0`、`libwebkit2gtk-4.1-0`、`libjavascriptcoregtk-4.1-0`
+- CI 的 unix 矩阵扩展为 macOS Intel/ARM、Linux amd64/arm64，产出 `.dmg` / `.deb` / `.tar.gz`
+- 不做 AppImage：会把整套 WebKitGTK 再打一遍，体积/兼容性都差；`.deb` + 系统依赖更合适
+
 ## 0.9.7 — 2026-11-16
 
 ### P0 验收基线

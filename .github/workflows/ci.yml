@@ -191,7 +191,8 @@ jobs:
         include:
           - { os: macos-15-intel, artifact: macos-amd64 }
           - { os: macos-15, artifact: macos-arm64 }
-          - { os: ubuntu-24.04, artifact: linux-amd64 }
+          - { os: ubuntu-24.04, artifact: linux-amd64, debarch: amd64 }
+          - { os: ubuntu-24.04-arm, artifact: linux-arm64, debarch: arm64 }
     steps:
       - uses: actions/checkout@v4
 
@@ -231,17 +232,34 @@ jobs:
           mkdir -p dist
           go build -trimpath -ldflags "-s -w -X main.version=$VERSION" -o dist/reelkeep-desktop ./desktop
 
-      - name: Package
+      - name: Package tar.gz
         shell: bash
         run: |
           VERSION=$(cat VERSION)
           cd dist
           tar -czf "reelkeep-$VERSION-${{ matrix.artifact }}-desktop.tar.gz" reelkeep-desktop
 
+      - name: Package macOS app + dmg
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          VERSION=$(cat VERSION)
+          bash scripts/package-macos.sh "$VERSION" "${{ matrix.artifact }}" dist/reelkeep-desktop
+
+      - name: Package deb
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          VERSION=$(cat VERSION)
+          bash scripts/package-deb.sh "$VERSION" "${{ matrix.debarch }}" dist/reelkeep-desktop
+
       - uses: actions/upload-artifact@v4
         with:
           name: reelkeep-desktop-${{ matrix.artifact }}
-          path: dist/*.tar.gz
+          path: |
+            dist/*.tar.gz
+            dist/*.dmg
+            dist/*.deb
           if-no-files-found: error
 
   release:

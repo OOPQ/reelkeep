@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Reelkeep
+Comment=本地媒体台账与下载管理器
+Exec=reelkeep-desktop
+Icon=reelkeep
+Terminal=false
+Categories=AudioVideo;Video;Player;
+StartupWMClass=Reelkeep

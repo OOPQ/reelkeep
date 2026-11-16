@@ -1,0 +1,234 @@
+package api
+
+import (
+	"context"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/OOPQ/reelkeep/internal/model"
+	"github.com/OOPQ/reelkeep/internal/rule"
+	"github.com/OOPQ/reelkeep/internal/source"
+)
+
+// SourceManager 是外部源包管理器（由 main 注入）。
+type SourceManager interface {
+	List() []rule.ItemView
+	Import(data []byte, overwrite bool) (*rule.Package, error)
+	SetEnabled(id string, on bool) error
+	Remove(id string) error
+	Export(id string) ([]byte, error)
+	RecordResult(id string, err error)
+	Package(id string) (*rule.Package, bool)
+	Proxy() string
+	SetProxy(string)
+}
+
+func (s *Server) handleSources(w http.ResponseWriter, r *http.Request) {
+	if s.srcMgr == nil {
+		bad(w, "源管理器未启用")
+		return
+	}
+	items := s.srcMgr.List()
+	if items == nil {
+		items = []rule.ItemView{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "items": items})
+}
+
+func (s *Server) handleSourceImport(w http.ResponseWriter, r *http.Request) {
+	if s.srcMgr == nil {
+		bad(w, "源管理器未启用")
+		return
+	}
+	var body struct {
+		Data      string `json:"data"`
+		Overwrite bool   `json:"overwrite"`
+	}
+	if err := decodeJSON(r, &body); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "invalid json"})
+		return
+	}
+	p, err := s.srcMgr.Import([]byte(body.Data), body.Overwrite)
+	if err != nil {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"ok": false, "error": err.Error(), "exists": isExists(err),
+		})
+		return
+	}
+	s.logbuf.Add("source", "导入源 "+p.ID+" v"+p.Version)
+	s.Bump(false)
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ok": true,
+		"source": map[string]any{
+			"id": p.ID, "name": p.Name, "version": p.Version,
+			"capabilities": p.Capabilities, "ranks": p.List.Ranks,
+		},
+	})
+}
+
+func isExists(err error) bool {
+	return err != nil && strings.Contains(err.Error(), rule.ErrExists.Error())
+}
+
+func (s *Server) handleSourceEnable(w http.ResponseWriter, r *http.Request) {
+	if s.srcMgr == nil {
+		bad(w, "源管理器未启用")
+		return
+	}
+	var body struct {
+		ID      string `json:"id"`
+		Enabled bool   `json:"enabled"`
+	}
+	if err := decodeJSON(r, &body); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "invalid json"})
+		return
+	}
+	if err := s.srcMgr.SetEnabled(body.ID, body.Enabled); err != nil {
+		bad(w, err.Error())
+		return
+	}
+	s.logbuf.Add("source", map[bool]string{true: "启用源 ", false: "禁用源 "}[body.Enabled]+body.ID)
+	s.Bump(false)
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+func (s *Server) handleSourceRemove(w http.ResponseWriter, r *http.Request) {
+	if s.srcMgr == nil {
+		bad(w, "源管理器未启用")
+		return
+	}
+	var body struct {
+		ID string `json:"id"`
+	}
+	if err := decodeJSON(r, &body); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "invalid json"})
+		return
+	}
+	if err := s.srcMgr.Remove(body.ID); err != nil {
+		bad(w, err.Error())
+		return
+	}
+	s.logbuf.Add("source", "删除源 "+body.ID)
+	s.Bump(false)
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+func (s *Server) handleSourceExport(w http.ResponseWriter, r *http.Request) {
+	if s.srcMgr == nil {
+		bad(w, "源管理器未启用")
+		return
+	}
+	id := r.URL.Query().Get("id")
+	data, err := s.srcMgr.Export(id)
+	if err != nil {
+		bad(w, err.Error())
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Header().Set("Content-Disposition", `attachment; filename="`+id+`.json"`)
+	w.Header().Set("Cache-Control", "no-store")
+	_, _ = w.Write(data)
+}
+
+// handleSourceTest 跑一次小规模抓取，只回预览、不写库。
+func (s *Server) handleSourceTest(w http.ResponseWriter, r *http.Request) {
+	if s.srcMgr == nil {
+		bad(w, "源管理器未启用")
+		return
+	}
+	var body struct {
+		ID      string `json:"id"`
+		Rank    string `json:"rank"`
+		Limit   int    `json:"limit"`
+		Resolve bool   `json:"resolve"`
+	}
+	if err := decodeJSON(r, &body); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "invalid json"})
+		return
+	}
+	pkg, ok := s.srcMgr.Package(body.ID)
+	if !ok {
+		bad(w, "没有这个源："+body.ID)
+		return
+	}
+	limit := body.Limit
+	if limit <= 0 {
+		limit = 3
+	}
+	if limit > 10 {
+		limit = 10
+	}
+	fetcher, err := rule.NewHTTPFetcher(pkg, s.srcMgr.Proxy)
+	if err != nil {
+		bad(w, err.Error())
+		return
+	}
+	rs := rule.New(pkg, fetcher)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	var rows []model.Row
+	err = rs.Scrape(ctx, sourceRequest(pkg, body.Rank, limit), func(r model.Row) error {
+		rows = append(rows, r)
+		return nil
+	})
+	if err != nil {
+		s.srcMgr.RecordResult(pkg.ID, err)
+		bad(w, "测试失败："+err.Error())
+		return
+	}
+	s.srcMgr.RecordResult(pkg.ID, nil)
+
+	type preview struct {
+		Token    string `json:"token"`
+		Title    string `json:"title"`
+		Playable string `json:"playable"`
+		Cover    string `json:"cover"`
+		Duration string `json:"duration"`
+		Res      string `json:"res"`
+	}
+	out := make([]preview, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, preview{
+			Token: r.Token, Title: r.Title, Playable: r.URL,
+			Cover: r.CoverURL, Duration: r.Duration, Res: r.Res,
+		})
+	}
+	resp := map[string]any{"ok": true, "count": len(out), "rows": out}
+	if body.Resolve {
+		resolved := make([]map[string]any, 0, len(rows))
+		for _, r := range rows {
+			spec, serr := rs.Resolve(ctx, r)
+			item := map[string]any{"token": r.Token}
+			if serr != nil {
+				item["error"] = serr.Error()
+			} else {
+				item["url"] = spec.URL
+				item["mode"] = spec.Mode
+				item["headers"] = spec.Headers
+				item["refreshOn410"] = spec.RefreshOn410
+			}
+			resolved = append(resolved, item)
+		}
+		resp["resolved"] = resolved
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// sourceRequest 组一个最小的抓取请求。
+func sourceRequest(pkg *rule.Package, rank string, limit int) source.ScrapeRequest {
+	return source.ScrapeRequest{
+		Rank:     rank,
+		Pages:    []int{1},
+		Limit:    limit,
+		PageSize: maxInt(limit, pkg.List.PageSize),
+	}
+}
+
+func maxInt(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}

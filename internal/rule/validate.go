@@ -74,6 +74,12 @@ func (p *Package) Validate() []error {
 	if p.List.Item != "" && p.List.JSONPath != "" {
 		add("list", "item 与 jsonPath 不能同时设置")
 	}
+	if p.List.JSONLD != "" && p.List.JSONPath == "" {
+		add("list.jsonld", "使用 jsonld 时必须同时给 jsonPath（从该 JSON-LD 对象里取列表）")
+	}
+	if p.List.JSONLD != "" && p.List.Item != "" {
+		add("list.jsonld", "jsonld 与 item 不能同时设置")
+	}
 	if p.List.PageSize < 1 || p.List.PageSize > 200 {
 		add("list.pageSize", "必须在 1–200 之间")
 	}

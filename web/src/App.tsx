@@ -10,6 +10,7 @@ import { QueuePage } from '@/features/queue/queue-page'
 import { CollectionsPage } from '@/features/collections/collections-page'
 import { SettingsPage } from '@/features/settings/settings-page'
 import { BinPage } from '@/features/bin/bin-page'
+import { SourcesPage } from '@/features/sources/sources-page'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -36,6 +37,7 @@ export default function App() {
               <Route path="queue" element={<QueuePage />} />
               <Route path="collections" element={<CollectionsPage />} />
               <Route path="bin" element={<BinPage />} />
+              <Route path="sources" element={<SourcesPage />} />
               <Route path="settings" element={<SettingsPage />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Route>

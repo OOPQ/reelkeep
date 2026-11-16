@@ -4,7 +4,9 @@
 
 **Reelkeep 是 Pektino 的 Go 重写版。** 同一套 React 前端、同一份 SQLite 数据、同一套 `/api/*` 契约；后端从 PowerShell 5.1 换成单二进制 Go，为多端（Windows / macOS / Linux，后续 Android）留出同源代码。
 
-当前状态：**P1（只读 + 整理可用）+ P6 外部源包（引擎与 CLI）**。可以打开旧项目、浏览 1,600+ 条台账、扫盘回填、收藏/评分/已看/回收站/合集、浏览器内播放（Range 流）。四个内置源的 Go 迁移（P2）、下载器（P4）尚未完成；外部源包已经可以用 CLI 抓取，界面里的「获取数据」仍待接入。
+当前状态：**P1 完成 + P6 完成（外部源包 / 源管理 / 抓取任务）+ P2 部分（pektino、hsex 已作为外部源跑通）**。可以打开旧项目、浏览 1,600+ 条台账、扫盘回填、收藏/评分/已看/回收站/合集、浏览器内播放（Range 流）、在「源管理」导入源包并直接抓取。下载器（P4）、qise/web 原生适配器、Wails 壳（P5）尚未完成。
+
+![源管理：导入、测试、启用/禁用外部源](docs/sources-page.png)
 
 ---
 
@@ -59,6 +61,10 @@
 
 除了内置 Go 适配器，还可以导入声明式源包（不需要重新编译）：
 
+- 界面：**源管理** → 选择文件或粘贴 JSON → 「校验并导入」→ 启用 → 在「获取数据」里选它
+- 源包能力：HTML 列表 / JSON 接口 / schema.org `ItemList`、详情 CSS + JSON-LD、封面、HTTP/HLS 下载地址
+- 安装位置：`%APPDATA%\Reelkeep\sources\<id>.json`
+
 ```powershell
 # 校验（一次列出所有问题）
 .\reelkeep.exe source validate .\my-source.json
@@ -66,15 +72,26 @@
 # 离线回放：用本地 HTML 代替网络，不需要联网
 .\reelkeep.exe source test .\my-source.json --fixture-list list.html --fixture-detail detail.html --resolve
 
-# 在线测试：先抓 3 条验证
-.\reelkeep.exe source test .\my-source.json --rank latest --limit 3 --resolve
+# 在线测试：先抓 2 条验证
+.\reelkeep.exe source test .\my-source.json --rank weekly --limit 2 --resolve
+
+# 安装 / 查看 / 删除 / 导出
+.\reelkeep.exe source install .\my-source.json --overwrite
+.\reelkeep.exe source list
+.\reelkeep.exe source remove example
+.\reelkeep.exe source export example
 ```
 
-源包放在 `%APPDATA%\Reelkeep\sources\<id>.json`，重启后出现在 `/api/state.sources`，带 `origin: imported`。
+仓库自带两个已验证的源包，可直接导入：
+
+| 文件 | 站点 | 下载 |
+|---|---|---|
+| [sources/pektino.json](sources/pektino.json) | Pektino 周/月/总榜 | http（twimg 不带 Referer） |
+| [sources/hsex.json](sources/hsex.json) | hsex 最新 | HLS（需 ffmpeg；默认跟随系统代理） |
 
 - 机器可读格式：[docs/schema/source.schema.json](docs/schema/source.schema.json)
 - 人类可读参考：[skills/reelkeep-source/references/schema.md](skills/reelkeep-source/references/schema.md)
-- 安全边界：域名白名单、拒绝 `file:` 与内网地址、响应大小/超时上限、重定向校验
+- 安全边界：域名白名单、拒绝 `file:` 与内网地址、响应大小/超时上限、重定向校验；本地代理地址单独放行
 - 让 LLM 生成源包时，加载 `reelkeep-source` skill（已随仓库提供）
 
 ## 架构
@@ -129,11 +146,11 @@ cd web; pnpm install; pnpm build           # 重新构建前端（产物在 web/
 |---|---|---|
 | P0 | 契约冻结、诊断基线、25 项 HTTP 验收测试 | 待做 |
 | P1 | Go 内核骨架：store / scan / API / 静态资源 / 媒体流 | **完成** |
-| P2 | 四个源适配器迁移（pektino / hsex / qise / web） | 待做 |
+| P2 | 四个源适配器迁移（pektino / hsex / qise / web） | 部分：pektino、hsex 已用外部源包验证；qise/web 待做 |
 | P3 | 写路径补齐：封面/缩略图/快照/导入/播放器调用 | 部分完成 |
 | P4 | 下载器 + 队列持久化 + 410 刷新 + 续传 | 待做 |
 | P5 | 打包（Windows 单文件）+ CI + Wails 壳 + macOS/Linux | 待做 |
-| P6 | 外部源包：格式/校验/安全抓取/CLI/skill | **引擎完成**，`/api/scrape` 接入待做 |
+| P6 | 外部源包：格式/校验/安全抓取/CLI/skill/源管理/抓取任务 | **完成** |
 
 ## 许可
 

@@ -127,6 +127,7 @@ type Server struct {
 	paths    config.Paths
 	st       *store.Store
 	reg      *source.Registry
+	srcMgr   SourceManager
 	settings config.Settings
 	assets   fs.FS // dist 目录
 	started  time.Time
@@ -144,14 +145,18 @@ type Server struct {
 	metrics  *Metrics
 	mediaKey string
 	port     int
+
+	jobMu sync.Mutex
+	job   *scrapeJob
 }
 
 // New 创建 Server。assets 应为 dist 的 fs.FS。
-func New(paths config.Paths, st *store.Store, reg *source.Registry, settings config.Settings, assets fs.FS) *Server {
+func New(paths config.Paths, st *store.Store, reg *source.Registry, mgr SourceManager, settings config.Settings, assets fs.FS) *Server {
 	return &Server{
 		paths:    paths,
 		st:       st,
 		reg:      reg,
+		srcMgr:   mgr,
 		settings: settings,
 		assets:   assets,
 		started:  time.Now(),
@@ -491,8 +496,17 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/collections", s.handleCollectionsWrite)
 	mux.HandleFunc("POST /api/log", s.handleClientLog)
 
+	// 源管理与抓取
+	mux.HandleFunc("GET /api/sources", s.handleSources)
+	mux.HandleFunc("POST /api/sources/import", s.handleSourceImport)
+	mux.HandleFunc("POST /api/sources/enable", s.handleSourceEnable)
+	mux.HandleFunc("POST /api/sources/remove", s.handleSourceRemove)
+	mux.HandleFunc("GET /api/sources/export", s.handleSourceExport)
+	mux.HandleFunc("POST /api/sources/test", s.handleSourceTest)
+	mux.HandleFunc("POST /api/scrape", s.handleScrape)
+	mux.HandleFunc("POST /api/job/cancel", s.handleJobCancel)
+
 	// 尚未迁移到 Go 的能力：明确报错，不伪装成功
-	mux.HandleFunc("POST /api/scrape", s.handleNotYet("抓取适配器正在迁移（P2），当前版本只能浏览和整理已有台账"))
 	mux.HandleFunc("POST /api/download", s.handleNotYet("下载器正在迁移（P4），当前版本不能发起下载"))
 	mux.HandleFunc("POST /api/download/pause", s.handleNotYet("下载器正在迁移（P4）"))
 	mux.HandleFunc("POST /api/download/cancel", s.handleNotYet("下载器正在迁移（P4）"))

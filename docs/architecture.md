@@ -76,11 +76,13 @@ type DownloadResolver interface { Resolve(ctx, r) (DownloadSpec, error) }
 - 格式：`docs/schema/source.schema.json`（JSON Schema 2020-12）
 - 局部标准：CSS Selectors、RFC 9535 JSONPath、schema.org `VideoObject`、RFC 3986 占位符、RFC 8216 HLS
 - 安全边界：`baseUrl` + `hosts` 白名单、拒绝 `file:` 与内网地址、8MB/15s 上限、重定向逐跳校验
-- 加载：`%APPDATA%\Reelkeep\sources\*.json`，坏文件只影响自己
-- 工具：`reelkeep source validate|test`，支持离线 fixture 回放
+- 加载：`%APPDATA%\Reelkeep\sources\*.json`，坏文件只影响自己；启用状态与最近运行结果写在 `sources.index.json`
+- 管理：`/api/sources`（列表/导入/启用/删除/导出/测试），界面在「源管理」页
+- 抓取：`/api/scrape` 起后台任务，结果按 token 合并进台账，每轮落 `data\diagnostics\scrape\<run>\`
+- 工具：`reelkeep source validate|test|install|list|remove|export`，支持离线 fixture 回放
 - Skill：`skills/reelkeep-source`，指导 LLM 从样本页生成源包
 
-当前 `/api/scrape` 还没有接到规则源（P2/P6 的下一段）；CLI 已经能完整抓取。
+仓库自带 `sources/pektino.json`、`sources/hsex.json` 两个已验证的源包（外置，不随二进制自动加载）。
 
 ## 数据流
 

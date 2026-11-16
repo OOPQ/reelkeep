@@ -1,4 +1,4 @@
----
+﻿---
 name: reelkeep-source
 description: Generate and validate a Reelkeep source package (declarative JSON) for a video site — list/detail extraction with CSS or JSONPath, schema.org JSON-LD, allowed hosts, HTTP/HLS download resolution — then test it with fixtures or live and install it. Use when adding a new source to Reelkeep, fixing a broken selector, or reviewing a contributed source.
 ---
@@ -40,7 +40,7 @@ curl.exe -sL --max-time 20 "https://site.example/video/123"      -o detail.html
 
 ### 2. 写源包
 
-从 `examples/html-source.json` 或 `examples/json-api-source.json` 复制，改这几处：
+从 `examples/html-source.json、examples/itemlist-source.json` 或 `examples/json-api-source.json` 复制，改这几处：
 
 - `id`：小写字母/数字/连字符，2–41 位
 - `baseUrl`：站点根地址
@@ -83,9 +83,11 @@ reelkeep.exe source test .\source.json --rank latest --limit 3 --resolve
 
 ```powershell
 .\scripts\install.ps1 -Path .\source.json
+# 或者
+reelkeep.exe source install .\source.json --overwrite
 ```
 
-会复制到 `%APPDATA%\Reelkeep\sources\<id>.json`。重启 Reelkeep 后源出现在「获取数据」的下拉里。
+会复制到 `%APPDATA%\Reelkeep\sources\<id>.json`。重启 Reelkeep 后源出现在「获取数据」的下拉里，也可以在「源管理」页查看/测试/禁用/删除。
 
 ## 常见错误 → 修法
 
@@ -131,3 +133,4 @@ reelkeep.exe source test .\source.json --rank latest --limit 3 --resolve
 - RFC 8216（HLS）
 
 详见 `references/schema.md` 与 `references/standards.md`。
+

@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "id": "hsex",
+  "name": "Hsex",
+  "version": "1.0.0",
+  "author": "reelkeep",
+  "description": "hsex.icu 最新列表。播放地址是多码率 HLS（m3u8），必须用 ffmpeg 下载；直连经常不可达，默认跟随系统代理。",
+  "baseUrl": "https://hsex.icu",
+  "hosts": ["cdn.hdcdn.store", "i.hdcdn.store", "p.tengxuny.com"],
+  "capabilities": ["scrape", "detail", "cover", "download"],
+  "defaults": {
+    "proxy": "system",
+    "timeoutSec": 25
+  },
+  "list": {
+    "url": "/list-{page}.htm",
+    "pageSize": 48,
+    "ranks": [
+      { "key": "latest", "label": "最新" }
+    ],
+    "item": "div.thumbnail",
+    "fields": {
+      "id": { "selector": "a[href^='video-']", "attr": "href", "regex": "video-(\\d+)\\.htm" },
+      "title": { "selector": "h5 a" },
+      "cover": { "selector": "div.image", "attr": "style", "regex": "url\\('([^']+)'\\)" },
+      "duration": { "selector": "var.duration" }
+    }
+  },
+  "detail": {
+    "url": "/video-{id}.htm",
+    "fields": {
+      "title": { "selector": "meta[property='og:title']", "attr": "content" },
+      "cover": { "selector": "meta[property='og:image']", "attr": "content" },
+      "duration": { "selector": "meta[property='video:duration']", "attr": "content" },
+      "playable": { "selector": "source#video-source", "attr": "src" }
+    }
+  },
+  "download": {
+    "kind": "hls",
+    "url": "{playable}",
+    "headers": { "Referer": "{baseUrl}/" }
+  }
+}

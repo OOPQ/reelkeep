@@ -70,7 +70,7 @@ func (s *Server) handleState(w http.ResponseWriter, r *http.Request) {
 		"rowsRev": rowsRev,
 		"stats":   st,
 		"log":     s.logbuf.Last(40),
-		"job":     nil,
+		"job":     s.jobInfo(),
 		"download": DownloadInfo{
 			Active: []string{}, Errors: []any{}, Items: []any{},
 		},
@@ -770,6 +770,9 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 	s.settings = cfg
 	s.rev++
 	s.mu.Unlock()
+	if s.srcMgr != nil {
+		s.srcMgr.SetProxy(cfg.Proxy)
+	}
 	s.logbuf.Add("config", fmt.Sprintf("代理=%s 并发=%d", cfg.Proxy, cfg.Concurrent))
 	writeJSON(w, http.StatusOK, map[string]any{
 		"ok": true, "proxy": cfg.Proxy, "concurrent": cfg.Concurrent,

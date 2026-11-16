@@ -81,14 +81,10 @@ func (s *RuleSource) Scrape(ctx context.Context, req source.ScrapeRequest, emit 
 	limit := req.Limit
 
 	emitted := 0
+	seen := map[string]bool{}
 	var firstErr error
 	for _, page := range pages {
-		vars := map[string]string{
-			"baseUrl": s.pkg.BaseURL,
-			"rank":    rank,
-			"page":    strconv.Itoa(page),
-		}
-		listURL := subst(s.pkg.List.URL, vars)
+		listURL := s.pkg.ListURL(rank, page)
 		body, err := s.fetcher.Get(ctx, listURL, s.headers(nil))
 		if err != nil {
 			return fmt.Errorf("列表页 %s: %w", listURL, err)
@@ -118,6 +114,11 @@ func (s *RuleSource) Scrape(ctx context.Context, req source.ScrapeRequest, emit 
 			if r.URL == "" {
 				continue
 			}
+			key := strings.ToLower(r.Token)
+			if seen[key] {
+				continue // 列表页里同一个条目可能出现多次（导航/推荐位）
+			}
+			seen[key] = true
 			if err := emit(r); err != nil {
 				return err
 			}
@@ -135,6 +136,21 @@ func (s *RuleSource) Scrape(ctx context.Context, req source.ScrapeRequest, emit 
 
 func (s *RuleSource) parseList(body []byte, listURL, rank string, page, pageSize int) ([]model.Row, error) {
 	pageURL, _ := url.Parse(listURL)
+	if s.pkg.List.JSONLD != "" {
+		doc, err := parseHTML(body)
+		if err != nil {
+			return nil, err
+		}
+		root, err := jsonLDObject(doc, s.pkg.List.JSONLD)
+		if err != nil {
+			return nil, err
+		}
+		items, err := selectJSONPath(root, s.pkg.List.JSONPath)
+		if err != nil {
+			return nil, err
+		}
+		return s.rowsFromJSON(items, pageURL, rank, page, pageSize)
+	}
 	if s.pkg.List.JSONPath != "" {
 		var root any
 		if err := json.Unmarshal(body, &root); err != nil {
@@ -144,23 +160,7 @@ func (s *RuleSource) parseList(body []byte, listURL, rank string, page, pageSize
 		if err != nil {
 			return nil, err
 		}
-		var out []model.Row
-		for _, item := range items {
-			if len(out) >= pageSize {
-				break
-			}
-			fields, err := extractJSONFields(item, s.pkg.List.Fields)
-			if err != nil {
-				return nil, err
-			}
-			r, err := s.rowFromFields(fields, pageURL, "")
-			if err != nil {
-				continue
-			}
-			r.Rank, r.Page = rank, strconv.Itoa(page)
-			out = append(out, r)
-		}
-		return out, nil
+		return s.rowsFromJSON(items, pageURL, rank, page, pageSize)
 	}
 
 	doc, err := parseHTML(body)
@@ -185,6 +185,26 @@ func (s *RuleSource) parseList(body []byte, listURL, rank string, page, pageSize
 		out = append(out, r)
 		return true
 	})
+	return out, nil
+}
+
+func (s *RuleSource) rowsFromJSON(items []any, pageURL *url.URL, rank string, page, pageSize int) ([]model.Row, error) {
+	var out []model.Row
+	for _, item := range items {
+		if len(out) >= pageSize {
+			break
+		}
+		fields, err := extractJSONFields(item, s.pkg.List.Fields)
+		if err != nil {
+			return nil, err
+		}
+		r, err := s.rowFromFields(fields, pageURL, "")
+		if err != nil {
+			continue
+		}
+		r.Rank, r.Page = rank, strconv.Itoa(page)
+		out = append(out, r)
+	}
 	return out, nil
 }
 
@@ -265,8 +285,7 @@ func (s *RuleSource) detail(ctx context.Context, id string) (model.Row, error) {
 	if !validNativeID(id) {
 		return model.Row{}, fmt.Errorf("id 含非法字符: %q", id)
 	}
-	vars := map[string]string{"baseUrl": s.pkg.BaseURL, "id": id}
-	detailURL := subst(s.pkg.Detail.URL, vars)
+	detailURL := s.pkg.DetailURL(id)
 	body, err := s.fetcher.Get(ctx, detailURL, s.headers(nil))
 	if err != nil {
 		return model.Row{}, fmt.Errorf("详情页 %s: %w", detailURL, err)
@@ -326,6 +345,7 @@ func (s *RuleSource) Resolve(ctx context.Context, r model.Row) (source.DownloadS
 	if target == "" {
 		return spec, fmt.Errorf("源 %s 没有解析出下载地址", s.pkg.ID)
 	}
+	target = absoluteURL(s.pkg.BaseURL, target)
 	if s.http != nil {
 		if err := s.http.Allowed(target); err != nil {
 			return spec, err

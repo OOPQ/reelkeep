@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 )
@@ -27,8 +28,8 @@ type HTTPFetcher struct {
 	maxBytes int64
 }
 
-// NewHTTPFetcher 按源包构建抓取器。
-func NewHTTPFetcher(p *Package) (*HTTPFetcher, error) {
+// NewHTTPFetcher 按源包构建抓取器。proxyFn 返回显式代理（空表示不指定）。
+func NewHTTPFetcher(p *Package, proxyFn func() string) (*HTTPFetcher, error) {
 	u, err := url.Parse(p.BaseURL)
 	if err != nil || u.Hostname() == "" {
 		return nil, fmt.Errorf("baseUrl 不合法: %q", p.BaseURL)
@@ -52,14 +53,32 @@ func NewHTTPFetcher(p *Package) (*HTTPFetcher, error) {
 	}
 	dialer := &net.Dialer{Timeout: 10 * time.Second, KeepAlive: 30 * time.Second}
 	tr := &http.Transport{
-		Proxy: nil, // 代理由上层显式注入，不在源包层猜测
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			// 本地代理（如 127.0.0.1:7890）本身是内网地址，必须放行；
+			// 目标站点的直连仍然走 safeDial 的 SSRF 检查。
+			if isProxyAddr(addr, effectiveProxy(p, proxyFn)) {
+				return dialer.DialContext(ctx, network, addr)
+			}
 			return safeDial(ctx, dialer, network, addr)
 		},
 		TLSHandshakeTimeout:   10 * time.Second,
 		MaxIdleConnsPerHost:   4,
 		ForceAttemptHTTP2:     true,
 		ResponseHeaderTimeout: 15 * time.Second,
+	}
+	// 代理每个请求动态决定：UI 里改设置后不需要重建所有源。
+	tr.Proxy = func(req *http.Request) (*url.URL, error) {
+		raw := ""
+		if proxyFn != nil {
+			raw = strings.TrimSpace(proxyFn())
+		}
+		if raw != "" {
+			return url.Parse(raw)
+		}
+		if strings.EqualFold(p.Defaults.Proxy, "system") {
+			return http.ProxyFromEnvironment(req)
+		}
+		return nil, nil
 	}
 	client := &http.Client{
 		Timeout:   timeout,
@@ -156,6 +175,47 @@ func (f *FixtureFetcher) Get(ctx context.Context, rawURL string, headers map[str
 		return f.List, nil
 	}
 	return nil, fmt.Errorf("fixture 没有对应响应: %s", rawURL)
+}
+
+// effectiveProxy 返回本次实际会用的代理：显式设置优先，其次是 system 的环境变量。
+func effectiveProxy(p *Package, proxyFn func() string) string {
+	if proxyFn != nil {
+		if raw := strings.TrimSpace(proxyFn()); raw != "" {
+			return raw
+		}
+	}
+	if strings.EqualFold(p.Defaults.Proxy, "system") {
+		for _, k := range []string{"HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy"} {
+			if v := strings.TrimSpace(os.Getenv(k)); v != "" {
+				return v
+			}
+		}
+	}
+	return ""
+}
+
+// isProxyAddr 判断这次拨号是不是在连本地代理。
+func isProxyAddr(addr, rawProxy string) bool {
+	if rawProxy == "" {
+		return false
+	}
+	pu, err := url.Parse(rawProxy)
+	if err != nil || pu.Host == "" {
+		return false
+	}
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return false
+	}
+	ph, pp := pu.Hostname(), pu.Port()
+	if pp == "" {
+		if strings.EqualFold(pu.Scheme, "https") {
+			pp = "443"
+		} else {
+			pp = "80"
+		}
+	}
+	return strings.EqualFold(host, ph) && port == pp
 }
 
 // ---------- 网络边界 ----------

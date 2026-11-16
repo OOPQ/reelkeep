@@ -20,16 +20,25 @@ func LoadFile(path string) (*Package, error) {
 	if err != nil {
 		return nil, err
 	}
+	p, err := Parse(b, path)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", filepath.Base(path), err)
+	}
+	return p, nil
+}
+
+// Parse 从字节解析并校验源包（导入接口用）。
+func Parse(b []byte, path string) (*Package, error) {
 	var p Package
 	dec := json.NewDecoder(bytes.NewReader(jsonx.Clean(b)))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&p); err != nil {
-		return nil, fmt.Errorf("%s: %w", filepath.Base(path), err)
+		return nil, err
 	}
 	p.path = path
 	p.normalize()
 	if errs := p.Validate(); len(errs) > 0 {
-		return nil, fmt.Errorf("%s:\n%w", filepath.Base(path), errors.Join(errs...))
+		return nil, errors.Join(errs...)
 	}
 	return &p, nil
 }
@@ -48,7 +57,12 @@ func LoadDir(dir string) ([]*Package, []error) {
 		if e.IsDir() || !strings.HasSuffix(strings.ToLower(e.Name()), ".json") {
 			continue
 		}
-		names = append(names, e.Name())
+		name := e.Name()
+		// 管理器自己的索引/临时文件不是源包
+		if strings.HasPrefix(name, ".") || name == "sources.index.json" || strings.HasSuffix(name, ".tmp") {
+			continue
+		}
+		names = append(names, name)
 	}
 	sort.Strings(names)
 

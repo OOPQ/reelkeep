@@ -4,6 +4,7 @@
 package rule
 
 import (
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -35,6 +36,9 @@ type Defaults struct {
 	UserAgent  string            `json:"userAgent,omitempty"`
 	TimeoutSec int               `json:"timeoutSec,omitempty"`
 	MaxBytes   int64             `json:"maxBytes,omitempty"`
+	// Proxy: none（默认，直连）| system（跟随 HTTP(S)_PROXY 环境变量）。
+	// 设置里的显式代理由调用方注入，优先级更高。
+	Proxy string `json:"proxy,omitempty"`
 }
 
 // List 描述列表页（HTML 或 JSON API）。
@@ -45,6 +49,7 @@ type List struct {
 	Ranks     []source.Rank    `json:"ranks,omitempty"`
 	Item      string           `json:"item,omitempty"`
 	JSONPath  string           `json:"jsonPath,omitempty"`
+	JSONLD    string           `json:"jsonld,omitempty"`
 	Fields    map[string]Field `json:"fields"`
 }
 
@@ -150,11 +155,11 @@ func (p *Package) ListURL(rank string, page int) string {
 	if rank == "" {
 		rank = p.firstRank()
 	}
-	return subst(p.List.URL, map[string]string{
+	return absoluteURL(p.BaseURL, subst(p.List.URL, map[string]string{
 		"baseUrl": p.BaseURL,
 		"rank":    rank,
 		"page":    strconv.Itoa(page),
-	})
+	}))
 }
 
 // DetailURL 拼出详情页地址。
@@ -162,7 +167,20 @@ func (p *Package) DetailURL(id string) string {
 	if p.Detail == nil {
 		return ""
 	}
-	return subst(p.Detail.URL, map[string]string{"baseUrl": p.BaseURL, "id": id})
+	return absoluteURL(p.BaseURL, subst(p.Detail.URL, map[string]string{"baseUrl": p.BaseURL, "id": id}))
+}
+
+// absoluteURL 把相对模板解析成绝对地址（模板允许写 /list/{page}）。
+func absoluteURL(base, ref string) string {
+	bu, err := url.Parse(base)
+	if err != nil {
+		return ref
+	}
+	ru, err := url.Parse(ref)
+	if err != nil {
+		return ref
+	}
+	return bu.ResolveReference(ru).String()
 }
 
 // rankKeys 用于校验请求的榜单。

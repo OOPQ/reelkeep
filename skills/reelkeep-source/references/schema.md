@@ -15,7 +15,7 @@
 | `baseUrl` | 是 | `http(s)` 绝对地址；其 host 自动进入允许名单 |
 | `hosts` | 否 | 额外允许访问的域名（封面 CDN、媒体 CDN），精确匹配、不含端口 |
 | `capabilities` | 是 | `scrape` `detail` `cover` `download` 的子集 |
-| `defaults` | 否 | 默认请求头、UA、超时（默认 15s）、响应上限（默认 8MB） |
+| `defaults` | 否 | 默认请求头、UA、超时（默认 15s）、响应上限（默认 8MB）、代理（`none`/`system`） |
 | `list` | 是 | 列表页规则 |
 | `detail` | 否 | 详情页规则；声明 `detail` 能力时必填 |
 | `download` | 否 | 下载地址规则；声明 `download` 能力时必填 |
@@ -30,6 +30,7 @@
 | `ranks` | 榜单数组：`{key,label,group?,path?}` |
 | `item` | HTML 列表项 CSS 选择器 |
 | `jsonPath` | JSON 列表项的 RFC 9535 路径（与 `item` 二选一） |
+| `jsonld` | 从 HTML 的 schema.org JSON-LD 里取一个对象（如 `ItemList`）再套 `jsonPath` |
 | `fields` | 字段取值器；HTML 用 `selector`，JSON 用 `jsonPath`；必须有 `id` |
 
 ## detail
@@ -69,6 +70,11 @@
 `{baseUrl}` `{id}` `{rank}` `{page}` `{playable}` `{pageUrl}` `{url}` `{token}` `{sourceId}`
 
 未知占位符会校验失败。
+
+## 地址解析
+
+- `list.url` / `detail.url` / `download.url` 可以写相对路径（如 `/list/{page}.htm`），会自动按 `baseUrl` 解析成绝对地址
+- 列表页是 HTML、但数据在 JSON-LD 里时，用 `jsonld` + `jsonPath`（例如 `ItemList` + `$.itemListElement[*]`）；此时字段用 `jsonPath`
 
 ## 校验规则摘要
 

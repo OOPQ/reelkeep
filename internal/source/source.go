@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/OOPQ/reelkeep/internal/jsonx"
 	"github.com/OOPQ/reelkeep/internal/model"
@@ -101,6 +102,7 @@ type DownloadResolver interface {
 
 // Registry 保存构造函数、动态导入的源和已启用的清单。
 type Registry struct {
+	mu        sync.RWMutex
 	ctors     map[string]func() Source
 	dynamic   map[string]Source
 	manifests []Manifest
@@ -197,26 +199,58 @@ func EmptyRegistry() *Registry {
 
 // Register 注册一个源的构造函数（在各适配器的 init 里调用）。
 func (r *Registry) Register(id string, ctor func() Source) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.ctors[strings.ToLower(id)] = ctor
 }
 
-// Add 挂载一个运行时加载的源（外部源包）。
+// Add 挂载一个运行时加载的源（外部源包）。同一 id 会覆盖。
 func (r *Registry) Add(m Manifest, src Source) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	if r.dynamic == nil {
 		r.dynamic = map[string]Source{}
 	}
 	key := strings.ToLower(m.Key)
 	r.dynamic[key] = src
-	r.extra = append(r.extra, m)
+	kept := r.extra[:0]
+	for _, x := range r.extra {
+		if x.Key != key {
+			kept = append(kept, x)
+		}
+	}
+	r.extra = append(kept, m)
+}
+
+// Remove 卸载一个动态源。
+func (r *Registry) Remove(id string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	key := strings.ToLower(id)
+	delete(r.dynamic, key)
+	kept := r.extra[:0]
+	for _, x := range r.extra {
+		if x.Key != key {
+			kept = append(kept, x)
+		}
+	}
+	r.extra = kept
 }
 
 // Enabled 返回已启用的源（内置 + 导入，按 order 排序）。
+// 同 id 的导入源会覆盖内置清单，避免界面上出现两条同名源。
 func (r *Registry) Enabled() []Manifest {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	all := make([]Manifest, 0, len(r.manifests)+len(r.extra))
 	for _, m := range r.manifests {
-		if m.Enabled {
-			all = append(all, m)
+		if !m.Enabled {
+			continue
 		}
+		if _, imported := r.dynamic[m.Key]; imported {
+			continue
+		}
+		all = append(all, m)
 	}
 	all = append(all, r.extra...)
 	sort.SliceStable(all, func(i, j int) bool {
@@ -228,8 +262,18 @@ func (r *Registry) Enabled() []Manifest {
 	return all
 }
 
+// HasBuiltin 判断是否有同 id 的原生实现（用于导入时的冲突检查）。
+func (r *Registry) HasBuiltin(id string) bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	_, ok := r.ctors[strings.ToLower(id)]
+	return ok
+}
+
 // Get 按 id 取适配器（先内置，再导入）。
 func (r *Registry) Get(id string) (Source, bool) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	key := strings.ToLower(id)
 	if ctor, ok := r.ctors[key]; ok {
 		return ctor(), true
@@ -242,6 +286,8 @@ func (r *Registry) Get(id string) (Source, bool) {
 
 // Manifest 按 id 取清单项（内置或导入）。
 func (r *Registry) Manifest(id string) (Manifest, bool) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	key := strings.ToLower(id)
 	for _, m := range r.manifests {
 		if m.Key == key {

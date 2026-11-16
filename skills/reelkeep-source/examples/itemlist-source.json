@@ -1,0 +1,48 @@
+{
+  "schema": 1,
+  "id": "pektino",
+  "name": "Pektino",
+  "version": "1.0.0",
+  "author": "reelkeep",
+  "description": "Pektino 周榜/月榜/总榜。列表页自带 schema.org ItemList，详情页 VideoObject 直接给 mp4；video.twimg.com 不能带第三方 Referer。",
+  "baseUrl": "https://pektino.com",
+  "hosts": ["video.twimg.com"],
+  "capabilities": ["scrape", "detail", "cover", "download"],
+  "defaults": {
+    "timeoutSec": 30,
+    "maxBytes": 8388608
+  },
+  "list": {
+    "url": "/zh-CN/{rank}?page={page}",
+    "pageSize": 50,
+    "ranks": [
+      { "key": "weekly", "label": "周榜" },
+      { "key": "monthly", "label": "月榜" },
+      { "key": "all", "label": "总榜" }
+    ],
+    "jsonld": "ItemList",
+    "jsonPath": "$.itemListElement[*]",
+    "fields": {
+      "id": { "jsonPath": "$.url", "regex": "/movie/([A-Za-z0-9_-]+)" },
+      "pageUrl": { "jsonPath": "$.url" }
+    }
+  },
+  "detail": {
+    "url": "/zh-CN/movie/{id}",
+    "always": true,
+    "fields": {
+      "title": { "jsonld": "VideoObject.name" },
+      "playable": { "jsonld": "VideoObject.contentUrl" },
+      "cover": { "jsonld": "VideoObject.thumbnailUrl" },
+      "duration": { "jsonld": "VideoObject.duration" },
+      "uploaded": { "jsonld": "VideoObject.uploadDate" },
+      "views": { "jsonld": "VideoObject.interactionStatistic[0].userInteractionCount" }
+    }
+  },
+  "download": {
+    "kind": "http",
+    "url": "{playable}",
+    "headers": { "Referer": "{pageUrl}" },
+    "excludeHeaderHosts": ["video.twimg.com"]
+  }
+}

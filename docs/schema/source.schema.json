@@ -123,6 +123,14 @@
           "type": "string",
           "description": "列表项 CSS 选择器，字段在该节点内提取"
         },
+        "jsonPath": {
+          "type": "string",
+          "description": "JSON 列表项的 RFC 9535 路径；与 item 二选一"
+        },
+        "jsonld": {
+          "type": "string",
+          "description": "从 HTML 里的 schema.org JSON-LD 取一个对象（如 ItemList）再套 jsonPath"
+        },
         "fields": { "$ref": "#/$defs/fields" }
       }
     },

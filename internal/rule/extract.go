@@ -107,6 +107,16 @@ func extractDetailFields(doc *goquery.Document, fields map[string]Field, pageURL
 	return out, nil
 }
 
+// jsonLDObject 取第一个指定 @type 的 JSON-LD 对象（如 ItemList）。
+func jsonLDObject(doc *goquery.Document, typ string) (any, error) {
+	for _, o := range collectJSONLD(doc) {
+		if hasType(o, typ) {
+			return o, nil
+		}
+	}
+	return nil, fmt.Errorf("页面里没有 %s 类型的 JSON-LD", typ)
+}
+
 // extractJSONLD 从 schema.org JSON-LD 里取字段，例如 VideoObject.duration。
 func extractJSONLD(doc *goquery.Document, expr string) (string, error) {
 	objs := collectJSONLD(doc)

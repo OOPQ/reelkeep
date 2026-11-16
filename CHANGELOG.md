@@ -1,5 +1,31 @@
 # 更新日志
 
+## 0.3.0 — 2026-11-16
+
+### 抓取任务
+
+- `POST /api/scrape` 真正可用：单任务、后台执行、进度、`POST /api/job/cancel` 取消
+- 抓取结果按 token 合并：新条目入库；旧条目只覆盖抓取字段，状态/收藏/评分/备注/文件字段一律保留
+- 默认跳过已彻底删除与回收站条目（可传 `skipDeleted: false`）
+- 每轮落诊断：`data\diagnostics\scrape\<run>\` 下 `result.csv` / `meta.json` / `progress.json` / `scrape.log`
+- `last_seen`、`rank`、`page` 随抓取更新；`rowsRev` 前进，前端会自动刷新
+
+### 源管理
+
+- 新页面「源管理」：导入（文件/粘贴）、校验错误逐条展示、启用/禁用、测试预览、导出、删除
+- `GET /api/sources`、`POST /api/sources/import|enable|remove|test`、`GET /api/sources/export`
+- 导入时校验、同 id 需显式覆盖、与原生实现冲突时拒绝、安装状态与最近运行结果持久化
+- 禁用的源不出现在「获取数据」下拉里；同 id 的导入源覆盖内置清单，不会出现两条
+- CLI：`source install|list|remove|export`
+
+### 源包能力
+
+- `list.jsonld`：从 HTML 的 schema.org `ItemList` 取列表（pektino 用这个，比 CSS 稳）
+- 列表/详情/下载地址统一解析为绝对 URL（模板可以写 `/list/{page}`）
+- 同一轮抓取按 token 去重（列表页导航/推荐位重复链接不会重复入库）
+- `defaults.proxy`：`system` 跟随 `HTTP(S)_PROXY`；显式代理优先；本地代理地址不再被 SSRF 规则误拦
+- 随仓库提供两个已验证的外部源包：`sources\pektino.json`（周/月/总榜，http）、`sources\hsex.json`（最新，hls）
+
 ## 0.2.0 — 2026-11-16
 
 ### 外部源包（声明式）

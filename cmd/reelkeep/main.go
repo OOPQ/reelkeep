@@ -101,29 +101,24 @@ func main() {
 		reg = source.EmptyRegistry()
 	}
 
+	settings := config.LoadSettings(paths)
+
 	// 外部源包：%APPDATA%\Reelkeep\sources\*.json
-	importedDir := config.ImportedSourcesDir()
-	pkgs, loadErrs := rule.LoadDir(importedDir)
-	for _, p := range pkgs {
-		hf, herr := rule.NewHTTPFetcher(p)
-		if herr != nil {
-			loadErrs = append(loadErrs, fmt.Errorf("%s: %w", p.ID, herr))
-			continue
-		}
-		reg.Add(p.Manifest(), rule.New(p, hf))
-	}
+	mgr := rule.NewManager(config.ImportedSourcesDir(), reg)
+	mgr.SetProxy(settings.Proxy)
+	loadErrs := mgr.LoadAll()
 
 	assets, err := fs.Sub(web.Dist, "dist")
 	if err != nil {
 		fatal("前端资源缺失: " + err.Error())
 	}
 
-	srv := api.New(paths, st, reg, config.LoadSettings(paths), assets)
+	srv := api.New(paths, st, reg, mgr, settings, assets)
 	if err := srv.Boot(); err != nil {
 		fatal("启动失败: " + err.Error())
 	}
-	if len(pkgs) > 0 {
-		srv.LogBuffer().Add("source", fmt.Sprintf("已加载 %d 个外部源包", len(pkgs)))
+	if installed := mgr.List(); len(installed) > 0 {
+		srv.LogBuffer().Add("source", fmt.Sprintf("已加载 %d 个外部源包", len(installed)))
 	}
 	for _, e := range loadErrs {
 		logf.Printf("源包加载失败: %v", e)

@@ -7,6 +7,7 @@ import {
   Library,
   PanelLeftClose,
   PanelLeftOpen,
+  Plug,
   Search,
   RefreshCw,
   Settings,
@@ -30,6 +31,7 @@ const NAV = [
   { to: '/queue', label: '下载队列', icon: Download, key: 'queue' },
   { to: '/collections', label: '合集', icon: Layers, key: 'collections' },
   { to: '/bin', label: '回收站', icon: Trash2, key: 'bin' },
+  { to: '/sources', label: '源管理', icon: Plug, key: 'sources' },
   { to: '/settings', label: '设置', icon: Settings, key: 'settings' },
 ] as const
 
@@ -38,6 +40,7 @@ const PAGE_META: Record<string, { kicker: string; title: string }> = {
   '/queue': { kicker: 'QUEUE', title: '下载队列' },
   '/collections': { kicker: 'COLLECTIONS', title: '合集' },
   '/bin': { kicker: 'RECYCLE', title: '回收站' },
+  '/sources': { kicker: 'SOURCES', title: '源管理' },
   '/settings': { kicker: 'SETTINGS', title: '设置' },
 }
 

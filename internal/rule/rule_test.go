@@ -181,7 +181,7 @@ func TestValidateMissingID(t *testing.T) {
 
 func TestAllowedHostsAndSchemes(t *testing.T) {
 	p := loadDemo(t)
-	hf, err := NewHTTPFetcher(p)
+	hf, err := NewHTTPFetcher(p, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

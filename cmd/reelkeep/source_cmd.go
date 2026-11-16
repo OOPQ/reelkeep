@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/OOPQ/reelkeep/internal/config"
 	"github.com/OOPQ/reelkeep/internal/model"
 	"github.com/OOPQ/reelkeep/internal/rule"
 	"github.com/OOPQ/reelkeep/internal/source"
@@ -27,6 +28,14 @@ func runSourceCommand(args []string) int {
 		return cmdSourceValidate(args[1:])
 	case "test":
 		return cmdSourceTest(args[1:])
+	case "install":
+		return cmdSourceInstall(args[1:])
+	case "list":
+		return cmdSourceList(args[1:])
+	case "remove":
+		return cmdSourceRemove(args[1:])
+	case "export":
+		return cmdSourceExport(args[1:])
 	default:
 		fmt.Fprintf(os.Stderr, "未知子命令: %s\n", args[0])
 		sourceUsage()
@@ -38,10 +47,109 @@ func sourceUsage() {
 	fmt.Fprint(os.Stderr, `用法:
   reelkeep source validate <file.json>   校验源包
   reelkeep source test <file.json>       跑一次抓取（需要网络）
-      --rank latest --pages 1 --limit 5
+      --rank latest --pages 1 --limit 5 --proxy http://127.0.0.1:7890
       --fixture-list list.html --fixture-detail detail.html   离线回放
       --resolve --json
+  reelkeep source install <file.json>    安装到 %APPDATA%\Reelkeep\sources
+      --overwrite
+  reelkeep source list                   列出已安装的源
+  reelkeep source remove <id>            删除一个源
+  reelkeep source export <id>            导出源包 JSON
 `)
+}
+
+// openManager 打开外部源管理器（安装目录固定为 %APPDATA%\Reelkeep\sources）。
+func openManager() *rule.Manager {
+	reg, err := source.NewRegistry(source.DefaultConfigPath())
+	if err != nil {
+		reg = source.EmptyRegistry()
+	}
+	m := rule.NewManager(config.ImportedSourcesDir(), reg)
+	for _, e := range m.LoadAll() {
+		fmt.Fprintln(os.Stderr, "警告:", e)
+	}
+	return m
+}
+
+func cmdSourceInstall(args []string) int {
+	if len(args) < 1 {
+		sourceUsage()
+		return 2
+	}
+	file := args[0]
+	fs := flag.NewFlagSet("source install", flag.ContinueOnError)
+	overwrite := fs.Bool("overwrite", false, "覆盖同 id 的已安装源")
+	proxy := fs.String("proxy", "", "显式代理")
+	if err := fs.Parse(args[1:]); err != nil {
+		return 2
+	}
+	data, err := os.ReadFile(file)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "读取失败:", err)
+		return 1
+	}
+	m := openManager()
+	m.SetProxy(*proxy)
+	p, err := m.Import(data, *overwrite)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "✗ 安装失败:", err)
+		return 1
+	}
+	fmt.Printf("✓ 已安装 %s (%s) v%s → %s\n", p.Name, p.ID, p.Version, config.ImportedSourcesDir())
+	return 0
+}
+
+func cmdSourceList(args []string) int {
+	m := openManager()
+	items := m.List()
+	if len(items) == 0 {
+		fmt.Println("（还没有安装外部源）")
+		return 0
+	}
+	for _, it := range items {
+		state := "启用"
+		if !it.Enabled {
+			state = "禁用"
+		}
+		line := fmt.Sprintf("%-16s %-20s v%-8s %s  %s", it.ID, it.Name, it.Version, state, strings.Join(it.Capabilities, ","))
+		if it.LastRunAt != "" {
+			line += "  最近:" + it.LastRunAt
+			if it.LastError != "" {
+				line += " 错误:" + truncate(it.LastError, 60)
+			}
+		}
+		fmt.Println(line)
+	}
+	return 0
+}
+
+func cmdSourceRemove(args []string) int {
+	if len(args) != 1 {
+		sourceUsage()
+		return 2
+	}
+	m := openManager()
+	if err := m.Remove(args[0]); err != nil {
+		fmt.Fprintln(os.Stderr, "删除失败:", err)
+		return 1
+	}
+	fmt.Println("✓ 已删除", args[0])
+	return 0
+}
+
+func cmdSourceExport(args []string) int {
+	if len(args) != 1 {
+		sourceUsage()
+		return 2
+	}
+	m := openManager()
+	data, err := m.Export(args[0])
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "导出失败:", err)
+		return 1
+	}
+	_, _ = os.Stdout.Write(data)
+	return 0
 }
 
 func cmdSourceValidate(args []string) int {
@@ -100,6 +208,7 @@ func cmdSourceTest(args []string) int {
 	fixtureDetail := fs.String("fixture-detail", "", "用本地 HTML 代替详情页")
 	asJSON := fs.Bool("json", false, "输出 JSON")
 	doResolve := fs.Bool("resolve", false, "同时测试下载地址解析")
+	proxy := fs.String("proxy", "", "显式代理，例如 http://127.0.0.1:7890")
 	if err := fs.Parse(args[1:]); err != nil {
 		return 2
 	}
@@ -137,7 +246,7 @@ func cmdSourceTest(args []string) int {
 		fetcher = ff
 		fmt.Fprintln(os.Stderr, "（离线回放模式）")
 	} else {
-		hf, err := rule.NewHTTPFetcher(p)
+		hf, err := rule.NewHTTPFetcher(p, func() string { return *proxy })
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "创建抓取器失败:", err)
 			return 1

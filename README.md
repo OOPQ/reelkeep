@@ -4,7 +4,7 @@
 
 **Reelkeep 是 Pektino 的 Go 重写版。** 同一套 React 前端、同一份 SQLite 数据、同一套 `/api/*` 契约；后端从 PowerShell 5.1 换成单二进制 Go，为多端（Windows / macOS / Linux，后续 Android）留出同源代码。
 
-当前状态：**P1（只读 + 整理可用）**。可以打开旧项目、浏览 1,600+ 条台账、扫盘回填、收藏/评分/已看/回收站/合集、浏览器内播放（Range 流）。抓取与下载尚未迁移，调用时会明确报「正在迁移」。
+当前状态：**P1（只读 + 整理可用）+ P6 外部源包（引擎与 CLI）**。可以打开旧项目、浏览 1,600+ 条台账、扫盘回填、收藏/评分/已看/回收站/合集、浏览器内播放（Range 流）。四个内置源的 Go 迁移（P2）、下载器（P4）尚未完成；外部源包已经可以用 CLI 抓取，界面里的「获取数据」仍待接入。
 
 ---
 
@@ -55,18 +55,43 @@
 - 路径支持中文和空格；不要把项目放在 OneDrive / 坚果云 / 网络盘（SQLite WAL 可能损坏，启动时会警告）
 - 首次运行会读取旧版 `%APPDATA%\pektino\projects.json`，自动打开你原来的项目
 
+## 外部源包
+
+除了内置 Go 适配器，还可以导入声明式源包（不需要重新编译）：
+
+```powershell
+# 校验（一次列出所有问题）
+.\reelkeep.exe source validate .\my-source.json
+
+# 离线回放：用本地 HTML 代替网络，不需要联网
+.\reelkeep.exe source test .\my-source.json --fixture-list list.html --fixture-detail detail.html --resolve
+
+# 在线测试：先抓 3 条验证
+.\reelkeep.exe source test .\my-source.json --rank latest --limit 3 --resolve
+```
+
+源包放在 `%APPDATA%\Reelkeep\sources\<id>.json`，重启后出现在 `/api/state.sources`，带 `origin: imported`。
+
+- 机器可读格式：[docs/schema/source.schema.json](docs/schema/source.schema.json)
+- 人类可读参考：[skills/reelkeep-source/references/schema.md](skills/reelkeep-source/references/schema.md)
+- 安全边界：域名白名单、拒绝 `file:` 与内网地址、响应大小/超时上限、重定向校验
+- 让 LLM 生成源包时，加载 `reelkeep-source` skill（已随仓库提供）
+
 ## 架构
 
 ```text
-cmd/reelkeep            进程入口：单实例、端口回退、打开浏览器、优雅退出
+cmd/reelkeep            进程入口：单实例、端口回退、打开浏览器、优雅退出；source 子命令
 internal/api            HTTP 契约（/api/* 与旧版一致）+ SSE + 静态资源
 internal/store          SQLite：items / collections / deleted_tokens / audit_log
 internal/scan           媒体目录 → 台账回填（与旧版判定逐条对齐）
 internal/source         源注册表（sources.json 控制启用/顺序/榜单）
-internal/config         项目路径模型、settings、最近项目
+internal/rule           外部源包：加载/校验、安全抓取、HTML/JSON 提取、RuleSource
+internal/config         项目路径模型、settings、最近项目、导入源目录
 internal/jsonx          兼容 PowerShell 写出的 UTF-8 BOM JSON
 web/                    React 19 + Vite 8 前端（构建产物 go:embed 进二进制）
-configs/sources.json    源的启用/能力/榜单清单
+configs/sources.json    内置源的启用/能力/榜单清单
+docs/schema/            源包 JSON Schema（2020-12）
+skills/reelkeep-source  指导 LLM 生成/校验/安装源包的 skill
 ```
 
 设计约束：
@@ -107,7 +132,8 @@ cd web; pnpm install; pnpm build           # 重新构建前端（产物在 web/
 | P2 | 四个源适配器迁移（pektino / hsex / qise / web） | 待做 |
 | P3 | 写路径补齐：封面/缩略图/快照/导入/播放器调用 | 部分完成 |
 | P4 | 下载器 + 队列持久化 + 410 刷新 + 续传 | 待做 |
-| P5 | 打包（Windows 单文件）+ CI + macOS/Linux | 待做 |
+| P5 | 打包（Windows 单文件）+ CI + Wails 壳 + macOS/Linux | 待做 |
+| P6 | 外部源包：格式/校验/安全抓取/CLI/skill | **引擎完成**，`/api/scrape` 接入待做 |
 
 ## 许可
 

@@ -152,6 +152,9 @@ func appDataDir() string {
 // registryPath 是新版记录文件；旧版在 %APPDATA%\pektino\projects.json。
 func registryPath() string { return filepath.Join(appDataDir(), "projects.json") }
 
+// ImportedSourcesDir 是外部源包的存放目录（与项目无关，换项目不用重装源）。
+func ImportedSourcesDir() string { return filepath.Join(appDataDir(), "sources") }
+
 func legacyRegistryPath() string {
 	if dir, err := os.UserConfigDir(); err == nil && dir != "" {
 		return filepath.Join(dir, "pektino", "projects.json")

@@ -35,13 +35,14 @@ type Rank struct {
 	Path  string `json:"path,omitempty"`
 }
 
-// Manifest 是 sources.json 里的一项（前端 /api/state 的 sources 字段）。
+// Manifest 是 sources.json / 导入源包对外暴露的一份描述（/api/state 的 sources 字段）。
 type Manifest struct {
 	Key           string   `json:"key"`
 	Name          string   `json:"name"`
 	File          string   `json:"-"`
 	Enabled       bool     `json:"-"`
 	Order         int      `json:"-"`
+	Origin        string   `json:"origin,omitempty"` // builtin | imported
 	Capabilities  []string `json:"capabilities"`
 	SiteURL       string   `json:"siteUrl"`
 	PageSize      int      `json:"pageSize"`
@@ -69,6 +70,8 @@ type DownloadSpec struct {
 	URL     string
 	Mode    string // http | hls
 	Headers map[string]string
+	// RefreshOn410 为 true 时，下载器遇到 410 应先重新解析一次源地址再重试。
+	RefreshOn410 bool
 }
 
 // Source 是所有源都必须实现的接口。
@@ -96,10 +99,12 @@ type DownloadResolver interface {
 	Resolve(ctx context.Context, r model.Row) (DownloadSpec, error)
 }
 
-// Registry 保存构造函数和已启用的清单。
+// Registry 保存构造函数、动态导入的源和已启用的清单。
 type Registry struct {
 	ctors     map[string]func() Source
+	dynamic   map[string]Source
 	manifests []Manifest
+	extra     []Manifest
 }
 
 // manifestFile 是 sources.json 的原始形状；Manifest 里 Output 字段标了 "-"，
@@ -187,7 +192,7 @@ func NewRegistry(configPath string) (*Registry, error) {
 
 // EmptyRegistry 在 sources.json 缺失时使用：前端仍能浏览台账，只是不能抓取。
 func EmptyRegistry() *Registry {
-	return &Registry{ctors: map[string]func() Source{}}
+	return &Registry{ctors: map[string]func() Source{}, dynamic: map[string]Source{}}
 }
 
 // Register 注册一个源的构造函数（在各适配器的 init 里调用）。
@@ -195,31 +200,56 @@ func (r *Registry) Register(id string, ctor func() Source) {
 	r.ctors[strings.ToLower(id)] = ctor
 }
 
-// Enabled 返回已启用且有实现的源（按 order）。
+// Add 挂载一个运行时加载的源（外部源包）。
+func (r *Registry) Add(m Manifest, src Source) {
+	if r.dynamic == nil {
+		r.dynamic = map[string]Source{}
+	}
+	key := strings.ToLower(m.Key)
+	r.dynamic[key] = src
+	r.extra = append(r.extra, m)
+}
+
+// Enabled 返回已启用的源（内置 + 导入，按 order 排序）。
 func (r *Registry) Enabled() []Manifest {
-	var out []Manifest
+	all := make([]Manifest, 0, len(r.manifests)+len(r.extra))
 	for _, m := range r.manifests {
-		if !m.Enabled {
-			continue
+		if m.Enabled {
+			all = append(all, m)
 		}
-		out = append(out, m)
 	}
-	return out
+	all = append(all, r.extra...)
+	sort.SliceStable(all, func(i, j int) bool {
+		if all[i].Order != all[j].Order {
+			return all[i].Order < all[j].Order
+		}
+		return all[i].Key < all[j].Key
+	})
+	return all
 }
 
-// Get 按 id 取适配器。
+// Get 按 id 取适配器（先内置，再导入）。
 func (r *Registry) Get(id string) (Source, bool) {
-	ctor, ok := r.ctors[strings.ToLower(id)]
-	if !ok {
-		return nil, false
+	key := strings.ToLower(id)
+	if ctor, ok := r.ctors[key]; ok {
+		return ctor(), true
 	}
-	return ctor(), true
+	if src, ok := r.dynamic[key]; ok {
+		return src, true
+	}
+	return nil, false
 }
 
-// Manifest 按 id 取清单项。
+// Manifest 按 id 取清单项（内置或导入）。
 func (r *Registry) Manifest(id string) (Manifest, bool) {
+	key := strings.ToLower(id)
 	for _, m := range r.manifests {
-		if m.Key == strings.ToLower(id) {
+		if m.Key == key {
+			return m, true
+		}
+	}
+	for _, m := range r.extra {
+		if m.Key == key {
 			return m, true
 		}
 	}

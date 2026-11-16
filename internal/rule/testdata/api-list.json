@@ -1,0 +1,20 @@
+{
+  "data": {
+    "items": [
+      {
+        "vid": "a1",
+        "name": "API video one",
+        "pic": "https://cdn.example.com/a1.jpg",
+        "file": "https://cdn.example.com/a1.mp4",
+        "seconds": 90
+      },
+      {
+        "vid": "a2",
+        "name": "API video two",
+        "pic": "https://cdn.example.com/a2.jpg",
+        "file": "https://cdn.example.com/a2.mp4",
+        "seconds": "PT2M5S"
+      }
+    ]
+  }
+}

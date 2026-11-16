@@ -1,0 +1,49 @@
+{
+  "schema": 1,
+  "id": "demo",
+  "name": "Demo Source",
+  "version": "1.0.0",
+  "author": "reelkeep",
+  "description": "Synthetic fixture source used by tests and the skill examples.",
+  "baseUrl": "https://demo.example.com",
+  "hosts": ["cdn.example.com"],
+  "capabilities": ["scrape", "detail", "cover", "download"],
+  "defaults": {
+    "headers": { "Referer": "{baseUrl}/" },
+    "timeoutSec": 10
+  },
+  "list": {
+    "url": "/list/{rank}?page={page}",
+    "pageStart": 1,
+    "pageSize": 24,
+    "ranks": [
+      { "key": "latest", "label": "最新" },
+      { "key": "hot", "label": "最热" }
+    ],
+    "item": "a.card",
+    "fields": {
+      "id": { "selector": "a.card", "attr": "href", "regex": "/video/(\\d+)" },
+      "title": { "selector": ".t" },
+      "cover": { "selector": "img", "attr": "src", "absolute": true },
+      "duration": { "selector": ".d" }
+    }
+  },
+  "detail": {
+    "url": "/video/{id}",
+    "always": false,
+    "fields": {
+      "title": { "jsonld": "VideoObject.name" },
+      "playable": { "jsonld": "VideoObject.contentUrl" },
+      "cover": { "jsonld": "VideoObject.thumbnailUrl" },
+      "duration": { "jsonld": "VideoObject.duration" },
+      "views": { "jsonld": "VideoObject.interactionStatistic[0].userInteractionCount" }
+    }
+  },
+  "download": {
+    "kind": "http",
+    "url": "{playable}",
+    "headers": { "Referer": "{pageUrl}" },
+    "excludeHeaderHosts": ["cdn.example.com"],
+    "onStatus": { "410": { "action": "refreshDetail", "retryOnce": true } }
+  }
+}

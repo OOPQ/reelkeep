@@ -1,0 +1,186 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://reelkeep.dev/schema/source-1.json",
+  "title": "Reelkeep source package",
+  "description": "声明式视频源包。选择器用 CSS Selectors Level 4，JSON 查询用 RFC 9535 JSONPath，URL 模板用 RFC 3986 占位符，HLS 见 RFC 8216。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "id", "name", "version", "baseUrl", "capabilities", "list"],
+  "properties": {
+    "schema": { "const": 1 },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{1,40}$",
+      "description": "稳定标识；同时作为 token 前缀（<id>@<原生 id>）"
+    },
+    "name": { "type": "string", "minLength": 1, "maxLength": 80 },
+    "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "author": { "type": "string", "maxLength": 80 },
+    "description": { "type": "string", "maxLength": 500 },
+    "baseUrl": {
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https?://",
+      "description": "站点根地址；其 host 自动加入允许访问的域名"
+    },
+    "hosts": {
+      "type": "array",
+      "description": "额外允许访问的域名（封面 CDN、媒体 CDN 等），精确匹配，不含端口",
+      "items": { "type": "string", "pattern": "^[A-Za-z0-9.-]+$" },
+      "uniqueItems": true
+    },
+    "capabilities": {
+      "type": "array",
+      "items": { "enum": ["scrape", "detail", "cover", "download"] },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "defaults": { "$ref": "#/$defs/defaults" },
+    "list": { "$ref": "#/$defs/list" },
+    "detail": { "$ref": "#/$defs/detail" },
+    "download": { "$ref": "#/$defs/download" }
+  },
+  "allOf": [
+    {
+      "if": { "required": ["download"] },
+      "then": {
+        "properties": {
+          "capabilities": { "contains": { "const": "download" } }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "defaults": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "headers": { "$ref": "#/$defs/headers" },
+        "userAgent": { "type": "string", "maxLength": 300 },
+        "timeoutSec": { "type": "integer", "minimum": 1, "maximum": 60, "default": 15 },
+        "maxBytes": { "type": "integer", "minimum": 1024, "maximum": 33554432, "default": 8388608 }
+      }
+    },
+    "headers": {
+      "type": "object",
+      "additionalProperties": { "type": "string", "maxLength": 1000 }
+    },
+    "rank": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "label"],
+      "properties": {
+        "key": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+        "label": { "type": "string", "minLength": 1 },
+        "group": { "type": "string" },
+        "path": { "type": "string" }
+      }
+    },
+    "field": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "取值器：selector / jsonPath / jsonld 三选一",
+      "properties": {
+        "selector": { "type": "string", "minLength": 1 },
+        "jsonPath": { "type": "string", "minLength": 1 },
+        "jsonld": { "type": "string", "minLength": 1 },
+        "attr": { "type": "string" },
+        "text": { "type": "boolean" },
+        "html": { "type": "boolean" },
+        "regex": { "type": "string" },
+        "absolute": { "type": "boolean" },
+        "trim": { "type": "boolean" },
+        "default": { "type": "string" }
+      },
+      "oneOf": [
+        { "required": ["selector"] },
+        { "required": ["jsonPath"] },
+        { "required": ["jsonld"] }
+      ]
+    },
+    "fields": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": { "$ref": "#/$defs/field" }
+    },
+    "list": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["url", "fields"],
+      "anyOf": [
+        { "required": ["item"] },
+        { "required": ["jsonPath"] }
+      ],
+      "properties": {
+        "url": {
+          "type": "string",
+          "description": "列表页模板，支持 {rank}、{page}、{baseUrl}"
+        },
+        "pageStart": { "type": "integer", "minimum": 1, "default": 1 },
+        "pageSize": { "type": "integer", "minimum": 1, "maximum": 200, "default": 24 },
+        "ranks": { "type": "array", "items": { "$ref": "#/$defs/rank" } },
+        "item": {
+          "type": "string",
+          "description": "列表项 CSS 选择器，字段在该节点内提取"
+        },
+        "fields": { "$ref": "#/$defs/fields" }
+      }
+    },
+    "detail": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["url", "fields"],
+      "properties": {
+        "url": { "type": "string", "description": "详情页模板，支持 {id}、{baseUrl}" },
+        "always": {
+          "type": "boolean",
+          "default": false,
+          "description": "true 时列表阶段每条都抓详情（列表页没有播放地址时必须为 true）"
+        },
+        "fields": { "$ref": "#/$defs/fields" }
+      }
+    },
+    "candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["url"],
+      "properties": {
+        "url": { "type": "string", "description": "候选下载页/地址模板" },
+        "prefer": { "type": "boolean", "description": "优先使用该候选（如 qise 标清）" }
+      }
+    },
+    "retry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action"],
+      "properties": {
+        "action": { "enum": ["refreshDetail"] },
+        "retryOnce": { "type": "boolean", "default": true }
+      }
+    },
+    "download": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": { "enum": ["http", "hls"] },
+        "url": {
+          "type": "string",
+          "description": "下载地址模板；留空表示使用记录里的 playable（r.url）。支持 {id}、{baseUrl}、{playable}、{pageUrl}"
+        },
+        "headers": { "$ref": "#/$defs/headers" },
+        "excludeHeaderHosts": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "这些 host 不发送 headers（如 video.twimg.com 会拒绝第三方 Referer）"
+        },
+        "candidates": { "type": "array", "items": { "$ref": "#/$defs/candidate" } },
+        "onStatus": {
+          "type": "object",
+          "propertyNames": { "pattern": "^[1-5][0-9][0-9]$" },
+          "additionalProperties": { "$ref": "#/$defs/retry" }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "id": "demo-api",
+  "name": "Demo API Source",
+  "version": "1.0.0",
+  "baseUrl": "https://api.example.com",
+  "hosts": ["cdn.example.com"],
+  "capabilities": ["scrape", "download"],
+  "list": {
+    "url": "/v1/videos/{rank}?page={page}",
+    "pageSize": 10,
+    "ranks": [{ "key": "latest", "label": "Latest" }],
+    "jsonPath": "$.data.items[*]",
+    "fields": {
+      "id": { "jsonPath": "$.vid" },
+      "title": { "jsonPath": "$.name" },
+      "cover": { "jsonPath": "$.pic" },
+      "playable": { "jsonPath": "$.file" },
+      "duration": { "jsonPath": "$.seconds" }
+    }
+  },
+  "download": {
+    "kind": "http",
+    "url": "{playable}"
+  }
+}

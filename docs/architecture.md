@@ -68,6 +68,20 @@ type DownloadResolver interface { Resolve(ctx, r) (DownloadSpec, error) }
 `Scrape` 用 `emit` 流式产出，而不是返回整片切片：列表→详情→入库可以重叠，也便于做增量。
 `DownloadResolver` 最终会替换旧版 `download.ps1` 里的 4 处 `if (source -eq 'qise')`。
 
+## 外部源包（P6）
+
+内置源是 Go 代码；外部源是声明式 JSON，由 `internal/rule` 解释执行。两者都实现同一个 `Source` 接口，
+所以 API、下载器、前端不需要区分「内置还是导入」。
+
+- 格式：`docs/schema/source.schema.json`（JSON Schema 2020-12）
+- 局部标准：CSS Selectors、RFC 9535 JSONPath、schema.org `VideoObject`、RFC 3986 占位符、RFC 8216 HLS
+- 安全边界：`baseUrl` + `hosts` 白名单、拒绝 `file:` 与内网地址、8MB/15s 上限、重定向逐跳校验
+- 加载：`%APPDATA%\Reelkeep\sources\*.json`，坏文件只影响自己
+- 工具：`reelkeep source validate|test`，支持离线 fixture 回放
+- Skill：`skills/reelkeep-source`，指导 LLM 从样本页生成源包
+
+当前 `/api/scrape` 还没有接到规则源（P2/P6 的下一段）；CLI 已经能完整抓取。
+
 ## 数据流
 
 ```text

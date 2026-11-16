@@ -26,6 +26,7 @@ import (
 
 	"github.com/OOPQ/reelkeep/internal/api"
 	"github.com/OOPQ/reelkeep/internal/config"
+	"github.com/OOPQ/reelkeep/internal/rule"
 	"github.com/OOPQ/reelkeep/internal/source"
 	"github.com/OOPQ/reelkeep/internal/store"
 	"github.com/OOPQ/reelkeep/web"
@@ -34,6 +35,10 @@ import (
 var version = "0.1.0-dev"
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "source" {
+		os.Exit(runSourceCommand(os.Args[2:]))
+	}
+
 	var (
 		port      = flag.Int("port", 8791, "监听端口（被占用时自动向后找）")
 		project   = flag.String("project", "", "项目目录（数据单元）；留空用最近项目/默认目录")
@@ -96,6 +101,18 @@ func main() {
 		reg = source.EmptyRegistry()
 	}
 
+	// 外部源包：%APPDATA%\Reelkeep\sources\*.json
+	importedDir := config.ImportedSourcesDir()
+	pkgs, loadErrs := rule.LoadDir(importedDir)
+	for _, p := range pkgs {
+		hf, herr := rule.NewHTTPFetcher(p)
+		if herr != nil {
+			loadErrs = append(loadErrs, fmt.Errorf("%s: %w", p.ID, herr))
+			continue
+		}
+		reg.Add(p.Manifest(), rule.New(p, hf))
+	}
+
 	assets, err := fs.Sub(web.Dist, "dist")
 	if err != nil {
 		fatal("前端资源缺失: " + err.Error())
@@ -104,6 +121,13 @@ func main() {
 	srv := api.New(paths, st, reg, config.LoadSettings(paths), assets)
 	if err := srv.Boot(); err != nil {
 		fatal("启动失败: " + err.Error())
+	}
+	if len(pkgs) > 0 {
+		srv.LogBuffer().Add("source", fmt.Sprintf("已加载 %d 个外部源包", len(pkgs)))
+	}
+	for _, e := range loadErrs {
+		logf.Printf("源包加载失败: %v", e)
+		srv.LogBuffer().Add("source", "源包加载失败: "+e.Error())
 	}
 
 	ln, actualPort, err := listen(*port)

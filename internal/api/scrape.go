@@ -169,8 +169,7 @@ func (s *Server) handleScrape(w http.ResponseWriter, r *http.Request) {
 			bad(w, "源 "+srcKey+" 不支持链接抓取")
 			return
 		}
-		m, ok := s.reg.Manifest(srcKey)
-		if !ok || !hasCap(m.Capabilities, "scrape") {
+		if !hasCap(src.Capabilities(), "scrape") {
 			bad(w, "源 "+srcKey+" 不支持抓取")
 			return
 		}

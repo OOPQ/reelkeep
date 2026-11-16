@@ -470,7 +470,15 @@ func (s *Server) project() Project {
 	videoCount := len(idx.Files)
 	var rowBytes float64
 	rowVideos := 0
+	coverCount := 0
 	for i := range rows {
+		if rows[i].CoverURL != "" {
+			coverCount++
+		} else if rows[i].Token != "" {
+			if st, err := os.Stat(s.coverPath(rows[i].Token)); err == nil && st.Size() > 1024 {
+				coverCount++
+			}
+		}
 		if rows[i].FileName == "" {
 			continue
 		}
@@ -478,6 +486,9 @@ func (s *Server) project() Project {
 		if v, err := strconv.ParseFloat(rows[i].FileSize, 64); err == nil && v > 0 {
 			rowBytes += v
 		}
+	}
+	if coverCount == 0 {
+		coverCount = countCovers(s.paths.Covers)
 	}
 	if rowVideos > videoCount {
 		videoCount = rowVideos
@@ -493,7 +504,7 @@ func (s *Server) project() Project {
 		Exists:     idx.Exists,
 		VideoCount: videoCount,
 		VideoGB:    round2(gb / (1 << 30)),
-		CoverCount: countCovers(s.paths.Covers),
+		CoverCount: coverCount,
 		DiskGB:     round2(gb / (1 << 30)),
 		Ledger:     s.paths.LedgerCSV,
 		Database:   s.paths.Database,

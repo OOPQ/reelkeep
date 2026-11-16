@@ -303,6 +303,12 @@ func readUntilHTML(r io.Reader, max int64) ([]byte, error) {
 }
 
 func safeDial(ctx context.Context, network, addr string) (net.Conn, error) {
+	proxyMu.RLock()
+	p := proxyAddr
+	proxyMu.RUnlock()
+	if pu, err := netproxy.ProxyURL(p); err == nil && pu != nil && netproxy.IsProxyAddr(addr, pu) {
+		return (&net.Dialer{Timeout: 10 * time.Second}).DialContext(ctx, network, addr)
+	}
 	host, port, err := net.SplitHostPort(addr)
 	if err != nil {
 		return nil, err

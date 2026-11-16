@@ -238,8 +238,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { os: macos-15-intel, artifact: macos-amd64 }
-          - { os: macos-15, artifact: macos-arm64 }
+          - { os: macos-15-intel, artifact: macos-amd64, arch: amd64 }
+          - { os: macos-15, artifact: macos-arm64, arch: arm64 }
           - { os: ubuntu-24.04, artifact: linux-amd64, debarch: amd64 }
           - { os: ubuntu-24.04-arm, artifact: linux-arm64, debarch: arm64 }
     steps:
@@ -297,7 +297,7 @@ jobs:
         shell: bash
         run: |
           VERSION=$(cat VERSION)
-          bash scripts/package-macos.sh "$VERSION" "${{ matrix.artifact }}" dist/reelkeep-desktop
+          bash scripts/package-macos.sh "$VERSION" "${{ matrix.arch }}" dist/reelkeep-desktop
 
       - name: Package deb
         if: runner.os == 'Linux'

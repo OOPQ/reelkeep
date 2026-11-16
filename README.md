@@ -10,6 +10,17 @@
 
 ---
 
+## 安装（Windows）
+
+从 Release 下载 `Reelkeep-Setup-<版本>.exe` 双击安装：
+
+- 按用户安装到 `%LOCALAPPDATA%\Programs\Reelkeep`，**不需要管理员权限**
+- 创建开始菜单与桌面快捷方式，可在「应用和功能」里卸载
+- 卸载不会删除你的项目目录、外部源包和登录凭据
+- 需要 Microsoft Edge WebView2 Runtime（Win10/11 一般已自带；安装器会检测并提示）
+
+也可以直接用绿色版 `reelkeep-desktop.exe`，不需要安装。
+
 ## 快速开始
 
 需要 Go 1.26+（构建）。运行不需要 Node.js、不需要 PowerShell、不需要数据库服务。
@@ -92,14 +103,22 @@
 | [sources/hsex.json](sources/hsex.json) | hsex 最新 | HLS（需 ffmpeg；默认跟随系统代理） |
 | [sources/qise.json](sources/qise.json) | qise 视频区 | http 签名 mp4（登录后高清/会员） |
 
-### 需要登录的源（手动 Cookie）
+### 需要登录的源
 
-qise 这类站点，高清/会员内容需要登录态。Reelkeep **不代填账号密码**，而是复用你自己的浏览器会话：
+qise 这类站点，高清/会员内容需要登录态。Reelkeep **不代填账号密码**，只复用你自己的登录会话：
 
-1. 「源管理」→ 对应源 → 「登录」
-2. 点「打开登录页」，在浏览器里正常登录
-3. 开发者工具 → Network → 任意请求 → 复制 `Cookie` 请求头
-4. 粘贴 → 「保存并测试」
+**桌面端（推荐）**
+
+1. 「源管理」→ 对应源 → 「登录」→「应用内登录」
+2. 在弹出的登录窗口里正常登录
+3. 关闭登录窗口：首次登录会自动读取并保存 Cookie（含 HttpOnly）
+4. 已保存过凭据时，重新登录后点「读取 Cookie」显式覆盖
+
+**浏览器 / CLI**
+
+1. 点「打开登录页」，在浏览器里正常登录
+2. 开发者工具 → Network → 任意请求 → 复制 `Cookie` 请求头
+3. 粘贴 → 「保存并测试」
 
 ![登录面板](docs/sources-login.png)
 
@@ -158,7 +177,7 @@ qise 这类站点，高清/会员内容需要登录态。Reelkeep **不代填账
 - 已有服务在跑时，双击桌面版只开窗口，不会重复启动服务
 - 构建：`.\scripts\build.ps1`（同时产出 `reelkeep.exe` 与 `reelkeep-desktop.exe`）
 
-> 安装器（NSIS）、代码签名、自动更新、macOS/Linux 桌面包还没做；当前是绿色版。
+> 安装器（NSIS）已提供；代码签名、自动更新、macOS/Linux 桌面包还没做。
 
 ## 架构
 
@@ -207,9 +226,15 @@ go vet ./...
 gofmt -l .
 
 cd web; pnpm install; pnpm build           # 重新构建前端（产物在 web/dist）
+cd ..
+
+.\scripts\build.ps1                        # CLI + 桌面版
+.\scripts\installer.ps1                    # Windows 安装器（需 NSIS）
 ```
 
 构建脚本会把 `web/dist` 一起 embed；改了前端必须重新构建二进制。
+
+CI（`.github/workflows/ci.yml`）：Linux 跑测试；五个平台出 CLI；Windows 出桌面版 + NSIS 安装器；推 `v*` tag 自动发布 Release。
 
 ## 路线图
 
@@ -220,7 +245,7 @@ cd web; pnpm install; pnpm build           # 重新构建前端（产物在 web/
 | P2 | 四个源适配器迁移（pektino / hsex / qise / web）+ 链接抓取/刷新地址 | **完成** |
 | P3 | 写路径补齐：封面/缩略图/快照/导入/播放器调用 | **完成** |
 | P4 | 下载器 + 队列持久化 + 410 刷新 + 续传 | **完成（基础版）** |
-| P5 | 打包（Windows 单文件）+ CI + Wails 壳 + macOS/Linux | 桌面壳可用；安装器/签名/CI/mac/linux 待做 |
+| P5 | 打包（Windows 单文件）+ CI + Wails 壳 + macOS/Linux | 桌面壳 + 安装器 + CI 完成；签名/更新器/mac/linux 待做 |
 | P6 | 外部源包：格式/校验/安全抓取/CLI/skill/源管理/抓取任务 | **完成** |
 
 ## 许可

@@ -1,5 +1,23 @@
 # 更新日志
 
+## 0.9.4 — 2026-11-16
+
+### P5：Windows 安装器 + CI
+
+- NSIS 安装器 `Reelkeep-Setup-<version>.exe`：
+  - 按用户安装到 `%LOCALAPPDATA%\Programs\Reelkeep`，不需要管理员权限
+  - 开始菜单 / 桌面快捷方式、卸载程序、控制面板「应用和功能」条目
+  - 升级时先结束正在运行的桌面端；检测 WebView2 Runtime 并提示
+  - 卸载不删除项目目录、外部源包、登录凭据
+- 应用图标：从 `web/logo.svg` 生成 `build/appicon.png`、`icon.ico` 与 `desktop/rsrc_windows_amd64.syso`，exe 与快捷方式带图标
+- `scripts/installer.ps1`：构建安装器；`scripts/build.ps1` 仍负责 CLI + 桌面版
+- GitHub Actions（`.github/workflows/ci.yml`）：
+  - Linux：前端构建 + `go test` + `go vet`
+  - 五个平台 CLI 产物（windows/linux/darwin × amd64/arm64）
+  - Windows：桌面版 + NSIS 安装器
+  - 推 `v*` tag 自动创建 Release
+- 尚未做：代码签名、自动更新、macOS/Linux 桌面包
+
 ## 0.9.3 — 2026-11-16
 
 ### 交互与源管理

@@ -37,6 +37,12 @@ try {
         if ($LASTEXITCODE -ne 0) { throw "build failed ($LASTEXITCODE)" }
         $mb = [math]::Round((Get-Item 'reelkeep.exe').Length / 1MB, 2)
         Write-Host "built reelkeep.exe ($Version, $mb MB)" -ForegroundColor Green
+
+        # Desktop shell (Wails v3 + WebView2, CGO disabled)
+        & $go build -trimpath -ldflags "-H windowsgui $ldflags" -o 'reelkeep-desktop.exe' ./desktop
+        if ($LASTEXITCODE -ne 0) { throw "desktop build failed ($LASTEXITCODE)" }
+        $dmb = [math]::Round((Get-Item 'reelkeep-desktop.exe').Length / 1MB, 2)
+        Write-Host "built reelkeep-desktop.exe ($Version, $dmb MB)" -ForegroundColor Green
         return
     }
 
@@ -57,6 +63,15 @@ try {
         & $go build -trimpath -ldflags $ldflags -o (Join-Path $outDir $name) ./cmd/reelkeep
         if ($LASTEXITCODE -ne 0) { throw "build failed: $name" }
     }
+
+    # Desktop shell is Windows-only for now (WebView2)
+    $env:GOOS = 'windows'
+    $env:GOARCH = 'amd64'
+    $deskName = "reelkeep-$Version-windows-amd64-desktop.exe"
+    Write-Host "building $deskName ..." -ForegroundColor Cyan
+    & $go build -trimpath -ldflags "-H windowsgui $ldflags" -o (Join-Path $outDir $deskName) ./desktop
+    if ($LASTEXITCODE -ne 0) { throw "desktop build failed" }
+
     Get-ChildItem $outDir -File | ForEach-Object {
         "{0}  {1:N1} MB" -f $_.Name, ($_.Length / 1MB)
     }

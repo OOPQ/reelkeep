@@ -4,7 +4,7 @@
 
 **Reelkeep 是 Pektino 的 Go 重写版。** 同一套 React 前端、同一份 SQLite 数据、同一套 `/api/*` 契约；后端从 PowerShell 5.1 换成单二进制 Go，为多端（Windows / macOS / Linux，后续 Android）留出同源代码。
 
-当前状态：**P1 完成 + P3 完成 + P6 完成（外部源包 / 源管理 / 抓取 / 登录）+ P4 下载器基础版 + P2 部分（pektino、hsex、qise 已作为外部源跑通）**。可以打开旧项目、导入已有媒体、浏览台账、封面/缩略图、时间轴快照、系统播放器/资源管理器、抓取、下载（HTTP 续传 / HLS）。web 原生适配器、Wails 壳（P5）、链接抓取/刷新地址（P2）尚未完成。
+当前状态：**P1 / P3 / P6 完成，P4 下载器基础版，P5 桌面壳可用（Windows），P2 部分（pektino、hsex、qise 已作为外部源跑通）**。可以打开旧项目、导入媒体、浏览台账、封面/缩略图、时间轴快照、播放、抓取、下载（HTTP 续传 / HLS），也可以直接用桌面窗口使用。web 原生适配器、链接抓取/刷新地址（P2）、安装器/签名/自动更新（P5）尚未完成。
 
 ![源管理：导入、测试、启用/禁用外部源](docs/sources-page.png)
 
@@ -126,15 +126,31 @@ qise 这类站点，高清/会员内容需要登录态。Reelkeep **不代填账
 
 > 下载内容来自第三方站点，是否可下载/保存请自行确认合规性；本程序只复用你账号已有权限，不绕过会员墙或 DRM。
 
+## 桌面壳（Windows）
+
+`reelkeep-desktop.exe` 是 Wails v3 + WebView2 的原生窗口，内部仍然启动同一个 loopback HTTP 服务：
+
+- 窗口直接加载 `http://127.0.0.1:<port>/`；**没有第二套绑定/transport**，前端与 CLI 完全同一份
+- `CGO_ENABLED=0` 可构建；WebView2 运行时 Win10/11 一般已自带
+- 已有服务在跑时，双击桌面版只开窗口，不会重复启动服务
+- 构建：`.\scripts\build.ps1`（同时产出 `reelkeep.exe` 与 `reelkeep-desktop.exe`）
+
+> 安装器（NSIS）、代码签名、自动更新、macOS/Linux 桌面包还没做；当前是绿色版。
+
 ## 架构
 
 ```text
 cmd/reelkeep            进程入口：单实例、端口回退、打开浏览器、优雅退出；source 子命令
+desktop                  Wails v3 桌面壳（WebView2 + 本机 loopback 服务）
+internal/boot            共用启动器：项目 → 数据库 → 源 → API → 下载器 → HTTP
 internal/api            HTTP 契约（/api/* 与旧版一致）+ SSE + 静态资源
-internal/store          SQLite：items / collections / deleted_tokens / audit_log
+internal/store          SQLite：items / collections / deleted_tokens / audit_log / download_tasks
 internal/scan           媒体目录 → 台账回填（与旧版判定逐条对齐）
 internal/source         源注册表（sources.json 控制启用/顺序/榜单）
 internal/rule           外部源包：加载/校验、安全抓取、HTML/JSON 提取、RuleSource
+internal/download       下载器：队列、HTTP 续传、HLS、暂停/取消
+internal/cover          封面缩略图
+internal/secrets        登录凭据（Windows DPAPI）
 internal/config         项目路径模型、settings、最近项目、导入源目录
 internal/jsonx          兼容 PowerShell 写出的 UTF-8 BOM JSON
 web/                    React 19 + Vite 8 前端（构建产物 go:embed 进二进制）
@@ -181,7 +197,7 @@ cd web; pnpm install; pnpm build           # 重新构建前端（产物在 web/
 | P2 | 四个源适配器迁移（pektino / hsex / qise / web） | 部分：pektino、hsex、qise 已用外部源包验证；web 待做 |
 | P3 | 写路径补齐：封面/缩略图/快照/导入/播放器调用 | **完成** |
 | P4 | 下载器 + 队列持久化 + 410 刷新 + 续传 | **完成（基础版）** |
-| P5 | 打包（Windows 单文件）+ CI + Wails 壳 + macOS/Linux | 待做 |
+| P5 | 打包（Windows 单文件）+ CI + Wails 壳 + macOS/Linux | 桌面壳可用；安装器/签名/CI/mac/linux 待做 |
 | P6 | 外部源包：格式/校验/安全抓取/CLI/skill/源管理/抓取任务 | **完成** |
 
 ## 许可

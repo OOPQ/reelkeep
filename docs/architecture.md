@@ -131,6 +131,14 @@ type DownloadResolver interface { Resolve(ctx, r) (DownloadSpec, error) }
 - 封面覆盖：`data/cover-map.json` 把某张快照指定为该条目的封面，`/api/cover` 优先返回
 - 播放/定位：`rundll32`/`explorer /select`（mac/linux 用 `open`/`xdg-open`），只做用户本机操作
 
+## 桌面壳（P5）
+
+- `desktop/` 用 Wails v3.1 + WebView2；先 `boot.Start` 起 loopback HTTP，再让窗口加载该 URL
+- **不做 Wails service 绑定**，前端仍然只认 HTTP；CLI 与桌面共用 `internal/boot`
+- 服务端与桌面壳都 `CGO_ENABLED=0`（Windows）；桌面版用 `-H windowsgui` 去掉控制台
+- 单实例：已有服务时窗口直接指向它，不重复启动，也不在退出时关掉别人的服务
+- 当前是绿色版；NSIS 安装器、签名、自动更新、macOS/Linux 桌面包待补
+
 ## 后续阶段
 
 - **P2** 源适配器：pektino → hsex → qise → web；离线 fixture 回放 + 在线冒烟；诊断目录落原始响应

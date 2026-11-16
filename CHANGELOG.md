@@ -1,5 +1,28 @@
 # 更新日志
 
+## 0.7.0 — 2026-11-16
+
+### 桌面壳（Wails v3）
+
+- 新增 `desktop/`：Wails v3.1 + WebView2，窗口加载本机 loopback 服务（`http://127.0.0.1:<port>/`）
+- 不生成 Wails 绑定，前端仍然只走 HTTP；业务/API/前端与 CLI 完全同一套
+- `CGO_ENABLED=0` 即可构建（Windows），产物 `reelkeep-desktop.exe`（约 19MB，含内嵌前端）
+- 单实例：已有服务在跑时，窗口直接指向它，不重复启动、不在退出时关掉别人的服务
+- `internal/boot`：把「项目 → 数据库 → 源 → API → 下载器 → HTTP」抽成 CLI/桌面共用启动器
+- `scripts/build.ps1` 同时产出 `reelkeep.exe` 与 `reelkeep-desktop.exe`；`-All` 额外产出桌面版
+
+### 验证
+
+- `internal/boot` 测试：启动 → `/api/state` → 单实例识别 → 关闭后可重新启动
+- 桌面进程实测：窗口真实渲染前端（WebView2 进程拉起）、API 正常
+- 全量 `go test ./...` / `go vet` 通过
+
+### 未完成
+
+- NSIS 安装器（本机未安装 NSIS）、代码签名、自动更新
+- macOS / Linux 桌面包（需要各自平台工具链与 WebKitGTK）
+- CI 矩阵
+
 ## 0.6.0 — 2026-11-16
 
 ### P3 收尾

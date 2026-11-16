@@ -58,14 +58,28 @@ func main() {
 		defer inst.Close()
 	}
 
+	if inst.Existing {
+		// 同一项目已经有进程在跑：聚焦它的窗口；找不到（例如 CLI 起的服务）就开浏览器。
+		// 不能在这里创建第二个 Wails 窗口：Existing 实例没有 Server/回调。
+		if !focusExistingWindow(filepath.Base(inst.Paths.Root)) {
+			boot.OpenBrowser(inst.URL)
+		}
+		return
+	}
+
 	// 桌面壳：深色原生窗口装饰 + 应用内项目切换
 	inst.Server.SetDesktop(true)
 	cdpPort = freePort()
+	// WebView2 的 user data 目录不能跨进程共用（否则第二个进程创建
+	// Controller 会报 8007139f 并崩溃）。每个进程用独立目录；登录凭据本身
+	// 存在 secrets 里，不依赖 WebView2 的持久会话。
+	webviewData := filepath.Join(os.TempDir(), "reelkeep-webview2", fmt.Sprintf("%d", os.Getpid()))
 	app := application.New(application.Options{
 		Name:        "Reelkeep",
 		Description: "本地媒体台账与下载管理器",
 		Icon:        iconPNG,
 		Windows: application.WindowsOptions{
+			WebviewUserDataPath: webviewData,
 			AdditionalBrowserArgs: []string{
 				fmt.Sprintf("--remote-debugging-port=%d", cdpPort),
 				"--remote-allow-origins=*",

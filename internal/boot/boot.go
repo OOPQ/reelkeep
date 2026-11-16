@@ -79,9 +79,10 @@ func Start(ctx context.Context, opt Options) (*Instance, error) {
 	if port <= 0 {
 		port = 8791
 	}
-	if root, ok := probe(port); ok && samePath(root, paths.Root) {
+	// 同一项目可能已经在相邻端口跑着（项目切换/多窗口），先扫描并复用。
+	if existing, ok := findExisting(paths.Root, port); ok {
 		return &Instance{
-			URL: fmt.Sprintf("http://127.0.0.1:%d/", port), Port: port,
+			URL: fmt.Sprintf("http://127.0.0.1:%d/", existing), Port: existing,
 			Paths: paths, Existing: true,
 		}, nil
 	}
@@ -218,6 +219,17 @@ func warnSyncDir(root string) {
 			return
 		}
 	}
+}
+
+// findExisting 在 base..base+19 里找同一项目已运行的实例。
+func findExisting(root string, base int) (int, bool) {
+	for p := base; p < base+20; p++ {
+		got, ok := probe(p)
+		if ok && samePath(got, root) {
+			return p, true
+		}
+	}
+	return 0, false
 }
 
 // probe 判断端口上跑的是不是本程序，并返回它的项目根目录。

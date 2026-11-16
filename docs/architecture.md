@@ -122,6 +122,15 @@ type DownloadResolver interface { Resolve(ctx, r) (DownloadSpec, error) }
 - 完成：写回 `items` 的文件字段和 `status=done`，并通过 `onRow` 刷新 API 内存行
 - 旧版 `.queue.json` 首次启动迁移并改名
 
+## 媒体、封面与快照（P3）
+
+- 导入：`media/` 扫描补条目；外部文件夹移动到 `media/local`；同名同大小去重
+- 封面：本地视频抽帧（ffmpeg，最多 3 个/请求）+ 远程按源解析并下载；`.missing` 标记失败
+- 缩略图：`internal/cover` 用 `golang.org/x/image` 生成 120px 图，不依赖 Windows Shell
+- 快照：ffmpeg 单帧异步任务，最多 2 个并发；`data/snapshots/<token>_<time>_<stamp>.jpg`
+- 封面覆盖：`data/cover-map.json` 把某张快照指定为该条目的封面，`/api/cover` 优先返回
+- 播放/定位：`rundll32`/`explorer /select`（mac/linux 用 `open`/`xdg-open`），只做用户本机操作
+
 ## 后续阶段
 
 - **P2** 源适配器：pektino → hsex → qise → web；离线 fixture 回放 + 在线冒烟；诊断目录落原始响应

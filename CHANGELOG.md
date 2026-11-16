@@ -1,5 +1,25 @@
 # 更新日志
 
+## 0.6.0 — 2026-11-16
+
+### P3 收尾
+
+- **项目 / 本地导入**：`POST /api/project/open` 打开项目目录；`POST /api/project/import` 扫描 `media/` 补条目；`POST /api/import/local` 把外部文件夹的 mp4 移动到 `media/local` 并入库（同名同大小去重）
+- **封面修复**：`POST /api/covers/repair` 先给本地视频抽帧（最多 3 个），再按源解析封面并下载；404/空图写 `.missing`，避免反复重试
+- **缩略图**：用纯 Go `golang.org/x/image` 生成 120px 缩略图（不再依赖 Windows Shell）
+- **时间轴快照**：`POST /api/snapshot`（异步 ffmpeg，最多 2 个并发）、`GET /api/snapshot/jobs`、`POST /api/snapshot/delete`、`POST /api/snapshot/cover`
+- **快照当封面**：`data/cover-map.json`，`/api/cover` 会优先返回指定快照
+- **播放 / 定位**：`POST /api/play`（系统播放器、仅计数、定位）、`POST /api/reveal`（资源管理器 `/select`）；播放次数与 `last_play` 写回台账
+- 封面下载有域名解析与内网拦截（IPv4 优先）
+
+### 测试
+
+- 项目导入幂等（第二次全部跳过）
+- 本地文件夹导入：移动、入库、源文件消失
+- 封面修复 + 缩略图生成（注入图片下载）
+- 快照：创建 → 任务完成 → 设为封面 → `/api/cover` 返回快照 → 删除清 cover-map
+- 播放计数（countOnly）写回 `play_count/last_play`
+
 ## 0.5.0 — 2026-11-16
 
 ### 下载器（P4 基础版）

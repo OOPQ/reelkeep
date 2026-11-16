@@ -150,6 +150,12 @@ type Server struct {
 
 	jobMu sync.Mutex
 	job   *scrapeJob
+
+	snapMu   sync.Mutex
+	snapJobs map[string]*snapshotJob
+
+	// 测试用：替换封面下载（默认走 fetchImage 的网络实现）
+	imageFetch func(string) ([]byte, error)
 }
 
 // New 创建 Server。assets 应为 dist 的 fs.FS。
@@ -167,6 +173,7 @@ func New(paths config.Paths, st *store.Store, reg *source.Registry, mgr SourceMa
 		logbuf:   &Log{},
 		metrics:  &Metrics{},
 		deleted:  map[string]model.DeletedToken{},
+		snapJobs: map[string]*snapshotJob{},
 	}
 }
 
@@ -465,6 +472,15 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/snapshots", s.handleSnapshots)
 	mux.HandleFunc("GET /api/snapshot/jobs", s.handleSnapshotJobs)
 	mux.HandleFunc("GET /api/snapshot/image", s.handleSnapshotImage)
+	mux.HandleFunc("POST /api/snapshot", s.handleSnapshotCreate)
+	mux.HandleFunc("POST /api/snapshot/delete", s.handleSnapshotDelete)
+	mux.HandleFunc("POST /api/snapshot/cover", s.handleSnapshotCover)
+	mux.HandleFunc("POST /api/play", s.handlePlay)
+	mux.HandleFunc("POST /api/reveal", s.handleReveal)
+	mux.HandleFunc("POST /api/covers/repair", s.handleCoversRepair)
+	mux.HandleFunc("POST /api/import/local", s.handleImportLocal)
+	mux.HandleFunc("POST /api/project/import", s.handleProjectImport)
+	mux.HandleFunc("POST /api/project/open", s.handleProjectOpen)
 	mux.HandleFunc("GET /api/download", s.handleDownloadInfo)
 	mux.HandleFunc("GET /api/events", s.handleEvents)
 	mux.HandleFunc("GET /api/diagnostics/scrape", s.handleDiagnostics)
@@ -505,17 +521,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/download/repair", s.handleDownloadRepair)
 
 	// 尚未迁移到 Go 的能力：明确报错，不伪装成功
-	mux.HandleFunc("POST /api/snapshot", s.handleNotYet("时间轴快照正在迁移（P3）"))
-	mux.HandleFunc("POST /api/snapshot/delete", s.handleNotYet("时间轴快照正在迁移（P3）"))
-	mux.HandleFunc("POST /api/snapshot/cover", s.handleNotYet("时间轴快照正在迁移（P3）"))
-	mux.HandleFunc("POST /api/play", s.handleNotYet("系统播放器调用正在迁移（P3）"))
-	mux.HandleFunc("POST /api/reveal", s.handleNotYet("资源管理器定位正在迁移（P3）"))
 	mux.HandleFunc("POST /api/refresh-url", s.handleNotYet("地址刷新随抓取一起迁移（P2）"))
-	mux.HandleFunc("POST /api/covers/repair", s.handleNotYet("封面修复正在迁移（P3）"))
 	mux.HandleFunc("POST /api/import", s.handleNotYet("链接抓取随抓取一起迁移（P2）"))
-	mux.HandleFunc("POST /api/import/local", s.handleNotYet("本地导入正在迁移（P3）"))
-	mux.HandleFunc("POST /api/project/import", s.handleNotYet("本地导入正在迁移（P3）"))
-	mux.HandleFunc("POST /api/project/open", s.handleNotYet("切换项目尚未实现"))
 	mux.HandleFunc("POST /api/content/open", s.handleRevealContent)
 
 	// 静态资源与媒体

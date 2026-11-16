@@ -149,6 +149,18 @@ func (s *Server) handleCover(w http.ResponseWriter, r *http.Request) {
 		candidates = append(candidates, filepath.Join(s.paths.Thumbs, tk+".jpg"))
 	}
 	candidates = append(candidates, filepath.Join(s.paths.Covers, tk+".jpg"))
+	// 用户指定了「用时间轴快照当封面」时优先
+	if name := s.readCoverMap()[tk]; name != "" {
+		p := filepath.Join(s.paths.Snapshots, name)
+		if strings.HasPrefix(name, tk+"_") && inside(s.paths.Snapshots, p) {
+			if b, err := os.ReadFile(p); err == nil {
+				w.Header().Set("Content-Type", "image/jpeg")
+				w.Header().Set("Cache-Control", "no-store")
+				_, _ = w.Write(b)
+				return
+			}
+		}
+	}
 	for _, p := range candidates {
 		if b, err := os.ReadFile(p); err == nil {
 			w.Header().Set("Content-Type", "image/jpeg")
@@ -241,6 +253,7 @@ type Snapshot struct {
 
 func (s *Server) handleSnapshots(w http.ResponseWriter, r *http.Request) {
 	tk := r.URL.Query().Get("token")
+	cm := s.readCoverMap()
 	entries, err := os.ReadDir(s.paths.Snapshots)
 	if err != nil {
 		writeJSON(w, http.StatusOK, map[string]any{"items": []Snapshot{}})
@@ -278,6 +291,7 @@ func (s *Server) handleSnapshots(w http.ResponseWriter, r *http.Request) {
 			Name:      name,
 			Time:      t,
 			CreatedAt: created,
+			IsCover:   cm[rowToken] == name,
 			URL: "/api/snapshot/image?token=" + url.QueryEscape(rowToken) +
 				"&name=" + url.QueryEscape(name),
 		})
@@ -292,7 +306,11 @@ func (s *Server) handleSnapshots(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleSnapshotJobs(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]any{"items": []any{}})
+	items := s.snapshotJobs(r.URL.Query().Get("token"))
+	if items == nil {
+		items = []*snapshotJob{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "items": items})
 }
 
 func (s *Server) handleSnapshotImage(w http.ResponseWriter, r *http.Request) {

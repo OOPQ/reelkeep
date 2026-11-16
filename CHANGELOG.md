@@ -1,5 +1,22 @@
 # 更新日志
 
+## 0.9.3 — 2026-11-16
+
+### 交互与源管理
+
+- 修复：点 toast 的关闭按钮会把底下打开的弹窗一起关掉（Radix 把 toast 点击当成「点击弹窗外部」）
+  - `DialogContent` 现在忽略来自 `[data-sonner-toaster]` 的 pointer/focus outside
+- 源管理新增「查看完整 JSON」（`GET /api/sources/package?id=`）：
+  - `/api/sources` 返回的是列表摘要；后端实际加载的是安装目录里的完整源包
+  - 弹窗里可直接核对 list/detail/download/auth 等字段，确认不存在按源硬编码
+- 说明：规则源由通用引擎执行；只有 `web` 是原生适配器，其余（pektino/hsex/qise 等）都是纯 JSON
+
+### 桌面登录（读 Cookie）
+
+- 桌面端「应用内登录」打开 Wails 登录窗口，关闭时通过 WebView2 CDP 读取 Cookie（含 HttpOnly）
+- 首次登录（本地还没有凭据）关窗自动保存；已有凭据时需点「读取 Cookie」显式覆盖，避免访客 Cookie 覆盖有效登录
+- CDP 仅监听本机随机端口；Web / 非桌面环境仍然手动粘贴 Cookie
+
 ## 0.9.2 — 2026-11-16
 
 ### 桌面与交互修复

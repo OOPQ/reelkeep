@@ -19,6 +19,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Dialog, DialogContent } from '@/components/ui/dialog'
 
 type Rank = { key: string; label: string; group?: string }
 
@@ -72,6 +73,17 @@ export function SourcesPage() {
   const [cookieDraft, setCookieDraft] = React.useState('')
   const [authMsg, setAuthMsg] = React.useState('')
   const [authBusy, setAuthBusy] = React.useState(false)
+  const [jsonFor, setJsonFor] = React.useState<string | null>(null)
+  const [jsonText, setJsonText] = React.useState('')
+  const [jsonBusy, setJsonBusy] = React.useState(false)
+  const [desktop, setDesktop] = React.useState(false)
+
+  React.useEffect(() => {
+    fetch('/api/desktop', { cache: 'no-store' })
+      .then(r => r.json())
+      .then((d: { desktop?: boolean }) => setDesktop(!!d.desktop))
+      .catch(() => {})
+  }, [])
 
   const query = useQuery<{ ok: boolean; items: SourceItem[] }>({
     queryKey: ['sources'],
@@ -195,10 +207,47 @@ export function SourcesPage() {
     a.click()
   }
 
+  const showJson = async (item: SourceItem) => {
+    setJsonBusy(true)
+    try {
+      const res = await fetch(`/api/sources/package?id=${encodeURIComponent(item.id)}`, { cache: 'no-store' })
+      const data = await res.json()
+      if (!res.ok || !data.ok) throw new Error(data.error || '读取源包失败')
+      setJsonText(JSON.stringify(data.package, null, 2))
+      setJsonFor(item.id)
+    } catch (err) {
+      toast.error((err as Error).message)
+    } finally {
+      setJsonBusy(false)
+    }
+  }
+
   const openAuth = (item: SourceItem) => {
     setAuthFor(authFor === item.id ? null : item.id)
     setCookieDraft('')
     setAuthMsg('')
+  }
+
+  const desktopLogin = async (item: SourceItem) => {
+    try {
+      const r = await post<{ ok: boolean; error?: string }>('/api/desktop/login', { id: item.id })
+      if (!r.ok) throw new Error(r.error || '打开登录窗口失败')
+      toast.success('已打开登录窗口：首次登录后关闭窗口会自动保存 Cookie')
+    } catch (err) {
+      toast.error((err as Error).message)
+    }
+  }
+
+  const captureCookie = async (item: SourceItem) => {
+    try {
+      const r = await post<{ ok: boolean; error?: string; length?: number }>('/api/desktop/login/capture', { id: item.id })
+      if (!r.ok) throw new Error(r.error || '读取 Cookie 失败')
+      toast.success(`已读取并保存 Cookie（${r.length || 0} 字符）`)
+      setAuthMsg('登录凭据已保存')
+      void refresh()
+    } catch (err) {
+      toast.error((err as Error).message)
+    }
   }
 
   const saveAuth = async (item: SourceItem) => {
@@ -440,6 +489,9 @@ export function SourcesPage() {
                     {item.authConfigured ? '重新登录' : '登录'}
                   </Button>
                 ) : null}
+                <Button size="icon-sm" variant="ghost" title="查看完整 JSON" onClick={() => void showJson(item)} disabled={jsonBusy}>
+                  <FileJson className="size-3.5" />
+                </Button>
                 <Button size="icon-sm" variant="ghost" title="导出" onClick={() => exportItem(item)}>
                   <Download className="size-3.5" />
                 </Button>
@@ -463,18 +515,26 @@ export function SourcesPage() {
                     登录 {item.name}
                   </div>
                   {item.loginUrl ? (
-                    <a
-                      href={item.loginUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-[10px] text-[color:var(--primary-2)] underline underline-offset-2"
-                    >
-                      打开登录页 ↗
-                    </a>
+                    <div className="flex items-center gap-2">
+                      <a
+                        href={item.loginUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[10px] text-[color:var(--primary-2)] underline underline-offset-2"
+                      >
+                        打开登录页 ↗
+                      </a>
+                      {desktop ? (
+                        <Button size="sm" variant="outline" onClick={() => void desktopLogin(item)}>
+                          应用内登录
+                        </Button>
+                      ) : null}
+                    </div>
                   ) : null}
                 </div>
                 <div className="mt-1 text-[9.5px] leading-relaxed text-[color:var(--subtle)]">
-                  在浏览器登录后，打开开发者工具 → Network，复制任意请求的 Cookie 头粘贴到这里。
+                  桌面端点「应用内登录」：首次登录后关闭登录窗口会自动读取并保存 Cookie（含 HttpOnly）；
+                  已保存过凭据时，重新登录后请点「读取 Cookie」覆盖。若读取失败，仍可手动粘贴。
                   凭据只保存在本机（Windows 用 DPAPI 加密），<b>不会</b>写进源包，也不会出现在导出文件里。
                 </div>
                 <textarea
@@ -503,6 +563,11 @@ export function SourcesPage() {
                   >
                     测试登录
                   </Button>
+                  {desktop ? (
+                    <Button size="sm" variant="outline" onClick={() => void captureCookie(item)}>
+                      读取 Cookie
+                    </Button>
+                  ) : null}
                   <Button
                     size="sm"
                     variant="danger"
@@ -545,6 +610,18 @@ export function SourcesPage() {
           </Card>
         ))
       )}
+
+      <Dialog open={!!jsonFor} onOpenChange={open => { if (!open) setJsonFor(null) }}>
+        <DialogContent
+          title={`源包 JSON · ${jsonFor ?? ''}`}
+          description="后端加载并校验的就是这份完整数据；列表里的字段只是摘要"
+          className="w-[min(900px,calc(100vw-48px))]"
+        >
+          <pre className="max-h-[65vh] overflow-auto whitespace-pre-wrap break-all p-3 font-mono text-[10px] leading-5 text-[color:var(--muted)]">
+            {jsonText}
+          </pre>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

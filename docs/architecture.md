@@ -89,8 +89,8 @@ type DownloadResolver interface { Resolve(ctx, r) (DownloadSpec, error) }
 分三层，当前实现第一层：
 
 1. **手动 Cookie（已实现）**：用户在自己的浏览器登录，复制 `Cookie` 请求头，粘贴到「源管理 → 登录」。应用只负责安全保存与注入，不接触账号密码。
-2. **一键登录（计划）**：用 CDP 拉起一个专用 Chrome 配置目录（`--user-data-dir=%APPDATA%\Reelkeep\login\<source>`），用户在里面登录后，通过 `Network.getAllCookies` 取回该源域名的 Cookie，再走同一套加密存储。需要引入一个 WebSocket 客户端依赖。
-3. **内嵌 WebView（P5）**：Wails/WebView2 里直接开登录页，用 `ICoreWebView2CookieManager` 取 Cookie。体验最好，但要等桌面壳落地。
+2. **应用内登录 + CDP 读取（已实现，桌面端）**：Wails 打开登录窗口；关闭窗口时通过 WebView2 的 `--remote-debugging-port`（随机本机端口）读取 `Network.getAllCookies`，可拿到 HttpOnly Cookie。首次登录自动保存；已有凭据时用「读取 Cookie」显式覆盖，避免访客 Cookie 覆盖有效登录。
+3. **`ICoreWebView2CookieManager` 直连（可选优化）**：Wails 尚未暴露该接口；当前用 CDP，效果等价，后续可换成原生接口减少调试端口暴露。
 
 设计约束：
 

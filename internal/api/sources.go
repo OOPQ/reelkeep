@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"strings"
 	"time"
@@ -26,6 +27,30 @@ type SourceManager interface {
 	TestAuth(ctx context.Context, id string) (bool, string, error)
 	Proxy() string
 	SetProxy(string)
+}
+
+// handleSourcePackage 返回安装包里保存的完整 JSON（不是列表摘要）。
+func (s *Server) handleSourcePackage(w http.ResponseWriter, r *http.Request) {
+	if s.srcMgr == nil {
+		bad(w, "源管理器未启用")
+		return
+	}
+	id := strings.TrimSpace(r.URL.Query().Get("id"))
+	if id == "" {
+		bad(w, "缺少 id")
+		return
+	}
+	pkg, ok := s.srcMgr.Package(id)
+	if !ok {
+		bad(w, "源不存在: "+id)
+		return
+	}
+	b, err := json.MarshalIndent(pkg, "", "  ")
+	if err != nil {
+		bad(w, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "package": json.RawMessage(b)})
 }
 
 func (s *Server) handleSources(w http.ResponseWriter, r *http.Request) {

@@ -5,6 +5,7 @@ go 1.27
 require (
 	github.com/PuerkitoBio/goquery v1.14.0
 	github.com/andybalholm/cascadia v1.3.5
+	github.com/coder/websocket v1.8.14
 	github.com/theory/jsonpath v0.12.3
 	github.com/wailsapp/wails/v3 v3.1.0
 	golang.org/x/image v0.48.0
@@ -12,7 +13,6 @@ require (
 )
 
 require (
-	github.com/coder/websocket v1.8.14 // indirect
 	github.com/dustin/go-humanize v1.1.0 // indirect
 	github.com/ebitengine/purego v0.11.1 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect

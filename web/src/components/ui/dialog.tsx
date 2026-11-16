@@ -20,12 +20,37 @@ type DialogContentProps = {
 export const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   DialogContentProps
->(({ title, description, footer, children, className, bodyClassName, hideClose, ...props }, ref) => (
+>(({ title, description, footer, children, className, bodyClassName, hideClose, onPointerDownOutside, onInteractOutside, onFocusOutside, ...props }, ref) => {
+  // 点击 Sonner toast（关闭按钮/操作）不应被当成「点击弹窗外部」而关掉弹窗
+  const fromToast = (e: { target: EventTarget | null }) =>
+    e.target instanceof Element && !!e.target.closest('[data-sonner-toaster]')
+  return (
   <DialogPrimitive.Portal>
     <DialogPrimitive.Overlay className="ui-overlay" />
     <DialogPrimitive.Content
       ref={ref}
       className={cn('ui-dialog w-[min(1100px,calc(100vw-48px))]', className)}
+      onPointerDownOutside={e => {
+        if (fromToast(e)) {
+          e.preventDefault()
+          return
+        }
+        onPointerDownOutside?.(e)
+      }}
+      onInteractOutside={e => {
+        if (fromToast(e)) {
+          e.preventDefault()
+          return
+        }
+        onInteractOutside?.(e)
+      }}
+      onFocusOutside={e => {
+        if (fromToast(e)) {
+          e.preventDefault()
+          return
+        }
+        onFocusOutside?.(e)
+      }}
       {...props}
     >
       <div className="flex shrink-0 items-center justify-between gap-4 border-b border-[color:var(--border)] px-4 py-[11px]">
@@ -56,5 +81,6 @@ export const DialogContent = React.forwardRef<
       ) : null}
     </DialogPrimitive.Content>
   </DialogPrimitive.Portal>
-))
+  )
+})
 DialogContent.displayName = 'DialogContent'

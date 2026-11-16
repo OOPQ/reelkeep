@@ -157,9 +157,11 @@ type Server struct {
 	// 测试用：替换封面下载（默认走 fetchImage 的网络实现）
 	imageFetch func(string) ([]byte, error)
 
-	desktop bool
-	win     WindowController
-	picker  func() (string, error)
+	desktop      bool
+	win          WindowController
+	picker       func() (string, error)
+	loginWin     func(id, loginURL string) error
+	loginCapture func(id string) (string, error)
 }
 
 // New 创建 Server。assets 应为 dist 的 fs.FS。
@@ -469,6 +471,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/desktop", s.handleDesktop)
 	mux.HandleFunc("POST /api/desktop/window", s.handleDesktopWindow)
 	mux.HandleFunc("POST /api/desktop/pick-folder", s.handlePickFolder)
+	mux.HandleFunc("POST /api/desktop/login", s.handleDesktopLogin)
+	mux.HandleFunc("POST /api/desktop/login/capture", s.handleDesktopLoginCapture)
 	mux.HandleFunc("GET /api/projects", s.handleProjects)
 	mux.HandleFunc("POST /api/projects/open", s.handleProjectsOpen)
 	mux.HandleFunc("GET /api/project", s.handleProject)
@@ -509,6 +513,7 @@ func (s *Server) Handler() http.Handler {
 
 	// 源管理与抓取
 	mux.HandleFunc("GET /api/sources", s.handleSources)
+	mux.HandleFunc("GET /api/sources/package", s.handleSourcePackage)
 	mux.HandleFunc("POST /api/sources/import", s.handleSourceImport)
 	mux.HandleFunc("POST /api/sources/enable", s.handleSourceEnable)
 	mux.HandleFunc("POST /api/sources/remove", s.handleSourceRemove)

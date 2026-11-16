@@ -64,6 +64,8 @@
 - 界面：**源管理** → 选择文件或粘贴 JSON → 「校验并导入」→ 启用 → 在「获取数据」里选它
 - 源包能力：HTML 列表 / JSON 接口 / schema.org `ItemList`、详情 CSS + JSON-LD、封面、HTTP/HLS 下载地址
 - 安装位置：`%APPDATA%\Reelkeep\sources\<id>.json`
+- 源管理里点 **JSON 图标**可以查看完整源包：`/api/sources` 只是列表摘要，后端加载的是这份完整 JSON；规则源由通用引擎执行，只有 `web` 是原生适配器
+- **登录 Cookie**：桌面端在源管理点「登录」→「应用内登录」，首次登录后关闭登录窗口会自动读取并保存 Cookie（含 HttpOnly）；已有凭据时点「读取 Cookie」覆盖。Web 端仍是手动粘贴
 
 ```powershell
 # 校验（一次列出所有问题）
@@ -151,6 +153,7 @@ qise 这类站点，高清/会员内容需要登录态。Reelkeep **不代填账
 
 - 窗口直接加载 `http://127.0.0.1:<port>/`；**没有第二套绑定/transport**，前端与 CLI 完全同一份
 - 无边框自绘标题栏：左侧项目名（点击切换），右侧最小化/最大化/关闭；深色风格与界面一致
+- 源登录：登录窗口用 WebView2 打开站点，关闭时通过 CDP 读取 Cookie（含 HttpOnly），不需要手动开开发者工具
 - `CGO_ENABLED=0` 可构建；WebView2 运行时 Win10/11 一般已自带
 - 已有服务在跑时，双击桌面版只开窗口，不会重复启动服务
 - 构建：`.\scripts\build.ps1`（同时产出 `reelkeep.exe` 与 `reelkeep-desktop.exe`）

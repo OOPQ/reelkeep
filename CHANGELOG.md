@@ -1,5 +1,17 @@
 # 更新日志
 
+## 0.9.9 — 2026-11-16
+
+### 免费/开源签名
+
+- Windows：接入 **SignPath Foundation**（开源项目免费）
+  - CI 上传未签名 artifact → SignPath 代签 → 替换 exe/installer
+  - secrets：`SIGNPATH_API_TOKEN / ORGANIZATION_ID / PROJECT_SLUG / SIGNING_POLICY_SLUG / ARTIFACT_CONFIGURATION_SLUG`
+  - 未配置时自动跳过，仍产出未签名包
+- Linux：Release 生成 `SHA256SUMS`；配置 `GPG_PRIVATE_KEY` 后追加 `SHA256SUMS.asc`
+- macOS：保持 ad-hoc 签名（免费，未公证）；Developer ID/notarization 需要付费 Apple 账号
+- 新增 [docs/release-signing.md](docs/release-signing.md)，说明免费路线、SignPath 配置、GPG 校验与自动更新前提
+
 ## 0.9.8 — 2026-11-16
 
 ### macOS / Linux 桌面包

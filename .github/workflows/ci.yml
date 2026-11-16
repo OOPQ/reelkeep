@@ -104,6 +104,13 @@ jobs:
     name: Desktop (Windows installer)
     needs: test
     runs-on: windows-latest
+    env:
+      # 免费方案：SignPath Foundation（开源项目）
+      SIGNPATH_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+      SIGNPATH_ORG: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
+      SIGNPATH_PROJECT: ${{ secrets.SIGNPATH_PROJECT_SLUG }}
+      SIGNPATH_POLICY: ${{ secrets.SIGNPATH_SIGNING_POLICY_SLUG }}
+      SIGNPATH_CONFIG: ${{ secrets.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG }}
     steps:
       - uses: actions/checkout@v4
 
@@ -172,6 +179,48 @@ jobs:
           & $signtool.FullName sign /fd SHA256 /f $pfx /p $env:PFX_PASSWORD /tr http://timestamp.digicert.com /td SHA256 $setup.FullName
           if ($LASTEXITCODE -ne 0) { throw "sign failed: $LASTEXITCODE" }
           Remove-Item $pfx -Force
+
+      - name: Stage unsigned for SignPath
+        if: env.SIGNPATH_TOKEN != ''
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path unsigned -Force | Out-Null
+          Copy-Item reelkeep-desktop.exe unsigned -Force
+          Copy-Item dist/Reelkeep-Setup-*.exe unsigned -Force
+
+      - name: Upload unsigned for SignPath
+        if: env.SIGNPATH_TOKEN != ''
+        id: upload-unsigned
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-unsigned
+          path: unsigned/*
+          if-no-files-found: error
+
+      - name: Sign with SignPath (free for OSS)
+        if: env.SIGNPATH_TOKEN != ''
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ env.SIGNPATH_TOKEN }}
+          organization-id: ${{ env.SIGNPATH_ORG }}
+          project-slug: ${{ env.SIGNPATH_PROJECT }}
+          signing-policy-slug: ${{ env.SIGNPATH_POLICY }}
+          artifact-configuration-slug: ${{ env.SIGNPATH_CONFIG }}
+          github-artifact-id: ${{ steps.upload-unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: signed
+
+      - name: Replace with signed files
+        if: env.SIGNPATH_TOKEN != ''
+        shell: pwsh
+        run: |
+          Get-ChildItem signed -Recurse -Filter *.zip | ForEach-Object { Expand-Archive -Path $_.FullName -DestinationPath signed -Force }
+          $exe = Get-ChildItem signed -Recurse -Filter reelkeep-desktop.exe | Select-Object -First 1
+          if (-not $exe) { throw 'SignPath output missing executable' }
+          Copy-Item $exe.FullName reelkeep-desktop.exe -Force
+          $setup = Get-ChildItem signed -Recurse -Filter 'Reelkeep-Setup-*.exe' | Select-Object -First 1
+          if (-not $setup) { throw 'SignPath output missing installer' }
+          Copy-Item $setup.FullName dist -Force
 
       - uses: actions/upload-artifact@v4
         with:
@@ -274,6 +323,23 @@ jobs:
         with:
           path: release
           merge-multiple: true
+
+      - name: Checksums
+        run: |
+          cd release
+          sha256sum * | sort -k2 > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Sign checksums (optional GPG)
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+        run: |
+          if [ -n "$GPG_PRIVATE_KEY" ]; then
+            echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+            gpg --batch --yes --armor --detach-sign --output release/SHA256SUMS.asc release/SHA256SUMS
+          else
+            echo "No GPG key configured"
+          fi
 
       - uses: softprops/action-gh-release@v2
         with:

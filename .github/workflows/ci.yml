@@ -222,12 +222,17 @@ jobs:
           if (-not $setup) { throw 'SignPath output missing installer' }
           Copy-Item $setup.FullName dist -Force
 
+      - name: Stage Windows artifacts
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path windows-artifact -Force | Out-Null
+          Copy-Item reelkeep-desktop.exe windows-artifact -Force
+          Copy-Item dist/Reelkeep-Setup-*.exe windows-artifact -Force
+
       - uses: actions/upload-artifact@v4
         with:
           name: reelkeep-desktop-windows
-          path: |
-            reelkeep-desktop.exe
-            dist/Reelkeep-Setup-*.exe
+          path: windows-artifact/*
           if-no-files-found: error
 
   build-desktop-unix:

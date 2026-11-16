@@ -59,14 +59,6 @@ func ResolveProject(flag string) (config.Paths, error) {
 		return config.Paths{}, err
 	}
 	paths := config.ForRoot(root)
-	if !config.IsProject(root) {
-		if flag != "" {
-			return paths, fmt.Errorf("不是项目目录（缺少 project.json 或 data\\）：%s", root)
-		}
-		if err := paths.Ensure(); err != nil {
-			return paths, fmt.Errorf("初始化项目失败: %w", err)
-		}
-	}
 	if err := paths.Ensure(); err != nil {
 		return paths, fmt.Errorf("初始化项目失败: %w", err)
 	}
@@ -87,7 +79,7 @@ func Start(ctx context.Context, opt Options) (*Instance, error) {
 	if port <= 0 {
 		port = 8791
 	}
-	if alive(port) {
+	if root, ok := probe(port); ok && samePath(root, paths.Root) {
 		return &Instance{
 			URL: fmt.Sprintf("http://127.0.0.1:%d/", port), Port: port,
 			Paths: paths, Existing: true,
@@ -227,24 +219,31 @@ func warnSyncDir(root string) {
 	}
 }
 
-// alive 判断端口上跑的是不是本程序的实例。
-func alive(port int) bool {
+// probe 判断端口上跑的是不是本程序，并返回它的项目根目录。
+func probe(port int) (string, bool) {
 	cli := http.Client{Timeout: 800 * time.Millisecond}
 	resp, err := cli.Get(fmt.Sprintf("http://127.0.0.1:%d/api/state", port))
 	if err != nil {
-		return false
+		return "", false
 	}
 	defer resp.Body.Close()
-	var probe struct {
+	var p struct {
 		OK      bool `json:"ok"`
 		Project struct {
 			Root string `json:"root"`
 		} `json:"project"`
 	}
-	if json.NewDecoder(resp.Body).Decode(&probe) != nil {
-		return false
+	if json.NewDecoder(resp.Body).Decode(&p) != nil {
+		return "", false
 	}
-	return probe.OK && probe.Project.Root != ""
+	if !p.OK || p.Project.Root == "" {
+		return "", false
+	}
+	return p.Project.Root, true
+}
+
+func samePath(a, b string) bool {
+	return strings.EqualFold(filepath.Clean(a), filepath.Clean(b))
 }
 
 func listen(port int) (net.Listener, int, error) {

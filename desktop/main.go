@@ -10,6 +10,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
 	"github.com/OOPQ/reelkeep/internal/boot"
@@ -45,18 +46,23 @@ func main() {
 		defer inst.Close()
 	}
 
+	// 桌面壳：深色原生窗口装饰 + 应用内项目切换
+	inst.Server.SetDesktop(true)
 	app := application.New(application.Options{
 		Name:        "Reelkeep",
 		Description: "本地媒体台账与下载管理器",
 	})
 	app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Title:            "Reelkeep",
+		Title:            "Reelkeep — " + filepath.Base(inst.Paths.Root),
 		Width:            1280,
 		Height:           820,
 		MinWidth:         960,
 		MinHeight:        600,
 		BackgroundColour: application.NewRGB(8, 12, 17),
-		URL:              inst.URL,
+		Windows: application.WindowsWindow{
+			Theme: application.Dark,
+		},
+		URL: inst.URL,
 	})
 
 	go func() {

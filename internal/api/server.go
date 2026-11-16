@@ -156,6 +156,9 @@ type Server struct {
 
 	// 测试用：替换封面下载（默认走 fetchImage 的网络实现）
 	imageFetch func(string) ([]byte, error)
+
+	desktop bool
+	win     WindowController
 }
 
 // New 创建 Server。assets 应为 dist 的 fs.FS。
@@ -462,6 +465,10 @@ func (s *Server) Handler() http.Handler {
 
 	// 只读
 	mux.HandleFunc("GET /api/state", s.handleState)
+	mux.HandleFunc("GET /api/desktop", s.handleDesktop)
+	mux.HandleFunc("POST /api/desktop/window", s.handleDesktopWindow)
+	mux.HandleFunc("GET /api/projects", s.handleProjects)
+	mux.HandleFunc("POST /api/projects/open", s.handleProjectsOpen)
 	mux.HandleFunc("GET /api/project", s.handleProject)
 	mux.HandleFunc("GET /api/export", s.handleExport)
 	mux.HandleFunc("GET /api/cover", s.handleCover)

@@ -89,3 +89,10 @@ export async function copyText(text: string) {
     return false
   }
 }
+
+/** 从项目根路径取展示名（兼容 Windows 反斜杠）。 */
+export function projectNameFromRoot(root?: string): string {
+  if (!root) return '未命名项目'
+  const parts = root.split(/[\\/]/).filter(Boolean)
+  return parts[parts.length - 1] || root
+}

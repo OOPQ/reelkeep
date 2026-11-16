@@ -253,17 +253,51 @@ func DefaultRoot() string {
 	return filepath.Join(".", "Reelkeep")
 }
 
-// Resolve 决定要打开哪个项目：显式 -project > 最近项目 > 默认目录。
-func Resolve(flag string) (string, error) {
-	if flag != "" {
-		root, err := filepath.Abs(flag)
+// EnsureProject 把任意文件夹变成可打开的项目：
+//   - 已是项目：直接返回
+//   - 不存在：创建目录与项目结构
+//   - 存在但非空且不是项目：拒绝，避免误把杂物目录当项目
+func EnsureProject(root string) (string, error) {
+	if strings.TrimSpace(root) == "" {
+		return "", errors.New("项目路径为空")
+	}
+	abs, err := filepath.Abs(root)
+	if err != nil {
+		return "", err
+	}
+	if st, err := os.Stat(abs); err == nil {
+		if !st.IsDir() {
+			return "", fmt.Errorf("不是文件夹：%s", abs)
+		}
+		if IsProject(abs) {
+			return abs, nil
+		}
+		entries, err := os.ReadDir(abs)
 		if err != nil {
 			return "", err
 		}
-		if !IsProject(root) {
-			return "", fmt.Errorf("不是项目目录（缺少 project.json 或 data\\）：%s", root)
+		nonEmpty := false
+		for _, e := range entries {
+			if e.Name() != "project.json" {
+				nonEmpty = true
+				break
+			}
 		}
-		return root, nil
+		if nonEmpty {
+			return "", fmt.Errorf("目录不是 Reelkeep 项目，且非空：%s", abs)
+		}
+	}
+	paths := ForRoot(abs)
+	if err := paths.Ensure(); err != nil {
+		return "", err
+	}
+	return abs, nil
+}
+
+// Resolve 决定要打开哪个项目：显式 -project > 最近项目 > 默认目录。
+func Resolve(flag string) (string, error) {
+	if flag != "" {
+		return EnsureProject(flag)
 	}
 	if last := LastProject(); last != "" {
 		return last, nil

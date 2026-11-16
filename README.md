@@ -4,7 +4,7 @@
 
 **Reelkeep 是 Pektino 的 Go 重写版。** 同一套 React 前端、同一份 SQLite 数据、同一套 `/api/*` 契约；后端从 PowerShell 5.1 换成单二进制 Go，为多端（Windows / macOS / Linux，后续 Android）留出同源代码。
 
-当前状态：**P1 / P2 / P3 / P6 完成，P4 下载器基础版，P5 桌面壳可用（Windows）**。可以打开旧项目、导入媒体、浏览台账、封面/缩略图、时间轴快照、播放、榜单/链接抓取、刷新地址、下载（HTTP 续传 / HLS），也可以直接用桌面窗口使用。安装器/签名/自动更新（P5）、macOS/Linux 桌面包尚未完成。
+当前状态：**P1 / P2 / P3 / P6 完成，P4 下载器基础版，P5 桌面壳与项目管理可用（Windows）**。可以打开任意文件夹作为项目、切换最近项目、桌面新窗口/浏览器新实例、导入媒体、浏览台账、封面/缩略图、时间轴快照、播放、榜单/链接抓取、刷新地址、下载（HTTP 续传 / HLS）。安装器/签名/自动更新（P5）、macOS/Linux 桌面包尚未完成。
 
 ![源管理：导入、测试、启用/禁用外部源](docs/sources-page.png)
 
@@ -135,11 +135,22 @@ qise 这类站点，高清/会员内容需要登录态。Reelkeep **不代填账
 - 地址过期用「刷新地址」：优先重抓页面，其次 `Refresher`，再 `Resolve`；一次最多 20 条
 - 代理设置对 web 源与内置下载器都生效
 
+## 项目管理（IDEA 式）
+
+项目就是一个文件夹（`project.json + data/ + media/`），不是程序里的「库」：
+
+- 启动 `reelkeep.exe -project D:\Reelkeep\某项目`，或用桌面版的「打开文件夹」入口
+- 空文件夹会自动初始化为项目；非空且不是项目的目录会被拒绝
+- 侧边栏显示当前项目名，点开切换器可以：看最近项目、输入路径打开/新建、在资源管理器中定位
+- 切换项目会打开**新窗口/新实例**：每个项目独立端口、数据库、媒体目录；同一项目重复打开则复用已有服务
+- 最近项目记录在 `%APPDATA%\Reelkeep\projects.json`，换项目不用重装外部源
+
 ## 桌面壳（Windows）
 
 `reelkeep-desktop.exe` 是 Wails v3 + WebView2 的原生窗口，内部仍然启动同一个 loopback HTTP 服务：
 
 - 窗口直接加载 `http://127.0.0.1:<port>/`；**没有第二套绑定/transport**，前端与 CLI 完全同一份
+- 窗口标题带项目名；Windows 原生标题栏使用深色主题，跟界面一致（无边框自绘标题栏因高 DPI 绘制问题暂缓）
 - `CGO_ENABLED=0` 可构建；WebView2 运行时 Win10/11 一般已自带
 - 已有服务在跑时，双击桌面版只开窗口，不会重复启动服务
 - 构建：`.\scripts\build.ps1`（同时产出 `reelkeep.exe` 与 `reelkeep-desktop.exe`）

@@ -131,6 +131,17 @@ type DownloadResolver interface { Resolve(ctx, r) (DownloadSpec, error) }
 - 封面覆盖：`data/cover-map.json` 把某张快照指定为该条目的封面，`/api/cover` 优先返回
 - 播放/定位：`rundll32`/`explorer /select`（mac/linux 用 `open`/`xdg-open`），只做用户本机操作
 
+## 项目工作区与多实例（P5）
+
+- 项目 = 文件夹：`config.EnsureProject` 负责新建/校验（非空非项目拒绝）
+- 最近项目在 `%APPDATA%\Reelkeep\projects.json`；`GET /api/projects` 返回当前 + 最近列表
+- `POST /api/projects/open`：
+  - 桌面壳：`spawnSelf` 启动新的桌面进程，开新窗口
+  - 浏览器：选空闲端口启动新实例，返回 URL，前端跳转
+- `boot.Start` 的单实例判断按项目路径比较：同项目复用，不同项目自动换端口并行
+- 每个实例独立 store / 下载器 / 端口；关闭窗口只停自己的实例
+- 桌面窗口：原生深色标题栏 + 项目名；无边框自绘标题栏在 2x DPI 下右侧绘制异常，暂缓
+
 ## 链接抓取（P2）
 
 - 可选接口 `source.URLScraper`：从一个页面/直链生成单条记录

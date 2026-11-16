@@ -3,6 +3,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
   CircleHelp,
   Download,
+  FolderOpen,
   Layers,
   Library,
   PanelLeftClose,
@@ -19,12 +20,13 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useAppState } from '@/features/use-app-state'
 import { useUiStore } from '@/store/ui'
 import { playDownloadChime } from '@/lib/sound'
-import { cn, formatCount } from '@/lib/utils'
+import { cn, formatCount, projectNameFromRoot } from '@/lib/utils'
 import { toast } from 'sonner'
 import { IconButton } from '@/components/ui/icon-button'
 import { Button } from '@/components/ui/button'
 import { ShortcutHelp } from '@/components/shortcut-help'
 import { CommandPalette } from '@/components/command-palette'
+import { ProjectSwitcher } from '@/components/project-switcher'
 
 const NAV = [
   { to: '/', label: '媒体库', icon: Library, key: 'library' },
@@ -49,14 +51,30 @@ function usePageMeta() {
   return PAGE_META[pathname] || { kicker: 'PEKTINO', title: '媒体库' }
 }
 
-function Brand({ collapsed }: { collapsed: boolean }) {
+function Brand({
+  collapsed,
+  projectName,
+  onSwitch,
+}: {
+  collapsed: boolean
+  projectName: string
+  onSwitch: () => void
+}) {
   return (
     <div className={cn('flex h-[38px] items-center gap-2.5 px-1', collapsed && 'justify-center px-0')}>
       <img src="/api/logo" alt="pektino" className="size-[34px] shrink-0 rounded-[10px] object-cover shadow-[0_8px_22px_rgba(47,111,228,.35)]" />
       {!collapsed ? (
         <div className="min-w-0">
-          <b className="block text-[13px] leading-tight tracking-[.2px]">pektino</b>
-          <small className="block text-[9px] tracking-[.5px] text-[color:var(--subtle)]">本地媒体台账</small>
+          <b className="block text-[13px] leading-tight tracking-[.2px]">Reelkeep</b>
+          <button
+            type="button"
+            onClick={onSwitch}
+            title={'切换项目：' + projectName}
+            className="mt-0.5 flex max-w-full items-center gap-1 text-left text-[9px] tracking-[.5px] text-[color:var(--subtle)] transition-colors hover:text-[color:var(--foreground)]"
+          >
+            <FolderOpen className="size-2.5 shrink-0" />
+            <span className="truncate">{projectName}</span>
+          </button>
         </div>
       ) : null}
     </div>
@@ -70,6 +88,8 @@ function Sidebar() {
   const { data } = useAppState()
   const navigate = useNavigate()
   const stats = data?.stats
+  const [projectOpen, setProjectOpen] = React.useState(false)
+  const projectName = projectNameFromRoot((data?.project as { root?: string } | undefined)?.root)
 
   const counts: Record<string, number> = {
     queue: stats?.new || 0,
@@ -84,7 +104,7 @@ function Sidebar() {
         collapsed ? 'w-16' : 'w-[216px]',
       )}
     >
-      <Brand collapsed={collapsed} />
+      <Brand collapsed={collapsed} projectName={projectName} onSwitch={() => setProjectOpen(true)} />
 
       <div className={cn('mt-4 px-2 text-[9px] tracking-[.9px] text-[color:var(--subtle)]', collapsed && 'hidden')}>浏览</div>
       <nav className="mt-1 flex flex-col gap-0.5" aria-label="主菜单">
@@ -121,6 +141,8 @@ function Sidebar() {
           </div>
         </div>
       </div>
+
+      <ProjectSwitcher open={projectOpen} onOpenChange={setProjectOpen} />
     </aside>
   )
 }
@@ -310,15 +332,17 @@ export function AppShell() {
   }, [data?.job, data?.job?.running, data?.job?.progress?.phase, data?.job?.progress?.at])
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      <Sidebar />
-      <ShortcutHelp open={helpOpen} onOpenChange={setHelpOpen} />
-      <CommandPalette open={commandOpen} onOpenChange={setCommandOpen} />
-      <div className="flex min-w-0 flex-1 flex-col">
-        <Topbar onHelp={() => setHelpOpen(true)} onCommand={() => setCommandOpen(true)} />
-        <main className="min-h-0 flex-1 overflow-auto">
-          <Outlet />
-        </main>
+    <div className="flex h-screen flex-col overflow-hidden">
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+        <Sidebar />
+        <ShortcutHelp open={helpOpen} onOpenChange={setHelpOpen} />
+        <CommandPalette open={commandOpen} onOpenChange={setCommandOpen} />
+        <div className="flex min-w-0 flex-1 flex-col">
+          <Topbar onHelp={() => setHelpOpen(true)} onCommand={() => setCommandOpen(true)} />
+          <main className="min-h-0 flex-1 overflow-auto">
+            <Outlet />
+          </main>
+        </div>
       </div>
     </div>
   )

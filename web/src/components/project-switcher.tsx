@@ -80,6 +80,15 @@ export function ProjectSwitcher({
     }
   }
 
+  const pickFolder = async () => {
+    try {
+      const result = await post<{ ok: boolean; path?: string; error?: string }>('/api/desktop/pick-folder', {})
+      if (result.path) setPath(result.path)
+    } catch (err) {
+      toast.error((err as Error).message)
+    }
+  }
+
   const recent = data?.recent || []
 
   return (
@@ -100,6 +109,12 @@ export function ProjectSwitcher({
               placeholder="项目文件夹路径，例如 D:\Reelkeep\我的项目"
               className="h-9 font-mono text-[11px]"
             />
+            {data?.desktop ? (
+              <Button variant="outline" onClick={() => void pickFolder()} className="h-9 shrink-0">
+                <FolderOpen className="size-4" />
+                浏览…
+              </Button>
+            ) : null}
             <Button
               onClick={() => void openProject(path)}
               disabled={!!busy}

@@ -37,6 +37,30 @@ func (s *Server) SetWindowController(w WindowController) {
 	s.mu.Unlock()
 }
 
+// SetFolderPicker 绑定桌面系统的文件夹选择器。
+func (s *Server) SetFolderPicker(fn func() (string, error)) {
+	s.mu.Lock()
+	s.picker = fn
+	s.mu.Unlock()
+}
+
+// handlePickFolder 调起桌面文件夹选择器。
+func (s *Server) handlePickFolder(w http.ResponseWriter, r *http.Request) {
+	s.mu.RLock()
+	picker := s.picker
+	s.mu.RUnlock()
+	if picker == nil {
+		bad(w, "当前不是桌面窗口")
+		return
+	}
+	path, err := picker()
+	if err != nil {
+		writeJSON(w, http.StatusOK, map[string]any{"ok": false, "error": "已取消"})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "path": path})
+}
+
 func (s *Server) isDesktop() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

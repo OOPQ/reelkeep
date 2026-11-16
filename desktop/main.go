@@ -52,7 +52,7 @@ func main() {
 		Name:        "Reelkeep",
 		Description: "本地媒体台账与下载管理器",
 	})
-	app.Window.NewWithOptions(application.WebviewWindowOptions{
+	window := app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Title:            "Reelkeep — " + filepath.Base(inst.Paths.Root),
 		Width:            1280,
 		Height:           820,
@@ -63,6 +63,15 @@ func main() {
 			Theme: application.Dark,
 		},
 		URL: inst.URL,
+	})
+	inst.Server.SetFolderPicker(func() (string, error) {
+		return app.Dialog.OpenFile().
+			CanChooseDirectories(true).
+			CanChooseFiles(false).
+			CanCreateDirectories(true).
+			SetTitle("打开或新建项目文件夹").
+			AttachToWindow(window).
+			PromptForSingleSelection()
 	})
 
 	go func() {

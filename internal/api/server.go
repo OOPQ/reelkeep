@@ -159,6 +159,7 @@ type Server struct {
 
 	desktop bool
 	win     WindowController
+	picker  func() (string, error)
 }
 
 // New 创建 Server。assets 应为 dist 的 fs.FS。
@@ -467,6 +468,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/state", s.handleState)
 	mux.HandleFunc("GET /api/desktop", s.handleDesktop)
 	mux.HandleFunc("POST /api/desktop/window", s.handleDesktopWindow)
+	mux.HandleFunc("POST /api/desktop/pick-folder", s.handlePickFolder)
 	mux.HandleFunc("GET /api/projects", s.handleProjects)
 	mux.HandleFunc("POST /api/projects/open", s.handleProjectsOpen)
 	mux.HandleFunc("GET /api/project", s.handleProject)

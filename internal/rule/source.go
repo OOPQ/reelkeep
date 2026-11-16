@@ -99,7 +99,7 @@ func (s *RuleSource) Scrape(ctx context.Context, req source.ScrapeRequest, emit 
 			}
 			r := rows[i]
 			if s.pkg.Detail != nil && (s.pkg.Detail.Always || r.URL == "") {
-				d, derr := s.detail(ctx, r.SourceID)
+				d, derr := s.detailFor(ctx, r.SourceID, r.PageURL)
 				if derr != nil {
 					if firstErr == nil {
 						firstErr = derr
@@ -278,14 +278,20 @@ func (s *RuleSource) Detail(ctx context.Context, id string) (model.Row, error) {
 	if s.pkg.Detail == nil {
 		return model.Row{}, fmt.Errorf("源 %s 没有 detail 段", s.pkg.ID)
 	}
-	return s.detail(ctx, id)
+	return s.detailFor(ctx, id, "")
 }
 
-func (s *RuleSource) detail(ctx context.Context, id string) (model.Row, error) {
+func (s *RuleSource) detailFor(ctx context.Context, id, pageURL string) (model.Row, error) {
 	if !validNativeID(id) {
 		return model.Row{}, fmt.Errorf("id 含非法字符: %q", id)
 	}
-	detailURL := s.pkg.DetailURL(id)
+	if strings.Contains(s.pkg.Detail.URL, "{pageUrl}") && pageURL == "" {
+		return model.Row{}, fmt.Errorf("源 %s 的详情页需要列表页地址（{pageUrl}），请从抓取流程调用", s.pkg.ID)
+	}
+	detailURL := s.pkg.DetailURLFor(id, pageURL)
+	if detailURL == "" {
+		return model.Row{}, fmt.Errorf("源 %s 没有详情页模板", s.pkg.ID)
+	}
 	body, err := s.fetcher.Get(ctx, detailURL, s.headers(nil))
 	if err != nil {
 		return model.Row{}, fmt.Errorf("详情页 %s: %w", detailURL, err)
@@ -294,15 +300,15 @@ func (s *RuleSource) detail(ctx context.Context, id string) (model.Row, error) {
 	if err != nil {
 		return model.Row{}, err
 	}
-	pageURL, _ := url.Parse(detailURL)
-	fields, err := extractDetailFields(doc, s.pkg.Detail.Fields, pageURL)
+	pageRef, _ := url.Parse(detailURL)
+	fields, err := extractDetailFields(doc, s.pkg.Detail.Fields, pageRef)
 	if err != nil {
 		return model.Row{}, err
 	}
 	if fields["pageUrl"] == "" && fields["page_url"] == "" {
 		fields["pageUrl"] = detailURL
 	}
-	return s.rowFromFields(fields, pageURL, id)
+	return s.rowFromFields(fields, pageRef, id)
 }
 
 // Cover 解析封面地址（缺省回落到详情页）。
@@ -313,7 +319,7 @@ func (s *RuleSource) Cover(ctx context.Context, r model.Row) (string, error) {
 	if s.pkg.Detail == nil {
 		return "", nil
 	}
-	d, err := s.detail(ctx, r.SourceID)
+	d, err := s.detailFor(ctx, r.SourceID, r.PageURL)
 	if err != nil {
 		return "", err
 	}
@@ -323,6 +329,9 @@ func (s *RuleSource) Cover(ctx context.Context, r model.Row) (string, error) {
 // Resolve 解析可下载地址；qise 这类签名刷新由 RefreshOn410 交给下载器。
 func (s *RuleSource) Resolve(ctx context.Context, r model.Row) (source.DownloadSpec, error) {
 	spec := source.DownloadSpec{URL: r.URL, Mode: "http", Headers: map[string]string{}}
+	if s.pkg.Auth != nil {
+		spec.UseAuth = true
+	}
 	if s.pkg.Download == nil {
 		return spec, nil
 	}

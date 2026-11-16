@@ -38,7 +38,8 @@
     "defaults": { "$ref": "#/$defs/defaults" },
     "list": { "$ref": "#/$defs/list" },
     "detail": { "$ref": "#/$defs/detail" },
-    "download": { "$ref": "#/$defs/download" }
+    "download": { "$ref": "#/$defs/download" },
+    "auth": { "$ref": "#/$defs/auth" }
   },
   "allOf": [
     {
@@ -84,6 +85,10 @@
         "selector": { "type": "string", "minLength": 1 },
         "jsonPath": { "type": "string", "minLength": 1 },
         "jsonld": { "type": "string", "minLength": 1 },
+        "raw": {
+          "type": "boolean",
+          "description": "true 时对整个 HTML 做 regex 匹配（URL 藏在内联脚本里时用）"
+        },
         "attr": { "type": "string" },
         "text": { "type": "boolean" },
         "html": { "type": "boolean" },
@@ -95,7 +100,8 @@
       "oneOf": [
         { "required": ["selector"] },
         { "required": ["jsonPath"] },
-        { "required": ["jsonld"] }
+        { "required": ["jsonld"] },
+        { "required": ["raw"] }
       ]
     },
     "fields": {
@@ -146,6 +152,31 @@
           "description": "true 时列表阶段每条都抓详情（列表页没有播放地址时必须为 true）"
         },
         "fields": { "$ref": "#/$defs/fields" }
+      }
+    },
+    "auth": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type"],
+      "description": "登录声明。凭据不写进源包，由用户在本机保存（Windows 用 DPAPI 加密）。",
+      "properties": {
+        "type": { "const": "cookie" },
+        "loginUrl": { "type": "string", "description": "登录页地址，可为相对路径" },
+        "domains": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^[A-Za-z0-9.-]+$" },
+          "description": "注入 Cookie 的域名；缺省为 baseUrl 及其子域"
+        },
+        "check": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["url"],
+          "properties": {
+            "url": { "type": "string", "description": "检测页地址，可用 {baseUrl}" },
+            "loggedInContains": { "type": "string" },
+            "loggedOutContains": { "type": "string" }
+          }
+        }
       }
     },
     "candidate": {

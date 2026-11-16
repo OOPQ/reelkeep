@@ -82,7 +82,23 @@ type DownloadResolver interface { Resolve(ctx, r) (DownloadSpec, error) }
 - 工具：`reelkeep source validate|test|install|list|remove|export`，支持离线 fixture 回放
 - Skill：`skills/reelkeep-source`，指导 LLM 从样本页生成源包
 
-仓库自带 `sources/pektino.json`、`sources/hsex.json` 两个已验证的源包（外置，不随二进制自动加载）。
+仓库自带 `sources/pektino.json`、`sources/hsex.json`、`sources/qise.json` 三个已验证的源包（外置，不随二进制自动加载）。
+
+## 登录与凭据
+
+分三层，当前实现第一层：
+
+1. **手动 Cookie（已实现）**：用户在自己的浏览器登录，复制 `Cookie` 请求头，粘贴到「源管理 → 登录」。应用只负责安全保存与注入，不接触账号密码。
+2. **一键登录（计划）**：用 CDP 拉起一个专用 Chrome 配置目录（`--user-data-dir=%APPDATA%\Reelkeep\login\<source>`），用户在里面登录后，通过 `Network.getAllCookies` 取回该源域名的 Cookie，再走同一套加密存储。需要引入一个 WebSocket 客户端依赖。
+3. **内嵌 WebView（P5）**：Wails/WebView2 里直接开登录页，用 `ICoreWebView2CookieManager` 取 Cookie。体验最好，但要等桌面壳落地。
+
+设计约束：
+
+- 源包只声明 `auth`（类型、登录页、域名、可选检测页），**永远不含凭据**
+- 凭据存 `%APPDATA%\Reelkeep\secrets\<source>.json`；Windows 用 DPAPI，非 Windows 暂用 0600 文件（发布前应换系统钥匙串）
+- 注入范围：`auth.domains`，缺省为 `baseUrl` 及其子域；下载地址解析标记 `UseAuth`，下载器（P4）带同一份凭据
+- 导出源包、诊断文件、日志都不包含 Cookie
+- 合规：只复用用户自己账号已有的权限，不代填密码、不绕过会员墙/DRM
 
 ## 数据流
 

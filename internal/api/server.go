@@ -503,6 +503,10 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/sources/remove", s.handleSourceRemove)
 	mux.HandleFunc("GET /api/sources/export", s.handleSourceExport)
 	mux.HandleFunc("POST /api/sources/test", s.handleSourceTest)
+	mux.HandleFunc("GET /api/sources/auth", s.handleSourceAuth)
+	mux.HandleFunc("POST /api/sources/auth", s.handleSourceAuthSave)
+	mux.HandleFunc("POST /api/sources/auth/clear", s.handleSourceAuthClear)
+	mux.HandleFunc("POST /api/sources/auth/test", s.handleSourceAuthTest)
 	mux.HandleFunc("POST /api/scrape", s.handleScrape)
 	mux.HandleFunc("POST /api/job/cancel", s.handleJobCancel)
 

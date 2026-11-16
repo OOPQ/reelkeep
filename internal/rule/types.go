@@ -26,8 +26,24 @@ type Package struct {
 	List         List      `json:"list"`
 	Detail       *Detail   `json:"detail,omitempty"`
 	Download     *Download `json:"download,omitempty"`
+	Auth         *Auth     `json:"auth,omitempty"`
 
 	path string
+}
+
+// Auth 声明源需要登录（目前只支持 Cookie）。
+type Auth struct {
+	Type     string     `json:"type"` // cookie
+	LoginURL string     `json:"loginUrl,omitempty"`
+	Domains  []string   `json:"domains,omitempty"`
+	Check    *AuthCheck `json:"check,omitempty"`
+}
+
+// AuthCheck 描述如何判断登录是否有效。
+type AuthCheck struct {
+	URL               string `json:"url"`
+	LoggedInContains  string `json:"loggedInContains,omitempty"`
+	LoggedOutContains string `json:"loggedOutContains,omitempty"`
 }
 
 // Defaults 是请求默认值。
@@ -82,11 +98,12 @@ type RetryRule struct {
 	RetryOnce bool   `json:"retryOnce,omitempty"`
 }
 
-// Field 是一个字段取值器：selector / jsonPath / jsonld 三选一。
+// Field 是一个字段取值器：selector / jsonPath / jsonld / raw 四选一。
 type Field struct {
 	Selector string `json:"selector,omitempty"`
 	JSONPath string `json:"jsonPath,omitempty"`
 	JSONLD   string `json:"jsonld,omitempty"`
+	Raw      bool   `json:"raw,omitempty"`
 	Attr     string `json:"attr,omitempty"`
 	Text     bool   `json:"text,omitempty"`
 	HTML     bool   `json:"html,omitempty"`
@@ -127,12 +144,17 @@ func (p *Package) Manifest() source.Manifest {
 	if pageSize <= 0 {
 		pageSize = 24
 	}
+	authType := ""
+	if p.Auth != nil {
+		authType = p.Auth.Type
+	}
 	return source.Manifest{
 		Key:           p.ID,
 		Name:          p.Name,
 		Enabled:       true,
 		Order:         900,
 		Origin:        p.Origin(),
+		AuthType:      authType,
 		Capabilities:  p.Capabilities,
 		SiteURL:       p.BaseURL,
 		PageSize:      pageSize,
@@ -164,10 +186,19 @@ func (p *Package) ListURL(rank string, page int) string {
 
 // DetailURL 拼出详情页地址。
 func (p *Package) DetailURL(id string) string {
+	return p.DetailURLFor(id, "")
+}
+
+// DetailURLFor 拼出详情页地址；模板可用 {pageUrl}（列表里给出的页面地址）。
+func (p *Package) DetailURLFor(id, pageURL string) string {
 	if p.Detail == nil {
 		return ""
 	}
-	return absoluteURL(p.BaseURL, subst(p.Detail.URL, map[string]string{"baseUrl": p.BaseURL, "id": id}))
+	return absoluteURL(p.BaseURL, subst(p.Detail.URL, map[string]string{
+		"baseUrl": p.BaseURL,
+		"id":      id,
+		"pageUrl": pageURL,
+	}))
 }
 
 // absoluteURL 把相对模板解析成绝对地址（模板允许写 /list/{page}）。

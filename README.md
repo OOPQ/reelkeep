@@ -4,7 +4,7 @@
 
 **Reelkeep 是 Pektino 的 Go 重写版。** 同一套 React 前端、同一份 SQLite 数据、同一套 `/api/*` 契约；后端从 PowerShell 5.1 换成单二进制 Go，为多端（Windows / macOS / Linux，后续 Android）留出同源代码。
 
-当前状态：**P1 完成 + P6 完成（外部源包 / 源管理 / 抓取任务）+ P2 部分（pektino、hsex 已作为外部源跑通）**。可以打开旧项目、浏览 1,600+ 条台账、扫盘回填、收藏/评分/已看/回收站/合集、浏览器内播放（Range 流）、在「源管理」导入源包并直接抓取。下载器（P4）、qise/web 原生适配器、Wails 壳（P5）尚未完成。
+当前状态：**P1 完成 + P6 完成（外部源包 / 源管理 / 抓取任务 / 手动登录）+ P2 部分（pektino、hsex、qise 已作为外部源跑通）**。可以打开旧项目、浏览 1,600+ 条台账、扫盘回填、收藏/评分/已看/回收站/合集、浏览器内播放（Range 流）、在「源管理」导入源包、登录、直接抓取。下载器（P4）、web 原生适配器、Wails 壳（P5）尚未完成。
 
 ![源管理：导入、测试、启用/禁用外部源](docs/sources-page.png)
 
@@ -88,6 +88,25 @@
 |---|---|---|
 | [sources/pektino.json](sources/pektino.json) | Pektino 周/月/总榜 | http（twimg 不带 Referer） |
 | [sources/hsex.json](sources/hsex.json) | hsex 最新 | HLS（需 ffmpeg；默认跟随系统代理） |
+| [sources/qise.json](sources/qise.json) | qise 视频区 | http 签名 mp4（登录后高清/会员） |
+
+### 需要登录的源（手动 Cookie）
+
+qise 这类站点，高清/会员内容需要登录态。Reelkeep **不代填账号密码**，而是复用你自己的浏览器会话：
+
+1. 「源管理」→ 对应源 → 「登录」
+2. 点「打开登录页」，在浏览器里正常登录
+3. 开发者工具 → Network → 任意请求 → 复制 `Cookie` 请求头
+4. 粘贴 → 「保存并测试」
+
+![登录面板](docs/sources-login.png)
+
+- 凭据保存在 `%APPDATA%\Reelkeep\secrets\<source>.json`，Windows 用 **DPAPI 加密**（绑定当前 Windows 账户）
+- 凭据不会写进源包，导出/分享源包时不会带出去
+- 旧版的 `qiseCookie` 会在首次启动时自动迁移一次
+- 只复用你账号本来就有权限的内容，不绕过会员墙 / DRM
+
+### 格式与安全
 
 - 机器可读格式：[docs/schema/source.schema.json](docs/schema/source.schema.json)
 - 人类可读参考：[skills/reelkeep-source/references/schema.md](skills/reelkeep-source/references/schema.md)
@@ -146,7 +165,7 @@ cd web; pnpm install; pnpm build           # 重新构建前端（产物在 web/
 |---|---|---|
 | P0 | 契约冻结、诊断基线、25 项 HTTP 验收测试 | 待做 |
 | P1 | Go 内核骨架：store / scan / API / 静态资源 / 媒体流 | **完成** |
-| P2 | 四个源适配器迁移（pektino / hsex / qise / web） | 部分：pektino、hsex 已用外部源包验证；qise/web 待做 |
+| P2 | 四个源适配器迁移（pektino / hsex / qise / web） | 部分：pektino、hsex、qise 已用外部源包验证；web 待做 |
 | P3 | 写路径补齐：封面/缩略图/快照/导入/播放器调用 | 部分完成 |
 | P4 | 下载器 + 队列持久化 + 410 刷新 + 续传 | 待做 |
 | P5 | 打包（Windows 单文件）+ CI + Wails 壳 + macOS/Linux | 待做 |

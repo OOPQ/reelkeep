@@ -1,5 +1,35 @@
 # 更新日志
 
+## 0.4.0 — 2026-11-16
+
+### 登录源（手动 Cookie）
+
+- 源包新增 `auth` 段（`type: cookie`、`loginUrl`、`domains`、可选 `check`）
+- 「源管理」每个需要登录的源多出「登录」面板：打开登录页、粘贴 Cookie、保存并测试、清除
+- 凭据保存在 `%APPDATA%\Reelkeep\secrets\<source>.json`，Windows 用 **DPAPI** 加密（绑定当前账户）；导出源包不会带出 Cookie
+- 抓取器按 `auth.domains` 自动注入 Cookie；下载地址解析标记 `UseAuth`，P4 下载器会带上同一份凭据
+- 旧版项目 `config.json` 里的 `qiseCookie` 首次启动自动迁移到加密凭据（只迁一次）
+- 新增 `sources/qise.json`：列表 + 详情 + 签名 mp4 + 410 刷新详情；无登录也能抓免费视频，登录后用于高清/会员内容
+
+### 抓取器健壮性
+
+- 读到 `</html>` 就结束：qise 这类「发完正文不关连接」的站点不再卡死
+- 每个请求独立超时（`defaults.timeoutSec`），响应头 20s；慢响应重试一次
+- 启用 Cookie Jar（保留 JSESSIONID）；响应过短（如 204）自动重试一次
+- 失败原因带上下文（列表页/详情页 URL）
+
+### 修复
+
+- 导入源与内置清单同 id 时，`Manifest()` 之前返回内置清单，导致导入源的榜单被判为未知；改为导入优先
+- 抓取诊断目录补回 `data\diagnostics\scrape\<run>\` 层级（之前少了 `scrape`）
+- 中文源名/榜单名在诊断 run 目录里安全化
+
+### 测试
+
+- secrets：加密落盘、明文不出现、非法 id/空 Cookie/超长 Cookie、换行清理
+- rule：`auth` 校验、`raw` 正则 + HTML 反转义、`{pageUrl}` 详情模板、随附三个源包始终可加载
+- manager：登录凭据保存/清除/状态展示
+
 ## 0.3.0 — 2026-11-16
 
 ### 抓取任务

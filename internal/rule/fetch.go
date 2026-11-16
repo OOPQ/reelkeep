@@ -1,12 +1,14 @@
 package rule
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
+	"net/http/cookiejar"
 	"net/url"
 	"os"
 	"strings"
@@ -26,7 +28,15 @@ type HTTPFetcher struct {
 	allowed  map[string]bool
 	ua       string
 	maxBytes int64
+	timeout  time.Duration
+
+	auth     *Auth
+	baseHost string
+	cookieFn func() string
 }
+
+// SetCookieProvider 注入登录 Cookie 提供者（来自加密凭据存储）。
+func (f *HTTPFetcher) SetCookieProvider(fn func() string) { f.cookieFn = fn }
 
 // NewHTTPFetcher 按源包构建抓取器。proxyFn 返回显式代理（空表示不指定）。
 func NewHTTPFetcher(p *Package, proxyFn func() string) (*HTTPFetcher, error) {
@@ -40,7 +50,10 @@ func NewHTTPFetcher(p *Package, proxyFn func() string) (*HTTPFetcher, error) {
 			allowed[h] = true
 		}
 	}
-	f := &HTTPFetcher{allowed: allowed, ua: p.Defaults.UserAgent, maxBytes: p.Defaults.MaxBytes}
+	f := &HTTPFetcher{
+		allowed: allowed, ua: p.Defaults.UserAgent, maxBytes: p.Defaults.MaxBytes,
+		auth: p.Auth, baseHost: strings.ToLower(u.Hostname()),
+	}
 	if f.ua == "" {
 		f.ua = defaultUA
 	}
@@ -51,6 +64,7 @@ func NewHTTPFetcher(p *Package, proxyFn func() string) (*HTTPFetcher, error) {
 	if timeout <= 0 {
 		timeout = 15 * time.Second
 	}
+	f.timeout = timeout
 	dialer := &net.Dialer{Timeout: 10 * time.Second, KeepAlive: 30 * time.Second}
 	tr := &http.Transport{
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
@@ -64,7 +78,7 @@ func NewHTTPFetcher(p *Package, proxyFn func() string) (*HTTPFetcher, error) {
 		TLSHandshakeTimeout:   10 * time.Second,
 		MaxIdleConnsPerHost:   4,
 		ForceAttemptHTTP2:     true,
-		ResponseHeaderTimeout: 15 * time.Second,
+		ResponseHeaderTimeout: 20 * time.Second,
 	}
 	// 代理每个请求动态决定：UI 里改设置后不需要重建所有源。
 	tr.Proxy = func(req *http.Request) (*url.URL, error) {
@@ -80,9 +94,11 @@ func NewHTTPFetcher(p *Package, proxyFn func() string) (*HTTPFetcher, error) {
 		}
 		return nil, nil
 	}
+	jar, _ := cookiejar.New(nil)
 	client := &http.Client{
 		Timeout:   timeout,
 		Transport: tr,
+		Jar:       jar, // 保留 JSESSIONID 之类的会话 Cookie
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			if len(via) >= 5 {
 				return errors.New("重定向次数过多")
@@ -129,31 +145,87 @@ func (f *HTTPFetcher) Get(ctx context.Context, rawURL string, headers map[string
 	if err := f.checkURL(u); err != nil {
 		return nil, err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
-	if err != nil {
-		return nil, err
+	// 单次尝试的超时由 client.Timeout 控制，失败重试会重新计时。
+
+	var lastErr error
+	for attempt := 0; attempt < 2; attempt++ {
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("User-Agent", f.ua)
+		for k, v := range headers {
+			req.Header.Set(k, v)
+		}
+		// 登录 Cookie：只注入到 auth.domains（缺省为 baseUrl 及其子域）
+		if f.auth != nil && f.cookieFn != nil && authHost(u.Hostname(), f.auth, f.baseHost) {
+			if c := sanitizeCookie(f.cookieFn()); c != "" && req.Header.Get("Cookie") == "" {
+				req.Header.Set("Cookie", c)
+			}
+		}
+		resp, err := f.client.Do(req)
+		if err != nil {
+			lastErr = err
+			if attempt == 0 {
+				time.Sleep(300 * time.Millisecond)
+				continue // 站点偶发慢响应，重试一次
+			}
+			return nil, err
+		}
+		if resp.StatusCode >= 400 {
+			snippet, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+			_ = resp.Body.Close()
+			return nil, fmt.Errorf("HTTP %d %s", resp.StatusCode, strings.TrimSpace(string(snippet)))
+		}
+		b, rerr := readBody(resp.Body, f.maxBytes)
+		_ = resp.Body.Close()
+		if rerr != nil {
+			lastErr = rerr
+			if attempt == 0 {
+				continue
+			}
+			return nil, rerr
+		}
+		// qise 这类站点首次可能只回 204 + JSESSIONID；同一 client 重试一次即可拿到正文。
+		if len(b) < 100 && attempt == 0 {
+			lastErr = fmt.Errorf("响应过短（%d 字节）", len(b))
+			time.Sleep(250 * time.Millisecond)
+			continue
+		}
+		return b, nil
 	}
-	req.Header.Set("User-Agent", f.ua)
-	for k, v := range headers {
-		req.Header.Set(k, v)
+	return nil, lastErr
+}
+
+// readBody 读到 </html> 就停：有些站点发完正文却不关连接，ReadAll 会一直等。
+func readBody(r io.Reader, maxBytes int64) ([]byte, error) {
+	var buf bytes.Buffer
+	tmp := make([]byte, 32*1024)
+	for {
+		n, err := r.Read(tmp)
+		if n > 0 {
+			buf.Write(tmp[:n])
+			if int64(buf.Len()) > maxBytes {
+				return nil, fmt.Errorf("响应超过 %d 字节上限", maxBytes)
+			}
+			if buf.Len() > 2048 {
+				b := buf.Bytes()
+				tail := b
+				if len(tail) > 4096 {
+					tail = tail[len(tail)-4096:]
+				}
+				if bytes.Contains(bytes.ToLower(tail), []byte("</html>")) {
+					return buf.Bytes(), nil
+				}
+			}
+		}
+		if err == io.EOF {
+			return buf.Bytes(), nil
+		}
+		if err != nil {
+			return buf.Bytes(), err
+		}
 	}
-	resp, err := f.client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode >= 400 {
-		snippet, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		return nil, fmt.Errorf("HTTP %d %s", resp.StatusCode, strings.TrimSpace(string(snippet)))
-	}
-	b, err := io.ReadAll(io.LimitReader(resp.Body, f.maxBytes+1))
-	if err != nil {
-		return nil, err
-	}
-	if int64(len(b)) > f.maxBytes {
-		return nil, fmt.Errorf("响应超过 %d 字节上限", f.maxBytes)
-	}
-	return b, nil
 }
 
 // FixtureFetcher 用本地样本回放，供 `source test --fixture-*` 与单元测试使用。
@@ -216,6 +288,34 @@ func isProxyAddr(addr, rawProxy string) bool {
 		}
 	}
 	return strings.EqualFold(host, ph) && port == pp
+}
+
+// ---------- 登录凭据 ----------
+
+func authHost(host string, a *Auth, baseHost string) bool {
+	host = strings.ToLower(strings.TrimSpace(host))
+	if host == "" {
+		return false
+	}
+	if len(a.Domains) == 0 {
+		return host == baseHost || strings.HasSuffix(host, "."+baseHost)
+	}
+	for _, d := range a.Domains {
+		d = strings.ToLower(strings.TrimSpace(d))
+		if d == "" {
+			continue
+		}
+		if host == d || strings.HasSuffix(host, "."+d) {
+			return true
+		}
+	}
+	return false
+}
+
+func sanitizeCookie(v string) string {
+	v = strings.ReplaceAll(v, "\r", " ")
+	v = strings.ReplaceAll(v, "\n", " ")
+	return strings.TrimSpace(v)
 }
 
 // ---------- 网络边界 ----------

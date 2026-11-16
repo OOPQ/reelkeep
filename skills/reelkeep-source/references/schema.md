@@ -19,6 +19,7 @@
 | `list` | 是 | 列表页规则 |
 | `detail` | 否 | 详情页规则；声明 `detail` 能力时必填 |
 | `download` | 否 | 下载地址规则；声明 `download` 能力时必填 |
+| `auth` | 否 | 需要登录时声明：`type: cookie`、`loginUrl`、`domains`、可选 `check` |
 
 ## list
 
@@ -37,7 +38,7 @@
 
 | 字段 | 说明 |
 |---|---|
-| `url` | 详情页模板，占位符 `{id}` `{baseUrl}` |
+| `url` | 详情页模板，占位符 `{id}` `{baseUrl}` `{pageUrl}`；列表里有完整地址时可直接写 `{pageUrl}` |
 | `always` | true：列表阶段每条都抓详情（列表页没有播放地址时必须） |
 | `fields` | `selector` 或 `jsonld`（JSON-LD 只能在这里用） |
 
@@ -51,6 +52,39 @@
 | `excludeHeaderHosts` | 这些 host 不发送 headers（CDN 拒绝第三方 Referer 时用） |
 | `onStatus` | 目前只支持 `"410": {"action":"refreshDetail","retryOnce":true}` |
 
+## auth（登录）
+
+需要登录才能拿到播放地址/高清时声明：
+
+```json
+{
+  "auth": {
+    "type": "cookie",
+    "loginUrl": "/login",
+    "domains": ["example.com"],
+    "check": {
+      "url": "/videos/latest/1",
+      "loggedInContains": "退出",
+      "loggedOutContains": "登录"
+    }
+  }
+}
+```
+
+| 字段 | 说明 |
+|---|---|
+| `type` | 目前只支持 `cookie` |
+| `loginUrl` | 登录页；绝对地址或以 `/` 开头的相对地址 |
+| `domains` | 注入 Cookie 的域名（精确或子域）；缺省为 `baseUrl` 及其子域 |
+| `check.url` | 可选：检测页，支持 `{baseUrl}` |
+| `check.loggedInContains` | 页面包含该文本视为已登录 |
+| `check.loggedOutContains` | 页面包含该文本视为未登录 |
+
+**凭据不在源包里。** 用户在「源管理 → 登录」里粘贴 Cookie，Windows 下用 DPAPI 加密保存；
+导出源包不会带出 Cookie。抓取器只在 `auth.domains` 匹配的请求上注入。
+
+如果检测页没有稳定标记，可以省略 `check`，此时「测试登录」只确认页面可访问。
+
 ## field
 
 | 字段 | 说明 |
@@ -58,6 +92,7 @@
 | `selector` | CSS 选择器（在列表项节点内查找；匹配不到时会尝试节点自身） |
 | `jsonPath` | RFC 9535 JSONPath（JSON 列表项以该项对象为根） |
 | `jsonld` | schema.org 路径，如 `VideoObject.contentUrl`、`VideoObject.interactionStatistic[0].userInteractionCount` |
+| `raw` | true 时对整个 HTML 做 `regex` 匹配（URL 藏在内联脚本里时用，结果会做 HTML 反转义） |
 | `attr` | 取属性值（必须配合 `selector`） |
 | `text` / `html` | 取文本 / 内部 HTML（默认 text） |
 | `regex` | 对取到的值做匹配，有捕获组时取第 1 组 |

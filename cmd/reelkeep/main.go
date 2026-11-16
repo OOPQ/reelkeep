@@ -108,6 +108,17 @@ func main() {
 	mgr.SetProxy(settings.Proxy)
 	loadErrs := mgr.LoadAll()
 
+	// 旧版把 qise Cookie 存在项目 config.json；迁移到加密凭据里（只迁一次）。
+	if settings.QiseCookie != "" {
+		if _, ok := mgr.Package("qise"); ok && !mgr.HasAuth("qise") {
+			if err := mgr.SetAuth("qise", settings.QiseCookie); err != nil {
+				logf.Printf("迁移 qise Cookie 失败: %v", err)
+			} else {
+				logf.Printf("已把旧配置里的 qise Cookie 迁移到加密凭据")
+			}
+		}
+	}
+
 	assets, err := fs.Sub(web.Dist, "dist")
 	if err != nil {
 		fatal("前端资源缺失: " + err.Error())

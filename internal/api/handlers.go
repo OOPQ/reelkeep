@@ -359,13 +359,14 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleDiagnostics(w http.ResponseWriter, r *http.Request) {
 	items := []any{}
-	entries, err := os.ReadDir(s.paths.Diagnostics)
+	base := filepath.Join(s.paths.Diagnostics, "scrape")
+	entries, err := os.ReadDir(base)
 	if err == nil {
 		for _, e := range entries {
 			if !e.IsDir() {
 				continue
 			}
-			b, err := os.ReadFile(filepath.Join(s.paths.Diagnostics, e.Name(), "meta.json"))
+			b, err := os.ReadFile(filepath.Join(base, e.Name(), "meta.json"))
 			if err != nil {
 				continue
 			}
@@ -385,8 +386,9 @@ func (s *Server) handleDiagnosticsFile(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "", http.StatusNotFound)
 		return
 	}
-	p := filepath.Join(s.paths.Diagnostics, run, name)
-	if !inside(s.paths.Diagnostics, p) {
+	base := filepath.Join(s.paths.Diagnostics, "scrape")
+	p := filepath.Join(base, run, name)
+	if !inside(base, p) {
 		http.Error(w, "", http.StatusNotFound)
 		return
 	}

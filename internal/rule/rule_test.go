@@ -225,3 +225,59 @@ func TestLoadDirSkipsBadFile(t *testing.T) {
 		t.Fatalf("期望 1 个成功 + 1 个失败，实际 %d/%d", len(pkgs), len(errs))
 	}
 }
+
+// 仓库里随附的源包必须始终能通过校验。
+func TestShippedPackagesLoad(t *testing.T) {
+	for _, name := range []string{"pektino.json", "hsex.json", "qise.json"} {
+		if _, err := LoadFile(filepath.Join("..", "..", "sources", name)); err != nil {
+			t.Fatalf("%s 校验失败: %v", name, err)
+		}
+	}
+}
+
+func TestDetailPageURLAndRawRegex(t *testing.T) {
+	p := &Package{
+		Schema: 1, ID: "demo", Name: "Demo", Version: "1.0.0",
+		BaseURL:      "https://demo.example.com",
+		Capabilities: []string{"scrape", "detail"},
+		Detail: &Detail{
+			URL: "{pageUrl}",
+			Fields: map[string]Field{
+				"title":    {Selector: "meta[property='og:title']", Attr: "content"},
+				"playable": {Raw: true, Regex: `data-src="(https?://[^"]+\.mp4[^"]*)"`},
+			},
+		},
+	}
+	p.normalize()
+	rs := New(p, &FixtureFetcher{Detail: []byte(`<html><head><meta property="og:title" content="T"></head>
+<body><video data-src="https://cdn.example.com/a.mp4?x=1&amp;y=2"></video></body></html>`)})
+	row, err := rs.detailFor(context.Background(), "1", "https://demo.example.com/list/1")
+	if err != nil {
+		t.Fatalf("详情解析失败: %v", err)
+	}
+	if row.Title != "T" {
+		t.Fatalf("标题不对: %q", row.Title)
+	}
+	if row.URL != "https://cdn.example.com/a.mp4?x=1&y=2" {
+		t.Fatalf("raw 正则应取到并反转义 mp4 地址，实际 %q", row.URL)
+	}
+}
+
+func TestAuthValidation(t *testing.T) {
+	p := loadDemo(t)
+	p.Auth = &Auth{Type: "cookie", Domains: []string{"example.com"}}
+	if errs := p.Validate(); len(errs) != 0 {
+		t.Fatalf("合法 auth 不应报错: %v", errs)
+	}
+	p.Auth.Type = "oauth"
+	errs := p.Validate()
+	found := false
+	for _, e := range errs {
+		if strings.Contains(e.Error(), "auth.type") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("应报 auth.type 错误: %v", errs)
+	}
+}

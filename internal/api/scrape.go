@@ -352,7 +352,7 @@ func mergeScraped(dst *model.Row, src model.Row, now string) {
 
 // writeScrapeDiag 落一轮诊断：result.csv / meta.json / progress.json / scrape.log。
 func (s *Server) writeScrapeDiag(runID string, j *scrapeJob, rows []model.Row, status, errText string, added, updated, skipped int) {
-	dir := filepath.Join(s.paths.Diagnostics, runID)
+	dir := filepath.Join(s.paths.Diagnostics, "scrape", runID)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return
 	}

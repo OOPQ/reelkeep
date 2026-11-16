@@ -20,6 +20,10 @@ type SourceManager interface {
 	Export(id string) ([]byte, error)
 	RecordResult(id string, err error)
 	Package(id string) (*rule.Package, bool)
+	NewFetcher(p *rule.Package) (rule.Fetcher, error)
+	SetAuth(id, cookie string) error
+	ClearAuth(id string) error
+	TestAuth(ctx context.Context, id string) (bool, string, error)
 	Proxy() string
 	SetProxy(string)
 }
@@ -159,7 +163,7 @@ func (s *Server) handleSourceTest(w http.ResponseWriter, r *http.Request) {
 	if limit > 10 {
 		limit = 10
 	}
-	fetcher, err := rule.NewHTTPFetcher(pkg, s.srcMgr.Proxy)
+	fetcher, err := s.srcMgr.NewFetcher(pkg)
 	if err != nil {
 		bad(w, err.Error())
 		return
@@ -231,4 +235,110 @@ func maxInt(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// ---------- 登录凭据 ----------
+
+func (s *Server) authItem(id string) (rule.ItemView, bool) {
+	if s.srcMgr == nil {
+		return rule.ItemView{}, false
+	}
+	for _, it := range s.srcMgr.List() {
+		if strings.EqualFold(it.ID, id) {
+			return it, true
+		}
+	}
+	return rule.ItemView{}, false
+}
+
+// handleSourceAuth 返回某个源的登录配置（不回传 Cookie 本身）。
+func (s *Server) handleSourceAuth(w http.ResponseWriter, r *http.Request) {
+	if s.srcMgr == nil {
+		bad(w, "源管理器未启用")
+		return
+	}
+	it, ok := s.authItem(r.URL.Query().Get("id"))
+	if !ok {
+		bad(w, "没有这个源")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ok": true, "id": it.ID, "authType": it.AuthType,
+		"configured": it.AuthConfigured, "updatedAt": it.AuthUpdatedAt,
+		"loginUrl": it.LoginURL, "checkUrl": it.CheckURL,
+	})
+}
+
+func (s *Server) handleSourceAuthSave(w http.ResponseWriter, r *http.Request) {
+	if s.srcMgr == nil {
+		bad(w, "源管理器未启用")
+		return
+	}
+	var body struct {
+		ID     string `json:"id"`
+		Cookie string `json:"cookie"`
+	}
+	if err := decodeJSON(r, &body); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "invalid json"})
+		return
+	}
+	if strings.TrimSpace(body.Cookie) == "" {
+		bad(w, "Cookie 不能为空")
+		return
+	}
+	if err := s.srcMgr.SetAuth(body.ID, body.Cookie); err != nil {
+		bad(w, err.Error())
+		return
+	}
+	s.logbuf.Add("source", "更新登录凭据 "+body.ID)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	loggedIn, message, testErr := s.srcMgr.TestAuth(ctx, body.ID)
+	resp := map[string]any{"ok": true, "loggedIn": loggedIn, "message": message}
+	if testErr != nil {
+		resp["testError"] = testErr.Error()
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleSourceAuthClear(w http.ResponseWriter, r *http.Request) {
+	if s.srcMgr == nil {
+		bad(w, "源管理器未启用")
+		return
+	}
+	var body struct {
+		ID string `json:"id"`
+	}
+	if err := decodeJSON(r, &body); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "invalid json"})
+		return
+	}
+	if err := s.srcMgr.ClearAuth(body.ID); err != nil {
+		bad(w, err.Error())
+		return
+	}
+	s.logbuf.Add("source", "清除登录凭据 "+body.ID)
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+func (s *Server) handleSourceAuthTest(w http.ResponseWriter, r *http.Request) {
+	if s.srcMgr == nil {
+		bad(w, "源管理器未启用")
+		return
+	}
+	var body struct {
+		ID string `json:"id"`
+	}
+	if err := decodeJSON(r, &body); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "invalid json"})
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	loggedIn, message, err := s.srcMgr.TestAuth(ctx, body.ID)
+	if err != nil {
+		bad(w, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "loggedIn": loggedIn, "message": message})
 }

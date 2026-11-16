@@ -44,6 +44,7 @@ type Manifest struct {
 	Enabled       bool     `json:"-"`
 	Order         int      `json:"-"`
 	Origin        string   `json:"origin,omitempty"` // builtin | imported
+	AuthType      string   `json:"authType,omitempty"`
 	Capabilities  []string `json:"capabilities"`
 	SiteURL       string   `json:"siteUrl"`
 	PageSize      int      `json:"pageSize"`
@@ -73,6 +74,8 @@ type DownloadSpec struct {
 	Headers map[string]string
 	// RefreshOn410 为 true 时，下载器遇到 410 应先重新解析一次源地址再重试。
 	RefreshOn410 bool
+	// UseAuth 为 true 时，下载器应带上该源保存的登录凭据（Cookie）。
+	UseAuth bool
 }
 
 // Source 是所有源都必须实现的接口。
@@ -284,17 +287,17 @@ func (r *Registry) Get(id string) (Source, bool) {
 	return nil, false
 }
 
-// Manifest 按 id 取清单项（内置或导入）。
+// Manifest 按 id 取清单项（导入优先，其次内置）。
 func (r *Registry) Manifest(id string) (Manifest, bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	key := strings.ToLower(id)
-	for _, m := range r.manifests {
+	for _, m := range r.extra {
 		if m.Key == key {
 			return m, true
 		}
 	}
-	for _, m := range r.extra {
+	for _, m := range r.manifests {
 		if m.Key == key {
 			return m, true
 		}

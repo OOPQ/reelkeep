@@ -110,3 +110,34 @@ func TestManagerRecordResult(t *testing.T) {
 		t.Fatalf("成功结果没记录: %+v", list[0])
 	}
 }
+
+func TestManagerAuthLifecycle(t *testing.T) {
+	root := t.TempDir()
+	m := NewManager(filepath.Join(root, "sources"), source.EmptyRegistry())
+	qise, err := os.ReadFile(filepath.Join("..", "..", "sources", "qise.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.Import(qise, true); err != nil {
+		t.Fatalf("导入 qise 失败: %v", err)
+	}
+	if m.HasAuth("qise") {
+		t.Fatal("初始不应有凭据")
+	}
+	if err := m.SetAuth("qise", "PHPSESSID=abc"); err != nil {
+		t.Fatal(err)
+	}
+	if !m.HasAuth("qise") {
+		t.Fatal("保存后应有凭据")
+	}
+	list := m.List()
+	if len(list) != 1 || !list[0].AuthConfigured || list[0].AuthType != "cookie" {
+		t.Fatalf("列表里的登录状态不对: %+v", list)
+	}
+	if err := m.ClearAuth("qise"); err != nil {
+		t.Fatal(err)
+	}
+	if m.HasAuth("qise") {
+		t.Fatal("清除后不应再有凭据")
+	}
+}

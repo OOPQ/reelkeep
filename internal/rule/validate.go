@@ -155,6 +155,30 @@ func (p *Package) Validate() []error {
 		add("download", "声明了 download 能力但没有 download 段")
 	}
 
+	// auth
+	if p.Auth != nil {
+		if p.Auth.Type != "cookie" {
+			add("auth.type", "目前只支持 cookie")
+		}
+		if p.Auth.LoginURL != "" {
+			if u, err := url.Parse(p.Auth.LoginURL); err != nil || (u.Host == "" && !strings.HasPrefix(p.Auth.LoginURL, "/")) {
+				add("auth.loginUrl", "必须是绝对地址或以 / 开头的相对地址：%q", p.Auth.LoginURL)
+			}
+		}
+		for i, d := range p.Auth.Domains {
+			if !hostPattern.MatchString(strings.ToLower(d)) {
+				add(fmt.Sprintf("auth.domains[%d]", i), "必须是纯域名：%q", d)
+			}
+		}
+		if p.Auth.Check != nil {
+			if strings.TrimSpace(p.Auth.Check.URL) == "" {
+				add("auth.check.url", "不能为空")
+			} else {
+				checkTemplate(&errs, "auth.check.url", p.Auth.Check.URL)
+			}
+		}
+	}
+
 	return errs
 }
 
@@ -179,8 +203,11 @@ func validateFields(prefix string, fields map[string]Field, mode string) []error
 		if f.JSONLD != "" {
 			src++
 		}
+		if f.Raw {
+			src++
+		}
 		if src != 1 {
-			add(path, "selector / jsonPath / jsonld 必须且只能有一个")
+			add(path, "selector / jsonPath / jsonld / raw 必须且只能有一个")
 			continue
 		}
 		switch {
@@ -207,6 +234,16 @@ func validateFields(prefix string, fields map[string]Field, mode string) []error
 			}
 			if f.Attr != "" || f.Text || f.HTML {
 				add(path, "jsonld 不能和 attr/text/html 组合")
+			}
+		case f.Raw:
+			if mode == "json" {
+				add(path, "JSON 列表里不能用 raw")
+			}
+			if f.Regex == "" {
+				add(path, "raw 必须配合 regex（对整页 HTML 做匹配）")
+			}
+			if f.Attr != "" || f.Text || f.HTML || f.Selector != "" {
+				add(path, "raw 不能和 selector/attr/text/html 组合")
 			}
 		}
 		if f.Attr != "" && f.Selector == "" {

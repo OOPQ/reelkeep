@@ -1,0 +1,51 @@
+{
+  "schema": 1,
+  "id": "qise",
+  "name": "Qise / 91视频",
+  "version": "1.0.0",
+  "author": "reelkeep",
+  "description": "qise100 视频区。列表页给 /videos/view/<id>/<slug>/，详情页里是带签名的 mp4；登录 Cookie 用于高清/会员内容，并随媒体请求一起发送。",
+  "baseUrl": "https://rfdjzz.qise100.com",
+  "hosts": ["cdn.cdnkdjs.com", "cdn2.jiuse2.cloud", "cdn3.jiuse3.cloud"],
+  "capabilities": ["scrape", "detail", "cover", "download"],
+  "defaults": {
+    "proxy": "system",
+    "timeoutSec": 30
+  },
+  "auth": {
+    "type": "cookie",
+    "loginUrl": "/login",
+    "domains": ["qise100.com"]
+  },
+  "list": {
+    "url": "/videos/{rank}/{page}",
+    "pageSize": 24,
+    "ranks": [
+      { "key": "latest-updates", "label": "最近更新" },
+      { "key": "top-rated", "label": "最高评分" },
+      { "key": "most-popular", "label": "最受欢迎" }
+    ],
+    "item": "div.video-elem",
+    "fields": {
+      "id": { "selector": "a[href^='/videos/view/']", "attr": "href", "regex": "/videos/view/(\\d+)/" },
+      "title": { "selector": "a.title" },
+      "cover": { "selector": "div.img", "attr": "style", "regex": "url\\('([^']+)'\\)" },
+      "duration": { "selector": "small.layer" },
+      "pageUrl": { "selector": "a[href^='/videos/view/']", "attr": "href", "absolute": true }
+    }
+  },
+  "detail": {
+    "url": "{pageUrl}",
+    "fields": {
+      "title": { "selector": "meta[property='og:title']", "attr": "content" },
+      "cover": { "selector": "meta[property='og:image']", "attr": "content" },
+      "playable": { "raw": true, "regex": "data-src=\"(https?://[^\"]+\\.mp4[^\"]*)\"" }
+    }
+  },
+  "download": {
+    "kind": "http",
+    "url": "{playable}",
+    "headers": { "Referer": "{baseUrl}/" },
+    "onStatus": { "410": { "action": "refreshDetail", "retryOnce": true } }
+  }
+}

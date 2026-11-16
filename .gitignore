@@ -31,3 +31,6 @@ Thumbs.db
 
 # 本地验收副本
 /.tmp-check/
+
+# 构建备份
+*~

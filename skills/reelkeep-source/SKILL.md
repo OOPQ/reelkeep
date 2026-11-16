@@ -1,4 +1,4 @@
-﻿---
+---
 name: reelkeep-source
 description: Generate and validate a Reelkeep source package (declarative JSON) for a video site — list/detail extraction with CSS or JSONPath, schema.org JSON-LD, allowed hosts, HTTP/HLS download resolution — then test it with fixtures or live and install it. Use when adding a new source to Reelkeep, fixing a broken selector, or reviewing a contributed source.
 ---
@@ -16,7 +16,7 @@ description: Generate and validate a Reelkeep source package (declarative JSON) 
 | 情况 | 结论 |
 |---|---|
 | 列表/详情是静态 HTML 或公开 JSON 接口 | ✅ 适合 |
-| 需要登录 / 会员 / 付费才能看到播放地址 | ❌ 不做（合规与稳定性都不划算） |
+| 需要登录 / 会员 / 付费才能看到播放地址 | 可做：声明 `auth`，让用户手动粘贴自己的 Cookie；**不代填账号密码** |
 | 需要 JS 渲染、签名算法、验证码 | ❌ 当前格式不支持；退回 Go 适配器 |
 | 站点有 DRM | ❌ 不做 |
 
@@ -102,6 +102,19 @@ reelkeep.exe source install .\source.json --overwrite
 | `HTML 页面里不能用 jsonPath` | 列表是 HTML 却用了 JSONPath | 改成 `selector`，或详情页用 `jsonld` |
 | `未知占位符` | 模板写了不存在的 `{xxx}` | 只用 `{baseUrl}` `{id}` `{rank}` `{page}` `{playable}` `{pageUrl}` `{url}` `{token}` `{sourceId}` |
 | `源没有榜单` | `--rank` 不在 `list.ranks` | 用默认榜单或补上 ranks |
+| `详情页需要列表页地址` | `detail.url` 用了 `{pageUrl}`，但单独调详情 | 正常现象：从抓取流程调用会带上列表页地址 |
+| 登录后仍拿不到高清 | Cookie 过期 / 账号无权限 | 源管理重新「登录」；确认账号本身有该内容权限 |
+
+## 需要登录的站点
+
+如果列表/详情需要登录，给源包加 `auth`：
+
+```json
+{ "auth": { "type": "cookie", "loginUrl": "/login", "domains": ["example.com"] } }
+```
+
+然后告诉用户：源管理 → 该源 → 登录 → 打开登录页 → 登录后从 DevTools 复制 Cookie → 保存并测试。
+**不要**在源包里写任何账号、密码或 Cookie。
 
 ## 稳定性规则（重要）
 

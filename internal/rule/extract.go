@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"html"
 	"net/url"
 	"regexp"
 	"strconv"
@@ -22,6 +23,10 @@ func parseHTML(b []byte) (*goquery.Document, error) {
 func extractHTMLFields(doc *goquery.Document, scope *goquery.Selection, fields map[string]Field, pageURL *url.URL) (map[string]string, error) {
 	out := make(map[string]string, len(fields))
 	for name, f := range fields {
+		if f.Raw {
+			out[name] = rawField(doc, f, pageURL)
+			continue
+		}
 		if f.Selector == "" {
 			return nil, fmt.Errorf("字段 %s: HTML 页面必须用 selector", name)
 		}
@@ -80,6 +85,8 @@ func extractDetailFields(doc *goquery.Document, fields map[string]Field, pageURL
 	out := make(map[string]string, len(fields))
 	for name, f := range fields {
 		switch {
+		case f.Raw:
+			out[name] = rawField(doc, f, pageURL)
 		case f.JSONLD != "":
 			v, err := extractJSONLD(doc, f.JSONLD)
 			if err != nil {
@@ -260,6 +267,28 @@ func scalarString(v any) (string, error) {
 	default:
 		return "", fmt.Errorf("不是标量（%T）", v)
 	}
+}
+
+// rawField 对整页 HTML 做正则匹配（用于 URL 藏在内联脚本里的站点）。
+func rawField(doc *goquery.Document, f Field, pageURL *url.URL) string {
+	raw, err := goquery.OuterHtml(doc.Selection)
+	if err != nil {
+		return f.Default
+	}
+	re, err := regexp.Compile(f.Regex)
+	if err != nil {
+		return f.Default
+	}
+	m := re.FindStringSubmatch(raw)
+	v := ""
+	if len(m) > 1 {
+		v = m[1]
+	} else if len(m) == 1 {
+		v = m[0]
+	}
+	nf := f
+	nf.Regex = ""
+	return postProcess(html.UnescapeString(v), nf, pageURL)
 }
 
 func postProcess(v string, f Field, pageURL *url.URL) string {

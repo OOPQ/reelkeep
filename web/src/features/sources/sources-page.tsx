@@ -3,6 +3,8 @@ import { useQuery } from '@tanstack/react-query'
 import {
   Download,
   FileJson,
+  KeyRound,
+  LogIn,
   Plug,
   RefreshCw,
   Trash2,
@@ -37,6 +39,11 @@ type SourceItem = {
   lastRunAt?: string
   lastRunOk?: boolean
   lastError?: string
+  authType?: string
+  authConfigured?: boolean
+  authUpdatedAt?: string
+  loginUrl?: string
+  checkUrl?: string
 }
 
 type PreviewRow = {
@@ -61,6 +68,10 @@ export function SourcesPage() {
   const [error, setError] = React.useState('')
   const [busy, setBusy] = React.useState<string | null>(null)
   const [preview, setPreview] = React.useState<{ id: string; rows: PreviewRow[] } | null>(null)
+  const [authFor, setAuthFor] = React.useState<string | null>(null)
+  const [cookieDraft, setCookieDraft] = React.useState('')
+  const [authMsg, setAuthMsg] = React.useState('')
+  const [authBusy, setAuthBusy] = React.useState(false)
 
   const query = useQuery<{ ok: boolean; items: SourceItem[] }>({
     queryKey: ['sources'],
@@ -184,6 +195,84 @@ export function SourcesPage() {
     a.click()
   }
 
+  const openAuth = (item: SourceItem) => {
+    setAuthFor(authFor === item.id ? null : item.id)
+    setCookieDraft('')
+    setAuthMsg('')
+  }
+
+  const saveAuth = async (item: SourceItem) => {
+    if (!cookieDraft.trim()) {
+      setAuthMsg('先粘贴 Cookie')
+      return
+    }
+    setAuthBusy(true)
+    setAuthMsg('')
+    try {
+      const r = await post<{
+        ok: boolean
+        error?: string
+        loggedIn?: boolean
+        message?: string
+        testError?: string
+      }>('/api/sources/auth', { id: item.id, cookie: cookieDraft })
+      if (!r.ok) {
+        setAuthMsg(r.error || '保存失败')
+        return
+      }
+      setAuthMsg(r.message || (r.loggedIn ? '登录有效' : '已保存，但未确认登录状态'))
+      setCookieDraft('')
+      toast.success('登录凭据已加密保存')
+      await refresh()
+    } catch (e) {
+      setAuthMsg((e as Error).message)
+    } finally {
+      setAuthBusy(false)
+    }
+  }
+
+  const testAuth = async (item: SourceItem) => {
+    setAuthBusy(true)
+    setAuthMsg('')
+    try {
+      const r = await post<{ ok: boolean; error?: string; loggedIn?: boolean; message?: string }>(
+        '/api/sources/auth/test',
+        { id: item.id },
+      )
+      if (!r.ok) {
+        setAuthMsg(r.error || '测试失败')
+        return
+      }
+      setAuthMsg(r.message || (r.loggedIn ? '登录有效' : '登录可能已失效'))
+    } catch (e) {
+      setAuthMsg((e as Error).message)
+    } finally {
+      setAuthBusy(false)
+    }
+  }
+
+  const clearAuth = async (item: SourceItem) => {
+    const ok = await confirmAction({
+      title: '清除登录凭据？',
+      description: '只删除本机保存的 Cookie，不会注销浏览器里的登录。',
+      confirmText: '清除',
+      danger: true,
+    })
+    if (!ok) return
+    setAuthBusy(true)
+    try {
+      const r = await post<{ ok: boolean; error?: string }>('/api/sources/auth/clear', { id: item.id })
+      if (!r.ok) throw new Error(r.error || '清除失败')
+      setAuthMsg('已清除')
+      toast.success('已清除登录凭据')
+      await refresh()
+    } catch (e) {
+      setAuthMsg((e as Error).message)
+    } finally {
+      setAuthBusy(false)
+    }
+  }
+
   if (query.isLoading) {
     return (
       <div className="grid gap-3 p-4">
@@ -302,6 +391,9 @@ export function SourcesPage() {
                   ) : (
                     <Badge tone="muted">未运行</Badge>
                   )}
+                  {item.authType ? (
+                    item.authConfigured ? <Badge tone="ok">已登录</Badge> : <Badge tone="muted">未登录</Badge>
+                  ) : null}
                 </div>
                 {item.description ? (
                   <div className="mt-1.5 text-[10px] leading-relaxed text-[color:var(--muted)]">{item.description}</div>
@@ -342,6 +434,12 @@ export function SourcesPage() {
                 >
                   {busy === 'test:' + item.id ? '测试中…' : '测试'}
                 </Button>
+                {item.authType ? (
+                  <Button size="sm" variant="outline" onClick={() => openAuth(item)} disabled={busy !== null}>
+                    <KeyRound className="size-3.5" />
+                    {item.authConfigured ? '重新登录' : '登录'}
+                  </Button>
+                ) : null}
                 <Button size="icon-sm" variant="ghost" title="导出" onClick={() => exportItem(item)}>
                   <Download className="size-3.5" />
                 </Button>
@@ -356,6 +454,72 @@ export function SourcesPage() {
                 </Button>
               </div>
             </div>
+
+            {authFor === item.id ? (
+              <div className="mt-3 rounded-[9px] border border-[color:var(--border)] bg-[color:var(--surface-2)] p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5 text-[10.5px] font-medium">
+                    <LogIn className="size-3.5 text-[color:var(--primary-2)]" />
+                    登录 {item.name}
+                  </div>
+                  {item.loginUrl ? (
+                    <a
+                      href={item.loginUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[10px] text-[color:var(--primary-2)] underline underline-offset-2"
+                    >
+                      打开登录页 ↗
+                    </a>
+                  ) : null}
+                </div>
+                <div className="mt-1 text-[9.5px] leading-relaxed text-[color:var(--subtle)]">
+                  在浏览器登录后，打开开发者工具 → Network，复制任意请求的 Cookie 头粘贴到这里。
+                  凭据只保存在本机（Windows 用 DPAPI 加密），<b>不会</b>写进源包，也不会出现在导出文件里。
+                </div>
+                <textarea
+                  value={cookieDraft}
+                  onChange={e => {
+                    setCookieDraft(e.target.value)
+                    setAuthMsg('')
+                  }}
+                  spellCheck={false}
+                  autoComplete="off"
+                  placeholder="PHPSESSID=...; token=..."
+                  className="mt-2 h-[72px] w-full resize-y rounded-[9px] border border-[color:var(--border)] bg-[color:var(--background-2)] p-2.5 font-mono text-[10px] leading-relaxed outline-none placeholder:text-[color:var(--subtle)] focus:border-[color:var(--border-strong)]"
+                />
+                {authMsg ? (
+                  <div className="mt-1.5 text-[9.5px] text-[color:var(--muted)]">{authMsg}</div>
+                ) : null}
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <Button size="sm" onClick={() => void saveAuth(item)} disabled={authBusy}>
+                    {authBusy ? '处理中…' : '保存并测试'}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => void testAuth(item)}
+                    disabled={authBusy || !item.authConfigured}
+                  >
+                    测试登录
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="danger"
+                    onClick={() => void clearAuth(item)}
+                    disabled={authBusy || !item.authConfigured}
+                  >
+                    清除
+                  </Button>
+                  <Button size="sm" variant="ghost" className="ml-auto" onClick={() => setAuthFor(null)}>
+                    关闭
+                  </Button>
+                </div>
+                {item.authConfigured && item.authUpdatedAt ? (
+                  <div className="mt-1.5 text-[9px] text-[color:var(--subtle)]">已保存：{item.authUpdatedAt}</div>
+                ) : null}
+              </div>
+            ) : null}
 
             {preview?.id === item.id ? (
               <div className="mt-3 overflow-hidden rounded-[9px] border border-[color:var(--border)]">

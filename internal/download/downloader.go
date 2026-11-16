@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -37,6 +38,7 @@ func (m *Manager) runHTTP(ctx context.Context, t *Task) error {
 	t.lastBytes = offset
 	m.mu.Unlock()
 
+	refreshed := false
 	for attempt := 0; attempt < 4; attempt++ {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -69,7 +71,8 @@ func (m *Manager) runHTTP(ctx context.Context, t *Task) error {
 			continue
 		case code == http.StatusGone:
 			_ = resp.Body.Close()
-			if t.M.RefreshOn410 {
+			if t.M.RefreshOn410 && !refreshed {
+				refreshed = true
 				if err := m.refresh(ctx, t); err != nil {
 					return fmt.Errorf("地址已失效（410），刷新失败: %w", err)
 				}
@@ -97,7 +100,27 @@ func (m *Manager) runHTTP(ctx context.Context, t *Task) error {
 		if resp.StatusCode == http.StatusOK {
 			offset = 0
 			flags |= os.O_TRUNC
+			if resp.ContentLength < 0 {
+				m.mu.Lock()
+				t.M.Total = 0
+				m.mu.Unlock()
+			}
 		} else {
+			// 206：必须确认服务器从我们要求的 offset 开始，否则会拼出坏文件
+			if cr := resp.Header.Get("Content-Range"); cr != "" {
+				start, total, perr := parseContentRange(cr)
+				if perr != nil || start != offset {
+					_ = resp.Body.Close()
+					_ = os.Remove(part)
+					offset = 0
+					continue
+				}
+				if total > 0 {
+					m.mu.Lock()
+					t.M.Total = total
+					m.mu.Unlock()
+				}
+			}
 			flags |= os.O_APPEND
 		}
 		f, err := os.OpenFile(part, flags, 0o644)
@@ -105,9 +128,45 @@ func (m *Manager) runHTTP(ctx context.Context, t *Task) error {
 			_ = resp.Body.Close()
 			return err
 		}
-		return m.copyBody(ctx, t, resp, f, offset, part, final)
+		err = m.copyBody(ctx, t, resp, f, offset, part, final)
+		if err == nil {
+			return nil
+		}
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		if attempt < 2 {
+			if st, serr := os.Stat(part); serr == nil {
+				offset = st.Size()
+			}
+			sleepCtx(ctx, time.Duration(attempt+1)*time.Second)
+			continue
+		}
+		return err
 	}
 	return errors.New("重试次数用尽")
+}
+
+// parseContentRange 解析 "bytes 100-199/1234"。
+func parseContentRange(v string) (start, total int64, err error) {
+	v = strings.TrimSpace(v)
+	if !strings.HasPrefix(v, "bytes ") {
+		return 0, 0, errors.New("bad Content-Range")
+	}
+	spec := strings.TrimPrefix(v, "bytes ")
+	parts := strings.SplitN(spec, "/", 2)
+	rng := strings.SplitN(parts[0], "-", 2)
+	if len(rng) != 2 {
+		return 0, 0, errors.New("bad Content-Range")
+	}
+	start, err = strconv.ParseInt(strings.TrimSpace(rng[0]), 10, 64)
+	if err != nil {
+		return 0, 0, err
+	}
+	if len(parts) == 2 && parts[1] != "*" {
+		total, _ = strconv.ParseInt(strings.TrimSpace(parts[1]), 10, 64)
+	}
+	return start, total, nil
 }
 
 func (m *Manager) copyBody(ctx context.Context, t *Task, resp *http.Response, f *os.File, offset int64, part, final string) error {
@@ -189,10 +248,12 @@ func (m *Manager) runHLS(ctx context.Context, t *Task) error {
 		}
 	}
 	if err != nil {
+		_ = os.Remove(part) // HLS 的 .part 不能断点续传，失败即清理
 		return err
 	}
 	st, err := os.Stat(part)
 	if err != nil || st.Size() == 0 {
+		_ = os.Remove(part)
 		return errors.New("ffmpeg 没有产出有效文件")
 	}
 	if err := os.Rename(part, final); err != nil {

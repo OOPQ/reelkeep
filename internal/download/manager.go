@@ -129,6 +129,13 @@ func (m *Manager) Start(ctx context.Context) error {
 	m.mu.Lock()
 	for i := range tasks {
 		t := tasks[i]
+		if !safeName(t.Token) || !safeName(sourceKey(t.Source)) {
+			t.State = "failed"
+			t.Error = "token/来源名含非法路径字符"
+			_ = m.st.SaveTask(t)
+			m.tasks[t.Token] = &Task{M: t}
+			continue
+		}
 		if t.State == "downloading" {
 			t.State = "queued" // 进程重启，进行中的任务回到队列
 			_ = m.st.SaveTask(t)
@@ -307,6 +314,12 @@ func (m *Manager) updateLedger(t *Task) {
 func (m *Manager) Enqueue(t model.DownloadTask) (bool, error) {
 	if t.Token == "" || t.URL == "" {
 		return false, errors.New("任务缺少 token 或 url")
+	}
+	if !safeName(t.Token) {
+		return false, errors.New("token 含非法路径字符")
+	}
+	if !safeName(sourceKey(t.Source)) {
+		return false, errors.New("来源名含非法路径字符")
 	}
 	if t.Mode == "" {
 		t.Mode = "http"
@@ -585,6 +598,23 @@ func sourceKey(s string) string {
 		return "pektino"
 	}
 	return s
+}
+
+// safeName 阻止 token/source 变成路径穿越或 Windows 非法文件名。
+func safeName(s string) bool {
+	if s == "" || s == "." || s == ".." || len(s) > 200 {
+		return false
+	}
+	for _, r := range s {
+		if r == '/' || r == '\\' || r == 0 || r < 0x20 {
+			return false
+		}
+		switch r {
+		case ':', '*', '?', '"', '<', '>', '|':
+			return false
+		}
+	}
+	return true
 }
 
 func tokenSet(tokens []string) map[string]bool {

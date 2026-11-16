@@ -254,8 +254,8 @@ CI（`.github/workflows/ci.yml`）：Linux 跑测试；五个平台出 CLI；Win
 | P1 | Go 内核骨架：store / scan / API / 静态资源 / 媒体流 | **完成** |
 | P2 | 四个源适配器迁移（pektino / hsex / qise / web）+ 链接抓取/刷新地址 | **完成** |
 | P3 | 写路径补齐：封面/缩略图/快照/导入/播放器调用 | **完成** |
-| P4 | 下载器 + 队列持久化 + 410 刷新 + 续传 | ✅ 90%（`.part` 修复已补） |
-| P5 | 打包（Windows 单文件）+ CI + Wails 壳 + macOS/Linux | 安装器/dmg/deb/CI/更新检查/Windows 自动更新完成；免费签名与 mac/linux 自动更新待做 |
+| P4 | 下载器 + 队列持久化 + 410 刷新 + 续传 + 边界修复 | **完成** |
+| P5 | 打包（Windows 单文件）+ CI + Wails 壳 + macOS/Linux | 安装器/dmg/deb/CI/自动更新完成；代码签名 TODO |
 | P6 | 外部源包：格式/校验/安全抓取/CLI/skill/源管理/抓取任务 | **完成** |
 
 ## 许可

@@ -20,6 +20,7 @@ func (s *Server) handleTorrentAdd(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		URL   string `json:"url"`
 		Files []int  `json:"files"`
+		Title string `json:"title"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "invalid json"})
@@ -33,6 +34,9 @@ func (s *Server) handleTorrentAdd(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		bad(w, err.Error())
 		return
+	}
+	if title := strings.TrimSpace(body.Title); title != "" {
+		row.Title = title
 	}
 	added, updated, skipped, _, err := s.applyScrape([]model.Row{row}, false)
 	if err != nil {

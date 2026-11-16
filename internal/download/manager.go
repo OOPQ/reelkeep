@@ -311,6 +311,9 @@ func (m *Manager) updateLedger(t *Task) {
 	row.FileSize = fmt.Sprintf("%d", st.Size())
 	row.FileDate = st.ModTime().Format("2006-01-02 15:04:05")
 	row.Status = "done"
+	if t.M.Name != "" {
+		row.Title = strings.TrimSuffix(filepath.Base(final), filepath.Ext(final))
+	}
 	row.Note = "auto:download"
 	if err := m.st.UpsertRows([]model.Row{row}); err != nil {
 		m.logf("download", "回填台账失败: "+err.Error())
@@ -674,8 +677,43 @@ func (m *Manager) finalPath(t *Task) string {
 
 func (m *Manager) pathsFor(t *Task) (final, part string) {
 	dir := filepath.Join(m.paths.Content, sourceKey(t.M.Source))
-	final = filepath.Join(dir, t.M.Token+".mp4")
+	name := strings.TrimSpace(t.M.Name)
+	if name == "" {
+		name = t.M.Token + ".mp4"
+	}
+	name = safeMediaName(name)
+	final = filepath.Join(dir, name)
 	return final, final + ".part"
+}
+
+func safeMediaName(name string) string {
+	name = filepath.Base(strings.TrimSpace(name))
+	name = strings.Map(func(r rune) rune {
+		switch r {
+		case '/', '\\', ':', '*', '?', '"', '<', '>', '|':
+			return '_'
+		}
+		if r < 32 {
+			return -1
+		}
+		return r
+	}, name)
+	name = strings.Trim(name, " .")
+	if name == "" {
+		name = "video"
+	}
+	if !strings.HasSuffix(strings.ToLower(name), ".mp4") {
+		name += ".mp4"
+	}
+	if len([]rune(name)) > 120 {
+		ext := filepath.Ext(name)
+		base := []rune(strings.TrimSuffix(name, ext))
+		if len(base) > 116 {
+			base = base[:116]
+		}
+		name = string(base) + ext
+	}
+	return name
 }
 
 func parseHeaders(raw string) map[string]string {

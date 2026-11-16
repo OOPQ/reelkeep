@@ -154,6 +154,7 @@ CREATE TABLE IF NOT EXISTS download_tasks (
   url            TEXT DEFAULT '',
   mode           TEXT DEFAULT 'http',
   files          TEXT DEFAULT '[]',
+  name           TEXT DEFAULT '',
   headers        TEXT DEFAULT '',
   use_auth       INTEGER DEFAULT 0,
   refresh_on_410 INTEGER DEFAULT 0,
@@ -237,6 +238,11 @@ func (s *Store) ensureSchema() error {
 	}
 	if !has["files"] {
 		if _, err := s.db.Exec("ALTER TABLE download_tasks ADD COLUMN files TEXT DEFAULT '[]'"); err != nil {
+			return err
+		}
+	}
+	if !has["name"] {
+		if _, err := s.db.Exec("ALTER TABLE download_tasks ADD COLUMN name TEXT DEFAULT ''"); err != nil {
 			return err
 		}
 	}

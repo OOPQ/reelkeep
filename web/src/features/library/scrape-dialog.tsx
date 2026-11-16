@@ -223,7 +223,7 @@ export function LinkScrapeDialog({
     if (!selected.length) return
     setBusy(true)
     try {
-      const r = await post<{ ok: boolean; error?: string }>('/api/torrent/add', { url: url.trim(), files: selected })
+      const r = await post<{ ok: boolean; error?: string }>('/api/torrent/add', { url: url.trim(), files: selected, title: selectedTitle() })
       if (!r.ok) throw new Error(r.error || '加入下载失败')
       toast.success('已开始磁力下载', { action: { label: '查看队列', onClick: () => navigate('/queue') } })
       qc.invalidateQueries({ queryKey: ['state'] })
@@ -237,6 +237,12 @@ export function LinkScrapeDialog({
 
   const toggle = (index: number, checked: boolean) => {
     setSelected(prev => checked ? [...new Set([...prev, index])] : prev.filter(i => i !== index))
+  }
+
+  const selectedTitle = () => {
+    const first = files.find(f => selected.includes(f.index) && /\.(mp4|mkv|webm|mov|m4v|avi|ts|flv|wmv)$/i.test(f.path))
+    if (!first) return ''
+    return first.path.split('/').pop()?.replace(/\.[^.]+$/, '') || ''
   }
 
   return (

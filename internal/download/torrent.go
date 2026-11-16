@@ -145,9 +145,6 @@ func (m *Manager) runTorrent(ctx context.Context, t *Task) error {
 	}
 
 complete:
-	if err := os.MkdirAll(filepath.Dir(final), 0o755); err != nil {
-		return err
-	}
 	primary := -1
 	for i, f := range selected {
 		if isVideoFile(f.Path()) {
@@ -158,6 +155,15 @@ complete:
 	if primary < 0 {
 		return errors.New("选中的文件里没有视频")
 	}
+	m.mu.Lock()
+	t.M.Name = filepath.Base(selected[primary].Path())
+	m.mu.Unlock()
+	_ = m.st.SaveTask(t.M)
+	final = m.finalPath(t)
+	if err := os.MkdirAll(filepath.Dir(final), 0o755); err != nil {
+		return err
+	}
+	used := map[string]bool{strings.ToLower(filepath.Base(final)): true}
 	exported := 0
 	for i, f := range selected {
 		if !isVideoFile(f.Path()) {
@@ -166,8 +172,13 @@ complete:
 		src := filepath.Join(dataDir, filepath.FromSlash(f.Path()))
 		dst := final
 		if i != primary {
-			exported++
-			dst = filepath.Join(filepath.Dir(final), t.M.Token+"_"+strconv.Itoa(exported)+".mp4")
+			name := safeMediaName(filepath.Base(f.Path()))
+			for used[strings.ToLower(name)] {
+				exported++
+				name = safeMediaName(strings.TrimSuffix(filepath.Base(f.Path()), filepath.Ext(f.Path())) + "_" + strconv.Itoa(exported) + ".mp4")
+			}
+			used[strings.ToLower(name)] = true
+			dst = filepath.Join(filepath.Dir(final), name)
 		}
 		if err := m.exportTorrentFile(ctx, src, dst); err != nil {
 			return err

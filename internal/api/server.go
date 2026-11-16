@@ -521,8 +521,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/download/repair", s.handleDownloadRepair)
 
 	// 尚未迁移到 Go 的能力：明确报错，不伪装成功
-	mux.HandleFunc("POST /api/refresh-url", s.handleNotYet("地址刷新随抓取一起迁移（P2）"))
-	mux.HandleFunc("POST /api/import", s.handleNotYet("链接抓取随抓取一起迁移（P2）"))
+	mux.HandleFunc("POST /api/refresh-url", s.handleRefreshURL)
+	mux.HandleFunc("POST /api/import", s.handleNotYet("链接抓取请使用 /api/scrape 的 url 参数"))
 	mux.HandleFunc("POST /api/content/open", s.handleRevealContent)
 
 	// 静态资源与媒体

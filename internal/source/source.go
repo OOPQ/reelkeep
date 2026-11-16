@@ -108,6 +108,11 @@ type Refresher interface {
 	Refresh(ctx context.Context, r model.Row) (model.Row, error)
 }
 
+// URLScraper 是可选能力：从一个页面/直链直接生成一条记录（链接抓取）。
+type URLScraper interface {
+	ScrapeURL(ctx context.Context, rawURL string) (model.Row, error)
+}
+
 // Registry 保存构造函数、动态导入的源和已启用的清单。
 type Registry struct {
 	mu        sync.RWMutex

@@ -281,3 +281,21 @@ func TestAuthValidation(t *testing.T) {
 		t.Fatalf("应报 auth.type 错误: %v", errs)
 	}
 }
+
+func TestScrapeURL(t *testing.T) {
+	p := loadDemo(t)
+	rs := New(p, &FixtureFetcher{Detail: readFile(t, "detail.html")})
+	row, err := rs.ScrapeURL(context.Background(), "https://demo.example.com/video/101")
+	if err != nil {
+		t.Fatalf("链接抓取失败: %v", err)
+	}
+	if row.Token != "demo@101" || row.URL == "" {
+		t.Fatalf("结果不对: %+v", row)
+	}
+	if row.PageURL != "https://demo.example.com/video/101" {
+		t.Fatalf("page_url 应保留输入链接: %q", row.PageURL)
+	}
+	if _, err := rs.ScrapeURL(context.Background(), "https://demo.example.com/other/1"); err == nil {
+		t.Fatal("不匹配的链接应报错")
+	}
+}

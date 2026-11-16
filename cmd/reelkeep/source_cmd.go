@@ -50,6 +50,7 @@ func sourceUsage() {
       --rank latest --pages 1 --limit 5 --proxy http://127.0.0.1:7890
       --fixture-list list.html --fixture-detail detail.html   离线回放
       --resolve --json
+      --url <page-url> --resolve                              链接抓取（单条）
   reelkeep source install <file.json>    安装到 %APPDATA%\Reelkeep\sources
       --overwrite
   reelkeep source list                   列出已安装的源
@@ -192,6 +193,8 @@ type testRow struct {
 	Cover    string `json:"cover"`
 	Duration string `json:"duration"`
 	Res      string `json:"res"`
+	PageURL  string `json:"pageUrl"`
+	Kind     string `json:"kind"`
 }
 
 func cmdSourceTest(args []string) int {
@@ -209,6 +212,7 @@ func cmdSourceTest(args []string) int {
 	asJSON := fs.Bool("json", false, "输出 JSON")
 	doResolve := fs.Bool("resolve", false, "同时测试下载地址解析")
 	proxy := fs.String("proxy", "", "显式代理，例如 http://127.0.0.1:7890")
+	targetURL := fs.String("url", "", "链接抓取：直接解析这个详情页 URL")
 	if err := fs.Parse(args[1:]); err != nil {
 		return 2
 	}
@@ -260,26 +264,36 @@ func cmdSourceTest(args []string) int {
 
 	var rows []model.Row
 	start := time.Now()
-	err = rs.Scrape(ctx, source.ScrapeRequest{
-		Rank:     *rank,
-		Pages:    pageNums,
-		Limit:    *limit,
-		PageSize: max(*limit, p.List.PageSize),
-	}, func(r model.Row) error {
-		rows = append(rows, r)
-		return nil
-	})
-	elapsed := time.Since(start)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "✗ 抓取失败:", err)
-		return 1
+	if *targetURL != "" {
+		row, err := rs.ScrapeURL(ctx, *targetURL)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "✗ 链接抓取失败:", err)
+			return 1
+		}
+		rows = append(rows, row)
+	} else {
+		err = rs.Scrape(ctx, source.ScrapeRequest{
+			Rank:     *rank,
+			Pages:    pageNums,
+			Limit:    *limit,
+			PageSize: max(*limit, p.List.PageSize),
+		}, func(r model.Row) error {
+			rows = append(rows, r)
+			return nil
+		})
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "✗ 抓取失败:", err)
+			return 1
+		}
 	}
+	elapsed := time.Since(start)
 
 	out := make([]testRow, 0, len(rows))
 	for _, r := range rows {
 		out = append(out, testRow{
 			Token: r.Token, Title: r.Title, Playable: r.URL,
 			Cover: r.CoverURL, Duration: r.Duration, Res: r.Res,
+			PageURL: r.PageURL, Kind: r.DownloadKind,
 		})
 	}
 	if *asJSON {

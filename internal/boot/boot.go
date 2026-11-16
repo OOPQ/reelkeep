@@ -23,6 +23,7 @@ import (
 	"github.com/OOPQ/reelkeep/internal/download"
 	"github.com/OOPQ/reelkeep/internal/rule"
 	"github.com/OOPQ/reelkeep/internal/source"
+	websource "github.com/OOPQ/reelkeep/internal/source/web"
 	"github.com/OOPQ/reelkeep/internal/store"
 	"github.com/OOPQ/reelkeep/web"
 )
@@ -105,6 +106,9 @@ func Start(ctx context.Context, opt Options) (*Instance, error) {
 		logf("源清单加载失败（抓取不可用）: %v", err)
 		reg = source.EmptyRegistry()
 	}
+	// 通用「链接抓取」源（原生实现）
+	reg.Register("web", websource.New)
+	websource.Configure(settings.Proxy)
 	mgr := rule.NewManager(config.ImportedSourcesDir(), reg)
 	mgr.SetProxy(settings.Proxy)
 	loadErrs := mgr.LoadAll()

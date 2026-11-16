@@ -18,23 +18,24 @@ import (
 
 // scrapeJob 是一次抓取任务（同一时间只允许一个）。
 type scrapeJob struct {
-	mu       sync.Mutex
-	Source   string
-	Rank     string
-	Pages    []int
-	Limit    int
-	Running  bool
-	Started  time.Time
-	Finished time.Time
-	Phase    string
-	Done     int
-	Total    int
-	Added    int
-	Updated  int
-	Skipped  int
-	Err      string
-	Logs     []string
-	Cancel   context.CancelFunc
+	mu        sync.Mutex
+	Source    string
+	Rank      string
+	Pages     []int
+	Limit     int
+	TargetURL string
+	Running   bool
+	Started   time.Time
+	Finished  time.Time
+	Phase     string
+	Done      int
+	Total     int
+	Added     int
+	Updated   int
+	Skipped   int
+	Err       string
+	Logs      []string
+	Cancel    context.CancelFunc
 }
 
 func (j *scrapeJob) logf(format string, args ...any) {
@@ -151,12 +152,51 @@ func (s *Server) handleScrape(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "invalid json"})
 		return
 	}
-	if body.Source == "" {
-		bad(w, "请选择源")
+	if body.URL != "" {
+		srcKey := body.Source
+		if srcKey == "" {
+			srcKey = "web"
+		}
+		src, ok := s.reg.Get(srcKey)
+		if !ok {
+			bad(w, "未知源："+srcKey)
+			return
+		}
+		us, ok := src.(source.URLScraper)
+		if !ok {
+			bad(w, "源 "+srcKey+" 不支持链接抓取")
+			return
+		}
+		m, ok := s.reg.Manifest(srcKey)
+		if !ok || !hasCap(m.Capabilities, "scrape") {
+			bad(w, "源 "+srcKey+" 不支持抓取")
+			return
+		}
+		skipDeleted := true
+		if body.SkipDeleted != nil {
+			skipDeleted = *body.SkipDeleted
+		}
+		ctx, cancel := context.WithCancel(context.Background())
+		j := &scrapeJob{
+			Source: srcKey, Rank: "url", TargetURL: body.URL,
+			Running: true, Started: time.Now(), Phase: "details", Cancel: cancel,
+		}
+		s.jobMu.Lock()
+		if s.job != nil && s.job.isRunning() {
+			s.jobMu.Unlock()
+			cancel()
+			bad(w, "已有抓取任务在跑，等它结束")
+			return
+		}
+		s.job = j
+		s.jobMu.Unlock()
+		go s.runScrapeURL(ctx, j, us, skipDeleted)
+		s.logbuf.Add("scrape", "开始链接抓取 "+body.URL)
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "job": j.info()})
 		return
 	}
-	if body.URL != "" {
-		bad(w, "当前版本还不支持「链接抓取」，请先用「获取数据」按榜单抓取")
+	if body.Source == "" {
+		bad(w, "请选择源")
 		return
 	}
 	m, ok := s.reg.Manifest(body.Source)
@@ -268,6 +308,137 @@ func (s *Server) runScrape(ctx context.Context, j *scrapeJob, src source.Source,
 		s.srcMgr.RecordResult(j.Source, nil)
 	}
 	s.logbuf.Add("scrape", fmt.Sprintf("%s 抓取完成：新增 %d，更新 %d", j.Source, added, updated))
+}
+
+// runScrapeURL 处理「链接抓取」：只产出一条记录。
+func (s *Server) runScrapeURL(ctx context.Context, j *scrapeJob, us source.URLScraper, skipDeleted bool) {
+	runID := time.Now().Format("20060102-150405") + "-" + sanitizeName(j.Source) + "-url"
+	j.logf("run=%s source=%s url=%s", runID, j.Source, j.TargetURL)
+
+	row, err := us.ScrapeURL(ctx, j.TargetURL)
+	if err != nil {
+		j.logf("链接抓取失败: %v", err)
+		s.writeScrapeDiag(runID, j, nil, "failed", err.Error(), 0, 0, 0)
+		j.finish(err)
+		if s.srcMgr != nil {
+			s.srcMgr.RecordResult(j.Source, err)
+		}
+		s.logbuf.Add("scrape", "链接抓取失败："+err.Error())
+		return
+	}
+	added, updated, skipped, mergeErr := s.applyScrape([]model.Row{row}, skipDeleted)
+	if mergeErr != nil {
+		j.logf("入库失败: %v", mergeErr)
+		s.writeScrapeDiag(runID, j, []model.Row{row}, "failed", mergeErr.Error(), added, updated, skipped)
+		j.finish(mergeErr)
+		if s.srcMgr != nil {
+			s.srcMgr.RecordResult(j.Source, mergeErr)
+		}
+		return
+	}
+	j.mu.Lock()
+	j.Added, j.Updated, j.Skipped = added, updated, skipped
+	j.Total, j.Done = 1, 1
+	j.mu.Unlock()
+	j.logf("完成: 新增 %d，更新 %d，跳过 %d", added, updated, skipped)
+	s.writeScrapeDiag(runID, j, []model.Row{row}, "ok", "", added, updated, skipped)
+	j.finish(nil)
+	if s.srcMgr != nil {
+		s.srcMgr.RecordResult(j.Source, nil)
+	}
+	s.logbuf.Add("scrape", "链接抓取完成："+row.Token)
+}
+
+// handleRefreshURL 重新解析选中条目的播放地址（签名过期时用）。
+func (s *Server) handleRefreshURL(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Tokens []string `json:"tokens"`
+	}
+	if err := decodeJSON(r, &body); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "invalid json"})
+		return
+	}
+	if len(body.Tokens) == 0 {
+		bad(w, "tokens 为空")
+		return
+	}
+	if len(body.Tokens) > 20 {
+		body.Tokens = body.Tokens[:20]
+		s.logbuf.Add("refresh", "一次最多刷新 20 条")
+	}
+
+	s.mu.RLock()
+	rows := make([]model.Row, len(s.rows))
+	copy(rows, s.rows)
+	s.mu.RUnlock()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+	refreshed, failed := 0, 0
+	var errs []string
+	for _, tk := range body.Tokens {
+		row, ok := findRow(rows, tk)
+		if !ok {
+			errs = append(errs, tk+": 台账里没有")
+			failed++
+			continue
+		}
+		src, ok := s.reg.Get(row.Source)
+		if !ok {
+			errs = append(errs, tk+": 源未启用")
+			failed++
+			continue
+		}
+		changed := false
+		if us, ok := src.(source.URLScraper); ok && row.PageURL != "" {
+			if nr, err := us.ScrapeURL(ctx, row.PageURL); err == nil {
+				row = nr
+				changed = true
+			} else {
+				errs = append(errs, tk+": "+err.Error())
+			}
+		} else if ref, ok := src.(source.Refresher); ok {
+			if nr, err := ref.Refresh(ctx, row); err == nil {
+				row = nr
+				changed = true
+			} else {
+				errs = append(errs, tk+": "+err.Error())
+			}
+		}
+		if dr, ok := src.(source.DownloadResolver); ok {
+			spec, err := dr.Resolve(ctx, row)
+			if err != nil {
+				errs = append(errs, tk+": "+err.Error())
+			} else {
+				row.URL = spec.URL
+				row.DownloadKind = spec.Mode
+				if b, err := json.Marshal(spec.Headers); err == nil {
+					row.DownloadHeaders = string(b)
+				}
+				changed = true
+			}
+		}
+		if !changed {
+			failed++
+			if len(errs) == 0 || len(errs) < 20 {
+				errs = append(errs, tk+": 源不支持刷新")
+			}
+			continue
+		}
+		if err := s.st.UpsertRows([]model.Row{row}); err != nil {
+			errs = append(errs, tk+": "+err.Error())
+			failed++
+			continue
+		}
+		s.ReloadRow(row.Token)
+		refreshed++
+	}
+	if refreshed > 0 {
+		s.logbuf.Add("refresh", fmt.Sprintf("刷新地址 %d 条", refreshed))
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ok": true, "refreshed": refreshed, "failed": failed, "errors": errs,
+	})
 }
 
 // applyScrape 把抓取结果合并进台账：新条目入库，旧条目只覆盖抓取字段，用户字段保持。

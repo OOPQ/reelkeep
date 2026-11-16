@@ -1,5 +1,20 @@
 # 更新日志
 
+## 0.8.0 — 2026-11-16
+
+### P2 收尾：web 通用源 / 链接抓取 / 刷新地址
+
+- 原生 `web` 源：任意视频页面或直链
+  - 直链（mp4/m3u8）直接建条目；页面解析 `og:title/og:image/og:video`、`<video>/<source>`、JSON-LD `contentUrl`，兜底正则
+  - token 为 `web@<url md5 前 12 位>`，与旧版一致；封面/时长/Referer 一并入库
+  - 代理跟随应用设置（`websource.Configure`），并保留环境变量兜底
+- 规则源也支持链接抓取：用列表 `id` 字段的正则从 URL 提取原生 id，再走详情解析（qise / pektino 均可用）
+- `POST /api/scrape {url}`：链接抓取任务，`source` 省略时默认 `web`；可与榜单抓取共用任务/诊断
+- `POST /api/refresh-url {tokens}`：最多 20 条，优先 `URLScraper` 重抓页面，其次 `Refresher`，再 `Resolve`，写回地址/headers
+- CLI：`reelkeep source test <pkg> --url <page> --resolve`；`--json` 增加 `pageUrl/kind`
+- 测试：web 页面解析/直链、规则源 URL 抓取、API 链接抓取任务、刷新地址
+- 实测：qise 详情页链接抓取（CLI + 应用内）成功；web 直链抓取 + 刷新成功
+
 ## 0.7.0 — 2026-11-16
 
 ### 桌面壳（Wails v3）

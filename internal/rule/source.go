@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -322,6 +323,38 @@ func (s *RuleSource) Refresh(ctx context.Context, r model.Row) (model.Row, error
 	}
 	mergeRow(&r, nr)
 	return r, nil
+}
+
+// ScrapeURL 从详情页 URL 生成一条记录（链接抓取）。
+// 用列表 id 字段的正则从 URL 里提取原生 id，再走详情解析。
+func (s *RuleSource) ScrapeURL(ctx context.Context, rawURL string) (model.Row, error) {
+	u, err := url.Parse(rawURL)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		return model.Row{}, fmt.Errorf("链接不合法: %s", rawURL)
+	}
+	if s.pkg.Detail == nil {
+		return model.Row{}, fmt.Errorf("源 %s 不支持链接抓取（没有 detail 段）", s.pkg.ID)
+	}
+	idField, ok := s.pkg.List.Fields["id"]
+	if !ok || idField.Regex == "" {
+		return model.Row{}, fmt.Errorf("源 %s 没有可用于链接抓取的 id 正则", s.pkg.ID)
+	}
+	re, err := regexp.Compile(idField.Regex)
+	if err != nil {
+		return model.Row{}, err
+	}
+	m := re.FindStringSubmatch(rawURL)
+	if len(m) < 2 {
+		return model.Row{}, fmt.Errorf("这个链接不符合源 %s 的格式", s.pkg.ID)
+	}
+	row, err := s.detailFor(ctx, m[1], rawURL)
+	if err != nil {
+		return model.Row{}, err
+	}
+	if row.PageURL == "" {
+		row.PageURL = rawURL
+	}
+	return row, nil
 }
 
 // Cover 解析封面地址（缺省回落到详情页）。

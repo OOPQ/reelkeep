@@ -131,6 +131,14 @@ type DownloadResolver interface { Resolve(ctx, r) (DownloadSpec, error) }
 - 封面覆盖：`data/cover-map.json` 把某张快照指定为该条目的封面，`/api/cover` 优先返回
 - 播放/定位：`rundll32`/`explorer /select`（mac/linux 用 `open`/`xdg-open`），只做用户本机操作
 
+## 链接抓取（P2）
+
+- 可选接口 `source.URLScraper`：从一个页面/直链生成单条记录
+- `web` 原生源：直链直接入库；页面解析 OG / `<video>` / JSON-LD，token 为 `web@md5(url)[:12]`
+- `RuleSource.ScrapeURL`：用列表 `id` 字段的正则从 URL 提取原生 id，再 `detailFor`（qise、pektino 通用）
+- `POST /api/scrape {url}` 复用抓取任务与诊断；`POST /api/refresh-url` 优先重抓页面，其次 `Refresher` + `Resolve`
+- web 源跟随应用代理设置
+
 ## 桌面壳（P5）
 
 - `desktop/` 用 Wails v3.1 + WebView2；先 `boot.Start` 起 loopback HTTP，再让窗口加载该 URL

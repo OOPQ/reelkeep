@@ -4,7 +4,7 @@
 
 **Reelkeep 是 Pektino 的 Go 重写版。** 同一套 React 前端、同一份 SQLite 数据、同一套 `/api/*` 契约；后端从 PowerShell 5.1 换成单二进制 Go，为多端（Windows / macOS / Linux，后续 Android）留出同源代码。
 
-当前状态：**P1 / P3 / P6 完成，P4 下载器基础版，P5 桌面壳可用（Windows），P2 部分（pektino、hsex、qise 已作为外部源跑通）**。可以打开旧项目、导入媒体、浏览台账、封面/缩略图、时间轴快照、播放、抓取、下载（HTTP 续传 / HLS），也可以直接用桌面窗口使用。web 原生适配器、链接抓取/刷新地址（P2）、安装器/签名/自动更新（P5）尚未完成。
+当前状态：**P1 / P2 / P3 / P6 完成，P4 下载器基础版，P5 桌面壳可用（Windows）**。可以打开旧项目、导入媒体、浏览台账、封面/缩略图、时间轴快照、播放、榜单/链接抓取、刷新地址、下载（HTTP 续传 / HLS），也可以直接用桌面窗口使用。安装器/签名/自动更新（P5）、macOS/Linux 桌面包尚未完成。
 
 ![源管理：导入、测试、启用/禁用外部源](docs/sources-page.png)
 
@@ -126,6 +126,15 @@ qise 这类站点，高清/会员内容需要登录态。Reelkeep **不代填账
 
 > 下载内容来自第三方站点，是否可下载/保存请自行确认合规性；本程序只复用你账号已有权限，不绕过会员墙或 DRM。
 
+## 链接抓取与刷新地址
+
+- 粘贴任意视频页面或直链：「链接抓取」默认用 `web` 源
+  - 直链（mp4/m3u8）直接建条目；页面解析 `og:title/og:image/og:video`、`<video>/<source>`、JSON-LD
+  - token 为 `web@<URL md5 前 12 位>`，同一链接重复抓取会合并
+- 规则源（qise / pektino）也支持贴详情页 URL：用列表 id 正则提取原生 id，再走详情解析
+- 地址过期用「刷新地址」：优先重抓页面，其次 `Refresher`，再 `Resolve`；一次最多 20 条
+- 代理设置对 web 源与内置下载器都生效
+
 ## 桌面壳（Windows）
 
 `reelkeep-desktop.exe` 是 Wails v3 + WebView2 的原生窗口，内部仍然启动同一个 loopback HTTP 服务：
@@ -194,7 +203,7 @@ cd web; pnpm install; pnpm build           # 重新构建前端（产物在 web/
 |---|---|---|
 | P0 | 契约冻结、诊断基线、25 项 HTTP 验收测试 | 待做 |
 | P1 | Go 内核骨架：store / scan / API / 静态资源 / 媒体流 | **完成** |
-| P2 | 四个源适配器迁移（pektino / hsex / qise / web） | 部分：pektino、hsex、qise 已用外部源包验证；web 待做 |
+| P2 | 四个源适配器迁移（pektino / hsex / qise / web）+ 链接抓取/刷新地址 | **完成** |
 | P3 | 写路径补齐：封面/缩略图/快照/导入/播放器调用 | **完成** |
 | P4 | 下载器 + 队列持久化 + 410 刷新 + 续传 | **完成（基础版）** |
 | P5 | 打包（Windows 单文件）+ CI + Wails 壳 + macOS/Linux | 桌面壳可用；安装器/签名/CI/mac/linux 待做 |

@@ -21,6 +21,7 @@ import (
 	"github.com/OOPQ/reelkeep/internal/download"
 	"github.com/OOPQ/reelkeep/internal/jsonx"
 	"github.com/OOPQ/reelkeep/internal/model"
+	websource "github.com/OOPQ/reelkeep/internal/source/web"
 	"github.com/OOPQ/reelkeep/internal/store"
 	"github.com/OOPQ/reelkeep/web"
 )
@@ -789,6 +790,7 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 	if s.srcMgr != nil {
 		s.srcMgr.SetProxy(cfg.Proxy)
 	}
+	websource.Configure(cfg.Proxy)
 	if s.dl != nil {
 		s.dl.SetSettings(download.Settings{
 			Concurrent: cfg.Concurrent,

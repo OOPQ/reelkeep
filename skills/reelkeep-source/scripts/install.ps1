@@ -5,11 +5,10 @@ param(
 $ErrorActionPreference = 'Stop'
 $exe = (Get-Command reelkeep -ErrorAction SilentlyContinue).Source
 if (-not $exe) {
-    $candidates = @(
-        (Join-Path $env:REELKEEP_HOME 'reelkeep.exe'),
-        'D:\project\reelkeep\reelkeep.exe',
-        (Join-Path $PSScriptRoot '..\..\..\reelkeep.exe')
-    )
+    $candidates = @()
+    if ($env:REELKEEP_HOME) { $candidates += (Join-Path $env:REELKEEP_HOME 'reelkeep.exe') }
+    $candidates += 'D:\project\reelkeep\reelkeep.exe'
+    $candidates += (Join-Path $PSScriptRoot '..\..\..\reelkeep.exe')
     foreach ($p in $candidates) {
         if ($p -and (Test-Path $p)) { $exe = (Resolve-Path $p).Path; break }
     }

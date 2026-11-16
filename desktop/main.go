@@ -6,6 +6,7 @@ package main
 
 import (
 	"context"
+	_ "embed"
 	"flag"
 	"fmt"
 	"log"
@@ -21,6 +22,9 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
 )
+
+//go:embed icon.png
+var iconPNG []byte
 
 var (
 	version = "0.1.0-dev"
@@ -60,6 +64,7 @@ func main() {
 	app := application.New(application.Options{
 		Name:        "Reelkeep",
 		Description: "本地媒体台账与下载管理器",
+		Icon:        iconPNG,
 		Windows: application.WindowsOptions{
 			AdditionalBrowserArgs: []string{
 				fmt.Sprintf("--remote-debugging-port=%d", cdpPort),

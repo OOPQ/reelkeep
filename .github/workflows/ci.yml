@@ -135,12 +135,43 @@ jobs:
           $v = (Get-Content VERSION -Raw).Trim()
           go build -trimpath -ldflags "-H windowsgui -s -w -X main.version=$v" -o reelkeep-desktop.exe ./desktop
 
+      - name: Sign desktop (optional)
+        shell: pwsh
+        env:
+          PFX_BASE64: ${{ secrets.WINDOWS_PFX_BASE64 }}
+          PFX_PASSWORD: ${{ secrets.WINDOWS_PFX_PASSWORD }}
+        run: |
+          if (-not $env:PFX_BASE64) { Write-Host 'No signing certificate configured'; exit 0 }
+          $pfx = Join-Path $env:RUNNER_TEMP 'reelkeep.pfx'
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:PFX_BASE64))
+          $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" -ErrorAction SilentlyContinue | Sort-Object FullName -Descending | Select-Object -First 1
+          if (-not $signtool) { throw 'signtool.exe not found' }
+          & $signtool.FullName sign /fd SHA256 /f $pfx /p $env:PFX_PASSWORD /tr http://timestamp.digicert.com /td SHA256 reelkeep-desktop.exe
+          if ($LASTEXITCODE -ne 0) { throw "sign failed: $LASTEXITCODE" }
+          Remove-Item $pfx -Force
+
       - name: Install NSIS
         run: choco install nsis --no-progress -y
 
       - name: Build installer
         shell: pwsh
         run: ./scripts/installer.ps1 -SkipBuild
+
+      - name: Sign installer (optional)
+        shell: pwsh
+        env:
+          PFX_BASE64: ${{ secrets.WINDOWS_PFX_BASE64 }}
+          PFX_PASSWORD: ${{ secrets.WINDOWS_PFX_PASSWORD }}
+        run: |
+          if (-not $env:PFX_BASE64) { Write-Host 'No signing certificate configured'; exit 0 }
+          $pfx = Join-Path $env:RUNNER_TEMP 'reelkeep.pfx'
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:PFX_BASE64))
+          $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" -ErrorAction SilentlyContinue | Sort-Object FullName -Descending | Select-Object -First 1
+          if (-not $signtool) { throw 'signtool.exe not found' }
+          $setup = Get-ChildItem dist/Reelkeep-Setup-*.exe | Select-Object -First 1
+          & $signtool.FullName sign /fd SHA256 /f $pfx /p $env:PFX_PASSWORD /tr http://timestamp.digicert.com /td SHA256 $setup.FullName
+          if ($LASTEXITCODE -ne 0) { throw "sign failed: $LASTEXITCODE" }
+          Remove-Item $pfx -Force
 
       - uses: actions/upload-artifact@v4
         with:
@@ -150,10 +181,73 @@ jobs:
             dist/Reelkeep-Setup-*.exe
           if-no-files-found: error
 
+  build-desktop-unix:
+    name: Desktop ${{ matrix.artifact }}
+    needs: test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: macos-15-intel, artifact: macos-amd64 }
+          - { os: macos-15, artifact: macos-arm64 }
+          - { os: ubuntu-24.04, artifact: linux-amd64 }
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      - name: Build frontend
+        working-directory: web
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+
+      - name: Install Linux WebKitGTK deps
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev libjavascriptcoregtk-4.1-dev
+
+      - name: Build desktop
+        shell: bash
+        env:
+          CGO_ENABLED: "1"
+        run: |
+          VERSION=$(cat VERSION)
+          mkdir -p dist
+          go build -trimpath -ldflags "-s -w -X main.version=$VERSION" -o dist/reelkeep-desktop ./desktop
+
+      - name: Package
+        shell: bash
+        run: |
+          VERSION=$(cat VERSION)
+          cd dist
+          tar -czf "reelkeep-$VERSION-${{ matrix.artifact }}-desktop.tar.gz" reelkeep-desktop
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: reelkeep-desktop-${{ matrix.artifact }}
+          path: dist/*.tar.gz
+          if-no-files-found: error
+
   release:
     name: Release
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [build-cli, build-desktop]
+    needs: [build-cli, build-desktop, build-desktop-unix]
     runs-on: ubuntu-latest
     permissions:
       contents: write

@@ -42,6 +42,9 @@ export function SettingsPage() {
   const [concurrent, setConcurrent] = React.useState('3')
   const [showCookie, setShowCookie] = React.useState(false)
   const [busy, setBusy] = React.useState<string | null>(null)
+  const [checking, setChecking] = React.useState(false)
+  const [updateInfo, setUpdateInfo] = React.useState<{ current: string; latest: string; hasUpdate: boolean; url: string } | null>(null)
+  const [updateErr, setUpdateErr] = React.useState('')
 
   React.useEffect(() => {
     if (!data?.settings) return
@@ -52,6 +55,22 @@ export function SettingsPage() {
   }, [data?.settings])
 
   const after = () => qc.invalidateQueries({ queryKey: ['state'] })
+
+  const checkUpdate = async () => {
+    setChecking(true)
+    setUpdateErr('')
+    try {
+      const res = await fetch('/api/update', { cache: 'no-store' })
+      const data = await res.json()
+      if (!data.ok) throw new Error(data.error || '检查更新失败')
+      setUpdateInfo(data.update)
+    } catch (err) {
+      setUpdateInfo(null)
+      setUpdateErr((err as Error).message)
+    } finally {
+      setChecking(false)
+    }
+  }
 
   const save = async () => {
     setBusy('save')
@@ -213,6 +232,34 @@ export function SettingsPage() {
             ))}
           </div>
         ) : null}
+      </Card>
+
+      <Card className="p-4">
+        <SectionTitle icon={RefreshCw} title="版本与更新" sub="从 GitHub Releases 检查新版本；只提示，不会静默安装" />
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <Button size="sm" variant="outline" onClick={() => void checkUpdate()} disabled={checking}>
+            <RefreshCw className={cn('size-3.5', checking && 'animate-spin')} />
+            {checking ? '检查中…' : '检查更新'}
+          </Button>
+          {updateErr ? <span className="text-[10px] text-[color:var(--danger)]">{updateErr}</span> : null}
+          {updateInfo ? (
+            updateInfo.hasUpdate ? (
+              <span className="text-[10px] text-[color:var(--muted)]">
+                发现 v{updateInfo.latest}，
+                <a
+                  href={updateInfo.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-[color:var(--primary-2)] underline underline-offset-2"
+                >
+                  前往下载
+                </a>
+              </span>
+            ) : (
+              <span className="text-[10px] text-[color:var(--success)]">已是最新（v{updateInfo.current}）</span>
+            )
+          ) : null}
+        </div>
       </Card>
 
       <Card className="p-4 min-[1100px]:col-span-2">

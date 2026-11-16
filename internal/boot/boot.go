@@ -126,6 +126,7 @@ func Start(ctx context.Context, opt Options) (*Instance, error) {
 	})
 
 	srv := api.New(paths, st, reg, mgr, dl, settings, assets)
+	srv.SetVersion(opt.Version)
 	if err := srv.Boot(); err != nil {
 		cleanup()
 		return nil, fmt.Errorf("启动失败: %w", err)

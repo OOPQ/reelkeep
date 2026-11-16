@@ -1,5 +1,20 @@
 # 更新日志
 
+## 0.9.5 — 2026-11-16
+
+### 新品牌图标
+
+- 不再沿用 pektino 的「P」图标，改为 Reelkeep 自己的标记：胶片盘 + 播放三角 + 书签（Reel + Keep）
+- 同步更新：`web/logo.svg`（界面）、`build/appicon.png`、Windows `icon.ico`、`desktop/icon.png`、Windows `.syso`、安装器图标
+
+### CI / 签名 / 更新检查
+
+- macOS（amd64/arm64）与 Linux（amd64）桌面版加入 CI，产出 tar.gz 裸二进制（暂无 .app/.deb）
+- Windows CI 支持可选代码签名：配置 `WINDOWS_PFX_BASE64` / `WINDOWS_PFX_PASSWORD` secrets 后，用 signtool 签 exe 与安装器；未配置则跳过
+- 设置页新增「版本与更新」：调用 GitHub Releases 检查新版本，只提示并给下载链接，不静默安装
+  - `REELKEEP_UPDATE_REPO` 可覆盖仓库（默认 `OOPQ/reelkeep`）
+- 尚未做：真正的自动下载/安装更新（需要先有签名证书与发布仓库）
+
 ## 0.9.4 — 2026-11-16
 
 ### P5：Windows 安装器 + CI

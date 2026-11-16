@@ -63,7 +63,7 @@ function Brand({
 }) {
   return (
     <div className={cn('flex h-[38px] items-center gap-2.5 px-1', collapsed && 'justify-center px-0')}>
-      <img src="/api/logo" alt="pektino" className="size-[34px] shrink-0 rounded-[10px] object-cover shadow-[0_8px_22px_rgba(47,111,228,.35)]" />
+      <img src="/api/logo" alt="Reelkeep" className="size-[34px] shrink-0 rounded-[10px] object-cover shadow-[0_8px_22px_rgba(47,111,228,.35)]" />
       {!collapsed ? (
         <div className="min-w-0">
           <b className="block text-[13px] leading-tight tracking-[.2px]">Reelkeep</b>

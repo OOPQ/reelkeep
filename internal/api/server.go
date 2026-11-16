@@ -131,6 +131,7 @@ type Server struct {
 	srcMgr   SourceManager
 	dl       *download.Manager
 	settings config.Settings
+	version  string
 	assets   fs.FS // dist 目录
 	started  time.Time
 
@@ -162,6 +163,13 @@ type Server struct {
 	picker       func() (string, error)
 	loginWin     func(id, loginURL string) error
 	loginCapture func(id string) (string, error)
+}
+
+// SetVersion 记录当前版本（更新检查用）。
+func (s *Server) SetVersion(v string) {
+	s.mu.Lock()
+	s.version = v
+	s.mu.Unlock()
 }
 
 // New 创建 Server。assets 应为 dist 的 fs.FS。
@@ -468,6 +476,7 @@ func (s *Server) Handler() http.Handler {
 
 	// 只读
 	mux.HandleFunc("GET /api/state", s.handleState)
+	mux.HandleFunc("GET /api/update", s.handleUpdate)
 	mux.HandleFunc("GET /api/desktop", s.handleDesktop)
 	mux.HandleFunc("POST /api/desktop/window", s.handleDesktopWindow)
 	mux.HandleFunc("POST /api/desktop/pick-folder", s.handlePickFolder)

@@ -1,0 +1,33 @@
+# 构建产物
+/reelkeep
+/reelkeep.exe
+/dist/
+*.exe
+*.test
+*.out
+
+# Go
+/vendor/
+go.work
+go.work.sum
+
+# 前端
+web/node_modules/
+web/.vite/
+
+# 运行时数据（项目数据不进仓库）
+*.db
+*.db-wal
+*.db-shm
+/testdata/
+/tmp/
+
+# 编辑器 / 系统
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+*.log
+
+# �������ո���
+/.tmp-check/

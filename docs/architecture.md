@@ -1,0 +1,94 @@
+# 架构与迁移决策
+
+日期：2026-11-16
+状态：P1 已落地
+
+## 为什么重写
+
+旧版是 PowerShell 5.1 + System.Data.SQLite + 单线程 `TcpListener`。能用，但三条结构性限制越来越贵：
+
+1. **单线程服务**：长任务只能靠「一次最多 20 条 / 40 条」的硬上限和另起进程（媒体服务）绕开。
+2. **运行时脆弱**：PS 5.1 专属、.NET Framework 版 SQLite、UTF-8 BOM 与编码坑、x64 限定。
+3. **难测试**：源适配器的解析逻辑只能靠真实站点冒烟。
+
+这不是「语言偏好」，是能力边界。因此换成 Go，但**不是重写产品**。
+
+## 什么保持不变（硬契约）
+
+| 契约 | 内容 |
+|---|---|
+| HTTP | `/api/*` 路径、JSON 字段、`api = 4`、`rowsRev` 增量下发全部照旧 |
+| 前端 | 同一份 React 代码，零改动（只建议后续把 `rowsRev` 用起来） |
+| 数据库 | `items` 34 列、`collections`、`deleted_tokens` 结构不变，只加列 |
+| 导出 | `ledger.csv` 表头、列顺序、UTF-8 BOM + CRLF |
+| 身份 | 默认源裸 token；其他源 `<source>@<id>`；大小写不敏感匹配文件名 |
+| 媒体 | `media/<source>/<token>.mp4`；递归 4 层；去掉 ` (1)` 后缀 |
+| 删除 | 回收站记 `recycled_from`，恢复回原状态；彻底删除写 `deleted.json` + `deleted_tokens` |
+
+## 关键取舍
+
+### 不做双 transport
+
+Wails 只作为将来的窗口与打包壳；前端始终走 HTTP。**不生成 service 绑定**，否则测试面翻倍、收益为零。
+P1 甚至没有 Wails：先证明「单 exe + 浏览器」可用，壳是低成本动作。
+
+### 不做 Chromium 渲染
+
+四个源全是静态 HTML/JSON（JSON-LD、正则、`data-src` m3u8），没有 JS 渲染需求。
+`Renderer` 接口保留，实现推迟；不引入 150MB Chromium 和 CI 成本。
+
+### 不重写 HLS
+
+下载继续调用 ffmpeg（HLS）与 curl/aria2c（HTTP）。所以「单二进制」的实际承诺是「exe + 可选 ffmpeg」，不是零外部依赖。
+
+### 源注册表：构造函数注册 + 配置控制
+
+`Sources.json` 仍决定启用、顺序、榜单；Go 只注册构造函数。加源/关源不需要改代码，这是旧版就有的优点，保留。
+
+### BOM 兼容
+
+旧版 PowerShell 写出的 `sources.json`、`config.json`、`deleted.json` 带 UTF-8 BOM，`encoding/json` 会直接报错。
+统一走 `internal/jsonx` 去除 BOM；这不是洁癖，是实际踩到的第一个迁移 bug。
+
+## 源接口
+
+```go
+type Source interface {
+    ID() string
+    Capabilities() []string
+    Scrape(ctx, req, emit func(model.Row) error) error
+    HealthCheck(ctx) error
+}
+
+type Detailer interface { Detail(ctx, id) (model.Row, error) }
+type Coverer interface { Cover(ctx, r) (string, error) }
+type DownloadResolver interface { Resolve(ctx, r) (DownloadSpec, error) }
+```
+
+`Scrape` 用 `emit` 流式产出，而不是返回整片切片：列表→详情→入库可以重叠，也便于做增量。
+`DownloadResolver` 最终会替换旧版 `download.ps1` 里的 4 处 `if (source -eq 'qise')`。
+
+## 数据流
+
+```text
+启动 → 打开 data.db（WAL，单写者）
+     → 加载 items / deleted_tokens / deleted.json
+     → 扫盘：media → file_* / status（目录不可达时什么都不改）
+     → HTTP 服务 + 嵌入前端
+
+写操作 → 先写 DB，再更新内存行，rev/rowsRev 前进
+扫盘   → 只落真正变化的行（每 5 分钟或手动触发）
+```
+
+## 后续阶段
+
+- **P2** 源适配器：pektino → hsex → qise → web；离线 fixture 回放 + 在线冒烟；诊断目录落原始响应
+- **P3** 封面/缩略图（ffmpeg 取帧替代 Windows Shell）、快照、导入、播放器调用
+- **P4** 下载器：队列落库、Range 续传、410 刷新签名、per-source 并发
+- **P5** 打包与 CI：Windows 单文件、macOS 公证、Linux AppImage；三平台各自验收
+
+## 明确不做
+
+- Android 与 LAN 客户端（各端独立本地库；Hub 模式以后再评估）
+- 规则 DSL / parser 插件系统（4 个源不值得）
+- 指标看板 / 队列中间件（单用户单机）

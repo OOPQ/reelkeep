@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -79,6 +80,7 @@ func (s *Server) handleDesktop(w http.ResponseWriter, r *http.Request) {
 	max := win != nil && win.IsMaximised()
 	writeJSON(w, http.StatusOK, map[string]any{
 		"ok": true, "desktop": s.isDesktop(), "maximized": max,
+		"platform": runtime.GOOS,
 	})
 }
 

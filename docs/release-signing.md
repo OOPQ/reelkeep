@@ -99,10 +99,17 @@ GPG key 可以用 `gpg --full-generate-key` 免费生成；把公钥放到 READM
 
 ## 自动更新的前提
 
-当前设置页只做「检查更新 + 打开下载页」。真正的自动下载安装应满足：
+当前 Windows 桌面版已经实现「检查更新 → 下载 → SHA256 校验 → 静默安装 → 自动重启」：
 
-1. 安装包有可信签名（Windows SignPath / macOS Developer ID）
-2. 更新包有 SHA256（Release 的 `SHA256SUMS`）
-3. 下载后先校验哈希/签名，再启动安装器
+- 安装包来自 GitHub Releases（HTTPS）
+- SHA256 优先取 GitHub asset 的 `digest`，没有则读 Release 里的 `SHA256SUMS`
+- 校验失败或缺少校验值时拒绝安装
 
-在这些条件满足前不启用静默安装。
+但**没有验证代码签名**（签名暂时作为 TODO）：
+
+- 未签名安装包在 Windows 上可能弹「未知发布者」/SmartScreen
+- 威胁模型是「信任 GitHub 仓库与 Release」，适合朋友之间使用，不适合高风险分发
+- 以后接入 SignPath 后，应再增加 Authenticode 验证（`WinVerifyTrust`）再启动安装器
+
+macOS / Linux 目前只提供下载链接，不做自动覆盖安装。
+

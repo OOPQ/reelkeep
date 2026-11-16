@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import {
   AlertTriangle,
   Database,
+  Download,
   ExternalLink,
   Eye,
   EyeOff,
@@ -45,6 +46,19 @@ export function SettingsPage() {
   const [checking, setChecking] = React.useState(false)
   const [updateInfo, setUpdateInfo] = React.useState<{ current: string; latest: string; hasUpdate: boolean; url: string } | null>(null)
   const [updateErr, setUpdateErr] = React.useState('')
+  const [desktop, setDesktop] = React.useState(false)
+  const [platform, setPlatform] = React.useState('')
+  const [applying, setApplying] = React.useState(false)
+
+  React.useEffect(() => {
+    fetch('/api/desktop', { cache: 'no-store' })
+      .then(r => r.json())
+      .then((d: { desktop?: boolean; platform?: string }) => {
+        setDesktop(!!d.desktop)
+        setPlatform(d.platform || '')
+      })
+      .catch(() => {})
+  }, [])
 
   React.useEffect(() => {
     if (!data?.settings) return
@@ -69,6 +83,19 @@ export function SettingsPage() {
       setUpdateErr((err as Error).message)
     } finally {
       setChecking(false)
+    }
+  }
+
+  const applyUpdate = async () => {
+    setApplying(true)
+    try {
+      const r = await post<{ ok: boolean; error?: string; version?: string }>('/api/update/apply', {})
+      if (!r.ok) throw new Error(r.error || '自动安装失败')
+      toast.success(`正在安装 v${r.version}，应用即将退出…`, { duration: 10_000 })
+    } catch (err) {
+      toast.error((err as Error).message)
+    } finally {
+      setApplying(false)
     }
   }
 
@@ -235,12 +262,18 @@ export function SettingsPage() {
       </Card>
 
       <Card className="p-4">
-        <SectionTitle icon={RefreshCw} title="版本与更新" sub="从 GitHub Releases 检查新版本；只提示，不会静默安装" />
+        <SectionTitle icon={RefreshCw} title="版本与更新" sub="检查 GitHub Releases；Windows 桌面版可下载并安装" />
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <Button size="sm" variant="outline" onClick={() => void checkUpdate()} disabled={checking}>
             <RefreshCw className={cn('size-3.5', checking && 'animate-spin')} />
             {checking ? '检查中…' : '检查更新'}
           </Button>
+          {updateInfo?.hasUpdate && desktop && platform === 'windows' ? (
+            <Button size="sm" onClick={() => void applyUpdate()} disabled={applying}>
+              <Download className="size-3.5" />
+              {applying ? '下载中…' : '下载并安装'}
+            </Button>
+          ) : null}
           {updateErr ? <span className="text-[10px] text-[color:var(--danger)]">{updateErr}</span> : null}
           {updateInfo ? (
             updateInfo.hasUpdate ? (
@@ -260,6 +293,9 @@ export function SettingsPage() {
             )
           ) : null}
         </div>
+        <p className="mt-2 text-[9px] leading-relaxed text-[color:var(--subtle)]">
+          自动安装会从 GitHub 下载安装包并校验 SHA256；当前未做代码签名，Windows 可能提示「未知发布者」。
+        </p>
       </Card>
 
       <Card className="p-4 min-[1100px]:col-span-2">

@@ -1,4 +1,4 @@
-// Package update 检查 GitHub Releases 是否有新版本（只做提示，不静默安装）。
+// Package update 检查 GitHub Releases，并支持校验下载安装包。
 package update
 
 import (
@@ -12,19 +12,29 @@ import (
 	"time"
 )
 
+// Asset 是 Release 里的一个产物。
+type Asset struct {
+	Name   string `json:"name"`
+	URL    string `json:"browser_download_url"`
+	Digest string `json:"digest"`
+	Size   int64  `json:"size"`
+}
+
 // Release 是一次检查的结果。
 type Release struct {
-	Current   string `json:"current"`
-	Latest    string `json:"latest"`
-	HasUpdate bool   `json:"hasUpdate"`
-	URL       string `json:"url"`
-	Notes     string `json:"notes,omitempty"`
+	Current   string  `json:"current"`
+	Latest    string  `json:"latest"`
+	HasUpdate bool    `json:"hasUpdate"`
+	URL       string  `json:"url"`
+	Notes     string  `json:"notes,omitempty"`
+	Assets    []Asset `json:"assets,omitempty"`
 }
 
 type ghRelease struct {
-	TagName string `json:"tag_name"`
-	HTMLURL string `json:"html_url"`
-	Body    string `json:"body"`
+	TagName string  `json:"tag_name"`
+	HTMLURL string  `json:"html_url"`
+	Body    string  `json:"body"`
+	Assets  []Asset `json:"assets"`
 }
 
 // Repo 返回要检查的仓库，可在构建/运行环境覆盖。
@@ -64,6 +74,7 @@ func Check(ctx context.Context, current string) (Release, error) {
 	latest := strings.TrimPrefix(strings.TrimSpace(rel.TagName), "v")
 	out := Release{
 		Current: current, Latest: latest, URL: rel.HTMLURL, Notes: rel.Body,
+		Assets: rel.Assets,
 	}
 	out.HasUpdate = newer(latest, current)
 	return out, nil

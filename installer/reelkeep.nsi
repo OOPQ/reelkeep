@@ -112,3 +112,9 @@ Section "Uninstall"
   DeleteRegKey HKCU "Software\Reelkeep"
   ; 不删除 %APPDATA%\Reelkeep（登录凭据/源包）和用户项目目录
 SectionEnd
+
+Function .onInstSuccess
+  IfSilent 0 done
+  Exec '"$INSTDIR\${EXENAME}"'
+  done:
+FunctionEnd

@@ -181,7 +181,7 @@ qise 这类站点，高清/会员内容需要登录态。Reelkeep **不代填账
 - 窗口直接加载 `http://127.0.0.1:<port>/`；**没有第二套绑定/transport**，前端与 CLI 完全同一份
 - 无边框自绘标题栏：左侧项目名（点击切换），右侧最小化/最大化/关闭；深色风格与界面一致
 - 源登录：登录窗口用 WebView2 打开站点，关闭时通过 CDP 读取 Cookie（含 HttpOnly），不需要手动开开发者工具（Windows）
-- 设置 →「版本与更新」可检查 GitHub Releases，只提示下载，不会静默安装
+- 设置 →「版本与更新」：Windows 桌面版可检查并**自动下载安装**（GitHub → SHA256 校验 → 静默安装 → 自动重启）；其他平台给下载链接
 - Windows 用 WebView2，`CGO_ENABLED=0`；macOS/Linux 用系统 WebKit，CI 用 `CGO_ENABLED=1` 构建裸二进制
 - 已有服务在跑时，双击桌面版只开窗口，不会重复启动服务
 - 构建：`.\scripts\build.ps1`（CLI + Windows 桌面版）；`.\scripts\installer.ps1`（NSIS 安装器）
@@ -255,7 +255,7 @@ CI（`.github/workflows/ci.yml`）：Linux 跑测试；五个平台出 CLI；Win
 | P2 | 四个源适配器迁移（pektino / hsex / qise / web）+ 链接抓取/刷新地址 | **完成** |
 | P3 | 写路径补齐：封面/缩略图/快照/导入/播放器调用 | **完成** |
 | P4 | 下载器 + 队列持久化 + 410 刷新 + 续传 | ✅ 90%（`.part` 修复已补） |
-| P5 | 打包（Windows 单文件）+ CI + Wails 壳 + macOS/Linux | 安装器/dmg/deb/CI/免费签名钩子/GPG/更新检查完成；自动安装更新待做 |
+| P5 | 打包（Windows 单文件）+ CI + Wails 壳 + macOS/Linux | 安装器/dmg/deb/CI/更新检查/Windows 自动更新完成；免费签名与 mac/linux 自动更新待做 |
 | P6 | 外部源包：格式/校验/安全抓取/CLI/skill/源管理/抓取任务 | **完成** |
 
 ## 许可

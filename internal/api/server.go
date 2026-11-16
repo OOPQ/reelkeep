@@ -477,6 +477,7 @@ func (s *Server) Handler() http.Handler {
 	// 只读
 	mux.HandleFunc("GET /api/state", s.handleState)
 	mux.HandleFunc("GET /api/update", s.handleUpdate)
+	mux.HandleFunc("POST /api/update/apply", s.handleUpdateApply)
 	mux.HandleFunc("GET /api/desktop", s.handleDesktop)
 	mux.HandleFunc("POST /api/desktop/window", s.handleDesktopWindow)
 	mux.HandleFunc("POST /api/desktop/pick-folder", s.handlePickFolder)

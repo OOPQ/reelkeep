@@ -1,5 +1,19 @@
 # 更新日志
 
+## 0.10.0 — 2026-11-16
+
+### Windows 自动更新（未签名）
+
+- 设置 →「版本与更新」新增「下载并安装」（仅 Windows 桌面版）：
+  - 读取 GitHub Releases 最新版，自动挑选 `Reelkeep-Setup-*.exe`
+  - 优先用 GitHub asset 的 `digest` 校验 SHA256；没有则下载 `SHA256SUMS` 兜底
+  - 校验通过后以 `/S` 静默启动 NSIS 安装器；安装器结束当前进程、覆盖安装，并自动启动新版本
+  - 校验失败/缺 SHA256 时拒绝安装
+- 其他平台仍显示「前往下载」；macOS/Linux 不做自动覆盖安装
+- 未做代码签名，Windows 可能提示「未知发布者」；SignPath/GPG 方案保留为 TODO（见 `docs/release-signing.md`）
+- 测试：安装包选择、下载 SHA256、SHA256SUMS 解析、Web 模式拒绝自动安装
+- NSIS 静默安装成功后自动启动新版本
+
 ## 0.9.9 — 2026-11-16
 
 ### 免费/开源签名

@@ -1,7 +1,10 @@
 import * as React from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ChevronDown, Clock3, History, Play, Search } from 'lucide-react'
+import { ChevronDown, Clock3, History, Play, Search, Trash2 } from 'lucide-react'
 import { useAppState } from '@/features/use-app-state'
+import { confirmAction } from '@/store/confirm'
+import { post } from '@/lib/api'
+import { toast } from 'sonner'
 import { useUiStore } from '@/store/ui'
 import { coverUrl, cn, rowTitle } from '@/lib/utils'
 import { Card } from '@/components/ui/card'
@@ -79,7 +82,7 @@ function HistorySection({ group, defaultOpen, onPlay }: { group: HistoryGroup; d
 }
 
 export function HistoryPage() {
-  const { data } = useAppState(15_000)
+  const { data, refetch } = useAppState(15_000)
   const navigate = useNavigate()
   const openPreview = useUiStore(s => s.openPreview)
   const [query, setQuery] = React.useState('')
@@ -104,6 +107,22 @@ export function HistoryPage() {
 
   const totalPlays = played.reduce((sum, r) => sum + (Number(r.play_count) || 0), 0)
 
+  const clearHistory = async () => {
+    if (!played.length) return
+    if (!(await confirmAction({ title: '清空浏览历史', description: '只清空播放时间和次数，不删除台账、文件或收藏。', confirmText: '清空历史', danger: true }))) return
+    try {
+      const r = await post<{ ok: boolean; error?: string }>('/api/history/clear', {})
+      if (!r.ok) throw new Error(r.error || '清空失败')
+      for (const row of played) {
+        try { localStorage.removeItem(`pektino.resume.${row.token}`) } catch { }
+      }
+      toast.success('浏览历史已清空')
+      await refetch()
+    } catch (e) {
+      toast.error((e as Error).message)
+    }
+  }
+
   return (
     <div className="flex w-full flex-col gap-3 p-4">
       <div className="flex flex-wrap items-end justify-between gap-2">
@@ -127,6 +146,9 @@ export function HistoryPage() {
         </div>
         <Button size="sm" variant="outline" onClick={() => navigate('/')}>
           <Clock3 className="size-3.5" /> 去媒体库
+        </Button>
+        <Button size="sm" variant="ghost" disabled={!played.length} onClick={clearHistory}>
+          <Trash2 className="size-3.5" /> 清空历史
         </Button>
       </div>
 

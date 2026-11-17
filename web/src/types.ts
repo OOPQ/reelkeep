@@ -90,9 +90,11 @@ export type AppSettings = {
   concurrent?: number
   ffmpegPath?: string
   qiseCookie?: string
+  qiseCookieSet?: boolean
   retryCount?: number
   retryDelay?: number
   torrentLimitKB?: number
+  httpLimitKB?: number
   torrentBackend?: string
   qbtUrl?: string
   qbtUser?: string
@@ -140,7 +142,7 @@ export type AppState = {
   sources: Source[]
   media: MediaConfig
   settings: AppSettings
-  rows: Row[]
+  rows?: Row[]
   download?: {
     running?: boolean
     paused?: boolean

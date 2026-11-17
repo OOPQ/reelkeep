@@ -191,7 +191,11 @@ func TestCancelRemovesPart(t *testing.T) {
 	if n := m.Cancel([]string{"t3"}); n != 1 {
 		t.Fatalf("应取消 1 条，实际 %d", n)
 	}
-	waitState(t, m, "t3", "cancelled", 10*time.Second)
+	for _, item := range m.Info().Items {
+		if item.Token == "t3" {
+			t.Fatal("取消后任务应从队列删除")
+		}
+	}
 	part := filepath.Join(paths.Content, "demo", "t3.mp4.part")
 	deadline := time.Now().Add(3 * time.Second)
 	for {

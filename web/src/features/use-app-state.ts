@@ -5,7 +5,12 @@ import type { AppState } from '@/types'
 export function useAppState(refetchMs = 15_000) {
   return useQuery<AppState>({
     queryKey: ['state'],
-    queryFn: ({ signal }) => fetchState(signal),
+    queryFn: async ({ signal, client }) => {
+      const prev = client.getQueryData<AppState>(['state'])
+      const next = await fetchState(signal, prev?.rowsRev)
+      if (!next.rows && prev?.rows) next.rows = prev.rows
+      return next
+    },
     staleTime: 5_000,
     refetchInterval: query => {
       const state = query.state.data as AppState | undefined

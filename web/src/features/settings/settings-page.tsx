@@ -15,6 +15,7 @@ import {
   RotateCcw,
   Save,
   ScanLine,
+  Trash2,
   Wrench,
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -39,15 +40,12 @@ export function SettingsPage() {
   const setLongPressRate = useUiStore(s => s.setLongPressRate)
   const [proxy, setProxy] = React.useState('')
   const [cookie, setCookie] = React.useState('')
+  const [cookieSet, setCookieSet] = React.useState(false)
   const [ffmpeg, setFfmpeg] = React.useState('')
   const [concurrent, setConcurrent] = React.useState('3')
   const [retryCount, setRetryCount] = React.useState('4')
   const [retryDelay, setRetryDelay] = React.useState('1')
-  const [torrentLimit, setTorrentLimit] = React.useState('0')
-  const [torrentBackend, setTorrentBackend] = React.useState('builtin')
-  const [qbtUrl, setQbtUrl] = React.useState('http://127.0.0.1:8080')
-  const [qbtUser, setQbtUser] = React.useState('')
-  const [qbtPass, setQbtPass] = React.useState('')
+  const [httpLimit, setHttpLimit] = React.useState('0')
   const [showCookie, setShowCookie] = React.useState(false)
   const [busy, setBusy] = React.useState<string | null>(null)
   const [checking, setChecking] = React.useState(false)
@@ -70,16 +68,13 @@ export function SettingsPage() {
   React.useEffect(() => {
     if (!data?.settings) return
     setProxy(data.settings.proxy || '')
-    setCookie(data.settings.qiseCookie || '')
+    setCookie('')
+    setCookieSet(!!data.settings.qiseCookieSet)
     setFfmpeg(data.settings.ffmpegPath || '')
     setConcurrent(String(data.settings.concurrent || 3))
     setRetryCount(String(data.settings.retryCount || 4))
     setRetryDelay(String(data.settings.retryDelay || 1))
-    setTorrentLimit(String(data.settings.torrentLimitKB || 0))
-    setTorrentBackend(data.settings.torrentBackend || 'builtin')
-    setQbtUrl(data.settings.qbtUrl || 'http://127.0.0.1:8080')
-    setQbtUser(data.settings.qbtUser || '')
-    setQbtPass(data.settings.qbtPass || '')
+    setHttpLimit(String(data.settings.httpLimitKB || 0))
   }, [data?.settings])
 
   const after = () => qc.invalidateQueries({ queryKey: ['state'] })
@@ -116,19 +111,16 @@ export function SettingsPage() {
   const save = async () => {
     setBusy('save')
     try {
-      const r = await post<{ ok: boolean; error?: string }>('/api/config', {
+      const payload: Record<string, unknown> = {
         proxy: proxy.trim(),
-        qiseCookie: cookie.trim(),
         ffmpegPath: ffmpeg.trim(),
         concurrent: Number(concurrent) || 3,
         retryCount: Number(retryCount) || 4,
         retryDelay: Number(retryDelay) || 1,
-        torrentLimitKB: Number(torrentLimit) || 0,
-        torrentBackend,
-        qbtUrl,
-        qbtUser,
-        qbtPass,
-      })
+        httpLimitKB: Number(httpLimit) || 0,
+      }
+      if (cookie.trim()) payload.qiseCookie = cookie.trim()
+      const r = await post<{ ok: boolean; error?: string }>('/api/config', payload)
       if (!r.ok) throw new Error(r.error || '保存失败')
       toast.success('下载设置已保存')
       after()
@@ -170,6 +162,10 @@ export function SettingsPage() {
     if (!(await confirmAction({ title: '解除下载占用', description: '会结束残留的下载进程并解除「已有任务在跑」状态。', confirmText: '解除', danger: true }))) return
     action('reset', () => post('/api/download/reset', {}), '已解除下载占用')
   }
+  const clearCache = async () => {
+    if (!(await confirmAction({ title: '清理封面缓存', description: '只删除本地封面/缩略图缓存，不删除视频；下次打开会重新生成或回源。', confirmText: '清理', danger: true }))) return
+    action('cache', () => post('/api/cache/clear', {}), '封面缓存已清理')
+  }
 
   if (isLoading) return <SettingsSkeleton />
 
@@ -209,7 +205,7 @@ export function SettingsPage() {
           </Field>
           <Field label="qise Cookie">
             <div className="relative">
-              <Input value={cookie} onChange={e => setCookie(e.target.value)} type={showCookie ? 'text' : 'password'} placeholder="登录后复制完整 Cookie（可选）" className="pr-9" />
+              <Input value={cookie} onChange={e => setCookie(e.target.value)} type={showCookie ? 'text' : 'password'} placeholder={cookieSet ? '已配置，留空不修改' : '登录后复制完整 Cookie（可选）'} className="pr-9" />
               <button type="button" aria-label={showCookie ? '隐藏 Cookie' : '显示 Cookie'} onClick={() => setShowCookie(s => !s)} className="absolute right-2 top-1/2 -translate-y-1/2 text-[color:var(--subtle)] hover:text-[color:var(--foreground)]">
                 {showCookie ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
               </button>
@@ -222,10 +218,16 @@ export function SettingsPage() {
           <Field label="并发下载数">
             <Select value={concurrent} onValueChange={setConcurrent} options={Array.from({ length: 16 }, (_, i) => ({ value: String(i + 1), label: String(i + 1) }))} className="w-[100px]" aria-label="并发下载数" />
           </Field>
-          <Field label="失败重试">
+          <Field label="HTTP 下载限速">
             <div className="flex items-center gap-2">
-              <Input type="number" min={1} max={8} value={retryCount} onChange={e => setRetryCount(e.target.value)} className="w-[72px]" aria-label="重试次数" />
-              <span className="text-[10px] text-[color:var(--subtle)]">次，间隔</span>
+              <Input type="number" min={0} max={102400} value={httpLimit} onChange={e => setHttpLimit(e.target.value)} className="w-[96px]" aria-label="HTTP 限速 KB/s" />
+              <span className="text-[10px] text-[color:var(--subtle)]">KB/s，0 表示不限速</span>
+            </div>
+          </Field>
+          <Field label="最多尝试次数">
+            <div className="flex items-center gap-2">
+              <Input type="number" min={1} max={8} value={retryCount} onChange={e => setRetryCount(e.target.value)} className="w-[72px]" aria-label="最多尝试次数" />
+              <span className="text-[10px] text-[color:var(--subtle)]">次，失败后间隔</span>
               <Input type="number" min={1} max={30} value={retryDelay} onChange={e => setRetryDelay(e.target.value)} className="w-[72px]" aria-label="重试间隔秒" />
               <span className="text-[10px] text-[color:var(--subtle)]">秒</span>
             </div>
@@ -267,6 +269,7 @@ export function SettingsPage() {
         <div className="mt-3 divide-y divide-[color:var(--border)]">
           <ActionRow title="修复缺失封面" desc={`当前缺失 ${data?.stats?.coverMissing || 0} 条，最多处理 40 条`} onClick={repairCovers} busy={busy === 'covers'} icon={Image} />
           <ActionRow title="整理 .part" desc="把已完成但仍残留 .part 后缀的文件改名" onClick={repairParts} busy={busy === 'parts'} icon={RotateCcw} />
+          <ActionRow title="清理封面缓存" desc="删除本地封面/缩略图缓存，不删除视频" onClick={clearCache} busy={busy === 'cache'} icon={Trash2} />
           <ActionRow title="解除下载占用" desc="结束残留进程，解除「已有任务在跑」" onClick={resetDownload} busy={busy === 'reset'} icon={AlertTriangle} danger />
         </div>
       </Card>

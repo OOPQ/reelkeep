@@ -199,6 +199,16 @@ func (s *Server) handleDownloadClearDone(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "count": n})
 }
 
+// handleDownloadClearFailed 清理失败队列记录。
+func (s *Server) handleDownloadClearFailed(w http.ResponseWriter, r *http.Request) {
+	if s.dl == nil {
+		bad(w, "下载器未启用")
+		return
+	}
+	n := s.dl.ClearFailed()
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "count": n})
+}
+
 func (s *Server) handleDownloadReset(w http.ResponseWriter, r *http.Request) {
 	if s.dl == nil {
 		bad(w, "下载器未启用")

@@ -119,7 +119,7 @@ export function QueuePage() {
   const pauseAll = () => run(() => post('/api/download/pause', { on: true }), '已暂停全部下载')
   const resumeAll = () => run(() => post('/api/download/pause', { on: false }), '已继续全部下载')
   const cancelAll = async () => {
-    if (await confirmAction({ title: '取消全部下载', description: '正在下载和排队的条目都会被取消，已下载的 .part 会保留。', confirmText: '全部取消', danger: true })) {
+    if (await confirmAction({ title: '取消全部下载', description: '正在下载和排队的条目都会被取消，已下载的 .part 会立即清理。', confirmText: '全部取消', danger: true })) {
       run(() => post('/api/download/cancel', {}), '已取消全部下载')
     }
   }
@@ -129,6 +129,11 @@ export function QueuePage() {
     }
   }
   const retryFailed = () => { unlockAudio(); run(() => post('/api/download', { tokens: failedTokens, status: 'failed' }), '已重新加入失败条目') }
+  const clearFailed = async () => {
+    if (await confirmAction({ title: '清空失败记录', description: '只删除失败队列记录，不删除任何文件。', confirmText: '清空' })) {
+      run(() => post('/api/download/clear-failed', {}), '已清空失败记录')
+    }
+  }
   const retryItem = (token: string) => {
     unlockAudio()
     run(async () => {
@@ -143,7 +148,7 @@ export function QueuePage() {
   const pauseItem = (token: string) => run(() => post('/api/download/pause', { on: true, tokens: [token] }), '已暂停')
   const resumeItem = (token: string) => run(() => post('/api/download/pause', { on: false, tokens: [token] }), '已继续')
   const cancelItem = async (token: string) => {
-    if (await confirmAction({ title: '取消这一条', description: '取消后已下载的 .part 会保留，可再次下载。', confirmText: '取消下载', danger: true })) {
+    if (await confirmAction({ title: '取消这一条', description: '取消后已下载的 .part 会立即清理。', confirmText: '取消下载', danger: true })) {
       run(() => post('/api/download/cancel', { tokens: [token] }), '已取消')
     }
   }
@@ -183,6 +188,7 @@ export function QueuePage() {
           <Button size="sm" variant="ghost" disabled={!activeCount} onClick={cancelAll}><Ban className="size-3.5" /> 全部取消</Button>
           <Button size="sm" variant="ghost" disabled={!groups.done.length} onClick={clearDone}><Trash2 className="size-3.5" /> 清理已完成</Button>
           <Button size="sm" variant="ghost" disabled={!failedTokens.length} onClick={retryFailed}><RotateCcw className="size-3.5" /> 重试失败</Button>
+          <Button size="sm" variant="ghost" disabled={!groups.failed.length} onClick={clearFailed}><Trash2 className="size-3.5" /> 清空失败</Button>
           <span className="ml-1 text-[9.5px] text-[color:var(--subtle)]">并发</span>
           <Select
             value={String(concurrency)}

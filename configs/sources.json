@@ -383,7 +383,7 @@
     "key": "web",
     "name": "网页",
     "file": "web.ps1",
-    "enabled": false,
+    "enabled": true,
     "order": 80,
     "capabilities": [
       "scrape",

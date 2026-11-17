@@ -12,9 +12,14 @@ async function json<T>(res: Response): Promise<T> {
   return res.json() as Promise<T>
 }
 
-export async function fetchState(signal?: AbortSignal): Promise<AppState> {
-  const res = await fetch('/api/state', { signal, cache: 'no-store' })
-  return json<AppState>(res)
+let lastRowsRev = 0
+
+export async function fetchState(signal?: AbortSignal, rowsRev = lastRowsRev): Promise<AppState> {
+  const suffix = rowsRev > 0 ? `?rowsRev=${rowsRev}` : ''
+  const res = await fetch(`/api/state${suffix}`, { signal, cache: 'no-store' })
+  const data = await json<AppState>(res)
+  if (typeof data.rowsRev === 'number') lastRowsRev = data.rowsRev
+  return data
 }
 
 export async function post<T>(path: string, body: unknown): Promise<T> {

@@ -17,6 +17,8 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/time/rate"
+
 	"github.com/OOPQ/reelkeep/internal/config"
 	"github.com/OOPQ/reelkeep/internal/jsonx"
 	"github.com/OOPQ/reelkeep/internal/model"
@@ -34,6 +36,7 @@ type Settings struct {
 	RetryCount     int
 	RetryDelay     time.Duration
 	TorrentLimitKB int
+	HTTPLimitKB    int
 	TorrentBackend string
 	QbtURL         string
 	QbtUser        string
@@ -51,17 +54,18 @@ type Manager struct {
 	logf     func(kind, msg string)
 	client   *http.Client
 
-	mu        sync.Mutex
-	sessionMu sync.Mutex
-	sessions  map[string]*torrentSession
-	tasks     map[string]*Task
-	active    map[string]int
-	running   int
-	paused    bool
-	settings  Settings
-	ctx       context.Context
-	cancel    context.CancelFunc
-	wake      chan struct{}
+	mu          sync.Mutex
+	httpLimiter *rate.Limiter
+	sessionMu   sync.Mutex
+	sessions    map[string]*torrentSession
+	tasks       map[string]*Task
+	active      map[string]int
+	running     int
+	paused      bool
+	settings    Settings
+	ctx         context.Context
+	cancel      context.CancelFunc
+	wake        chan struct{}
 }
 
 // Task 是内存里的任务和运行时状态。
@@ -118,6 +122,11 @@ func (m *Manager) SetOnRow(fn func(string)) { m.onRow = fn }
 func (m *Manager) SetSettings(s Settings) {
 	m.mu.Lock()
 	m.settings = s
+	if s.HTTPLimitKB > 0 {
+		m.httpLimiter = rate.NewLimiter(rate.Limit(s.HTTPLimitKB*1024), maxInt(s.HTTPLimitKB*1024, 64*1024))
+	} else {
+		m.httpLimiter = nil
+	}
 	m.mu.Unlock()
 	m.wakeup()
 }
@@ -138,6 +147,15 @@ func (m *Manager) Start(ctx context.Context) error {
 	m.mu.Lock()
 	for i := range tasks {
 		t := tasks[i]
+		// 磁力入口已关闭：不再恢复旧磁力任务，避免重启后偷偷继续下载。
+		if strings.EqualFold(t.Mode, "torrent") {
+			if id := jobIDForToken(t.Token); id != "" {
+				m.st.UpdateJobState(id, "cancelled")
+				m.setJobFilesState(id, "cancelled")
+			}
+			_ = m.st.DeleteTask(t.Token)
+			continue
+		}
 		if !safeName(t.Token) || !safeName(sourceKey(t.Source)) {
 			t.State = "failed"
 			t.Error = "token/来源名含非法路径字符"
@@ -534,6 +552,8 @@ func (m *Manager) Cancel(tokens []string) int {
 			m.st.UpdateJobState(id, "cancelled")
 			m.setJobFilesState(id, "cancelled")
 		}
+		delete(m.tasks, t.M.Token)
+		_ = m.st.DeleteTask(t.M.Token)
 	}
 	m.mu.Unlock()
 	if m.onChange != nil {
@@ -548,6 +568,22 @@ func (m *Manager) ClearDone() int {
 	m.mu.Lock()
 	for token, t := range m.tasks {
 		if t.M.State == "done" || t.M.State == "cancelled" {
+			delete(m.tasks, token)
+		}
+	}
+	m.mu.Unlock()
+	if m.onChange != nil {
+		m.onChange()
+	}
+	return int(n)
+}
+
+// ClearFailed 清理失败队列记录。
+func (m *Manager) ClearFailed() int {
+	n, _ := m.st.ClearFailedTasks()
+	m.mu.Lock()
+	for token, t := range m.tasks {
+		if t.M.State == "failed" || t.M.State == "dead" {
 			delete(m.tasks, token)
 		}
 	}

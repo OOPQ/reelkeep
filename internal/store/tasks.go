@@ -88,6 +88,15 @@ func (s *Store) CountTasks() int {
 	return n
 }
 
+// ClearFailedTasks 删除失败/失效的队列记录。
+func (s *Store) ClearFailedTasks() (int64, error) {
+	res, err := s.db.Exec("DELETE FROM download_tasks WHERE state IN ('failed','dead')")
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
+
 func boolInt(v bool) int {
 	if v {
 		return 1

@@ -77,17 +77,13 @@ func (s *Server) handleState(w http.ResponseWriter, r *http.Request) {
 		"download": s.downloadInfo(),
 		"project":  proj,
 		"settings": map[string]any{
-			"proxy":          cfg.Proxy,
-			"concurrent":     cfg.Concurrent,
-			"ffmpegPath":     cfg.FFmpegPath,
-			"qiseCookie":     cfg.QiseCookie,
-			"retryCount":     cfg.RetryCount,
-			"retryDelay":     cfg.RetryDelay,
-			"torrentLimitKB": cfg.TorrentLimitKB,
-			"torrentBackend": cfg.TorrentBackend,
-			"qbtUrl":         cfg.QbtURL,
-			"qbtUser":        cfg.QbtUser,
-			"qbtPass":        cfg.QbtPass,
+			"proxy":         cfg.Proxy,
+			"concurrent":    cfg.Concurrent,
+			"ffmpegPath":    cfg.FFmpegPath,
+			"qiseCookieSet": cfg.QiseCookie != "",
+			"retryCount":    cfg.RetryCount,
+			"retryDelay":    cfg.RetryDelay,
+			"httpLimitKB":   cfg.HTTPLimitKB,
 		},
 		"sources": s.reg.Enabled(),
 		"media": map[string]any{
@@ -798,6 +794,7 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 		QiseCookie     *string `json:"qiseCookie"`
 		RetryCount     *int    `json:"retryCount"`
 		RetryDelay     *int    `json:"retryDelay"`
+		HTTPLimitKB    *int    `json:"httpLimitKB"`
 		TorrentLimitKB *int    `json:"torrentLimitKB"`
 		TorrentBackend *string `json:"torrentBackend"`
 		QbtURL         *string `json:"qbtUrl"`
@@ -870,6 +867,13 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 		}
 		cfg.TorrentLimitKB = *body.TorrentLimitKB
 	}
+	if body.HTTPLimitKB != nil {
+		if *body.HTTPLimitKB < 0 || *body.HTTPLimitKB > 102400 {
+			bad(w, "下载限速需在 0–102400 KB/s")
+			return
+		}
+		cfg.HTTPLimitKB = *body.HTTPLimitKB
+	}
 	if body.TorrentBackend != nil {
 		v := strings.ToLower(strings.TrimSpace(*body.TorrentBackend))
 		if v != "builtin" && v != "qbittorrent" {
@@ -907,6 +911,7 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 			RetryCount:     cfg.RetryCount,
 			RetryDelay:     time.Duration(cfg.RetryDelay) * time.Second,
 			TorrentLimitKB: cfg.TorrentLimitKB,
+			HTTPLimitKB:    cfg.HTTPLimitKB,
 			TorrentBackend: cfg.TorrentBackend,
 			QbtURL:         cfg.QbtURL, QbtUser: cfg.QbtUser, QbtPass: cfg.QbtPass,
 		})

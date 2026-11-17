@@ -517,17 +517,13 @@ func (s *Server) settingsPayload() map[string]any {
 	cfg := s.settings
 	s.mu.RUnlock()
 	return map[string]any{
-		"proxy":          cfg.Proxy,
-		"concurrent":     cfg.Concurrent,
-		"ffmpegPath":     cfg.FFmpegPath,
-		"qiseCookie":     cfg.QiseCookie,
-		"retryCount":     cfg.RetryCount,
-		"retryDelay":     cfg.RetryDelay,
-		"torrentLimitKB": cfg.TorrentLimitKB,
-		"torrentBackend": cfg.TorrentBackend,
-		"qbtUrl":         cfg.QbtURL,
-		"qbtUser":        cfg.QbtUser,
-		"qbtPass":        cfg.QbtPass,
+		"proxy":         cfg.Proxy,
+		"concurrent":    cfg.Concurrent,
+		"ffmpegPath":    cfg.FFmpegPath,
+		"qiseCookieSet": cfg.QiseCookie != "",
+		"retryCount":    cfg.RetryCount,
+		"retryDelay":    cfg.RetryDelay,
+		"httpLimitKB":   cfg.HTTPLimitKB,
 	}
 }
 
@@ -540,6 +536,8 @@ func (s *Server) Handler() http.Handler {
 	// 只读
 	mux.HandleFunc("GET /api/state", s.handleState)
 	mux.HandleFunc("GET /api/rows", s.handleRows)
+	mux.HandleFunc("POST /api/history/clear", s.handleHistoryClear)
+	mux.HandleFunc("POST /api/cache/clear", s.handleCacheClear)
 	mux.HandleFunc("GET /api/update", s.handleUpdate)
 	mux.HandleFunc("POST /api/update/apply", s.handleUpdateApply)
 	mux.HandleFunc("GET /api/desktop", s.handleDesktop)
@@ -606,6 +604,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/download/pause", s.handleDownloadPause)
 	mux.HandleFunc("POST /api/download/cancel", s.handleDownloadCancel)
 	mux.HandleFunc("POST /api/download/clear-done", s.handleDownloadClearDone)
+	mux.HandleFunc("POST /api/download/clear-failed", s.handleDownloadClearFailed)
 	mux.HandleFunc("POST /api/download/reset", s.handleDownloadReset)
 	mux.HandleFunc("POST /api/download/repair", s.handleDownloadRepair)
 	mux.HandleFunc("POST /api/torrent/files", s.handleTorrentFiles)

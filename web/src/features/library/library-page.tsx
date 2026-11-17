@@ -217,7 +217,7 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
   }, [query, status, source, flag, res, minDur, per, sortKey, sortDir, setSearchParams])
 
   const sourceOptions = React.useMemo(
-    () => [{ value: 'all', label: '全部来源' }, ...(data?.sources || []).filter(s => s.key !== 'web').map(s => ({ value: s.key, label: s.name || s.key }))],
+    () => [{ value: 'all', label: '全部来源' }, ...(data?.sources || []).map(s => ({ value: s.key, label: s.name || s.key }))],
     [data?.sources],
   )
 
@@ -285,6 +285,10 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
   const menu: RowMenuActions = {
     open: openPreview,
     download: async row => {
+      if (row.file_name || row.status === 'done') {
+        toast.info('该条目已有本地文件')
+        return
+      }
       if (row.download_kind === 'torrent' || row.url?.toLowerCase().startsWith('magnet:')) {
         toast.error('暂不支持磁力链接')
         return

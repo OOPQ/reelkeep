@@ -143,6 +143,18 @@ export function LibraryTable({
   const someSelected = selectedOnPage > 0 && !allSelected
   const [copied, setCopied] = React.useState<string | null>(null)
   const scrollRef = React.useRef<HTMLDivElement>(null)
+  const headerRef = React.useRef<HTMLTableSectionElement>(null)
+  const [headerH, setHeaderH] = React.useState(36)
+
+  React.useEffect(() => {
+    const el = headerRef.current
+    if (!el) return
+    const update = () => setHeaderH(el.offsetHeight || 36)
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
 
   const visible = COL_ORDER.filter(key => tableCols[key]?.visible !== false)
   const minWidth = (multi ? 40 : 0) + visible.reduce((sum, key) => sum + (tableCols[key]?.width || 80), 0) + 104
@@ -154,11 +166,11 @@ export function LibraryTable({
     getScrollElement: () => scrollRef.current,
     estimateSize: () => rowHeight,
     overscan: 8,
-    scrollMargin: 36,
+    scrollMargin: headerH,
   })
   const virtualItems = virtualizer.getVirtualItems()
-  const padTop = virtualItems.length ? Math.max(0, virtualItems[0].start - 36) : 0
-  const padBottom = virtualItems.length ? Math.max(0, virtualizer.getTotalSize() - (virtualItems[virtualItems.length - 1].end - 36)) : 0
+  const padTop = virtualItems.length ? Math.max(0, virtualItems[0].start - headerH) : 0
+  const padBottom = virtualItems.length ? Math.max(0, virtualizer.getTotalSize() - (virtualItems[virtualItems.length - 1].end - headerH)) : 0
 
   const copy = async (row: Row) => {
     try {
@@ -231,7 +243,12 @@ export function LibraryTable({
               <IconButton label={copied === row.token ? '已复制' : '复制链接'} size="sm" onClick={() => copy(row)}>
                 <Copy className={cn('size-3.5', copied === row.token && 'text-[color:var(--success)]')} />
               </IconButton>
-              <IconButton label="下载" size="sm" onClick={() => menu.download(row)}>
+              <IconButton
+                label={row.file_name || row.status === 'done' ? '已下载' : '下载'}
+                size="sm"
+                disabled={!!row.file_name || row.status === 'done'}
+                onClick={() => menu.download(row)}
+              >
                 <Download className="size-3.5" />
               </IconButton>
             </div>
@@ -249,7 +266,7 @@ export function LibraryTable({
           {visible.map(key => <col key={key} style={{ width: tableCols[key]?.width || 80 }} />)}
           <col style={{ width: 104 }} />
         </colgroup>
-        <thead className="sticky top-0 z-10 bg-[color:var(--surface-2)]">
+        <thead ref={headerRef} className="sticky top-0 z-10 bg-[color:var(--surface-2)]">
           <tr className="border-b border-[color:var(--border)]">
             {multi ? (
               <th className="w-10 px-2 py-2 text-center align-middle">

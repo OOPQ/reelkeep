@@ -134,6 +134,7 @@ func Start(ctx context.Context, opt Options) (*Instance, error) {
 		Concurrent: settings.Concurrent, FFmpeg: settings.FFmpegPath, Proxy: settings.Proxy,
 		RetryCount: settings.RetryCount, RetryDelay: time.Duration(settings.RetryDelay) * time.Second,
 		TorrentLimitKB: settings.TorrentLimitKB,
+		HTTPLimitKB:    settings.HTTPLimitKB,
 		TorrentBackend: settings.TorrentBackend,
 		QbtURL:         settings.QbtURL, QbtUser: settings.QbtUser, QbtPass: settings.QbtPass,
 	})

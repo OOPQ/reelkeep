@@ -202,6 +202,15 @@ func (m *Manager) copyBody(ctx context.Context, t *Task, resp *http.Response, f 
 	for {
 		n, err := resp.Body.Read(buf)
 		if n > 0 {
+			m.mu.Lock()
+			lim := m.httpLimiter
+			m.mu.Unlock()
+			if lim != nil {
+				if werr := lim.WaitN(ctx, n); werr != nil {
+					_ = f.Close()
+					return werr
+				}
+			}
 			if _, werr := f.Write(buf[:n]); werr != nil {
 				_ = f.Close()
 				return werr

@@ -54,8 +54,22 @@ func Open(path string) (*Store, error) {
 }
 
 func (s *Store) rebuildFTSIfNeeded() error {
-	// 外部内容表的 COUNT(*) 会读 items，无法判断倒排索引是否为空；启动时重建一次最稳妥。
-	_, err := s.db.Exec("INSERT INTO items_fts(items_fts) VALUES('rebuild')")
+	var items, known int
+	if err := s.db.QueryRow("SELECT COUNT(*) FROM items").Scan(&items); err != nil {
+		return err
+	}
+	_ = s.db.QueryRow("SELECT COALESCE((SELECT items FROM fts_meta LIMIT 1), -1)").Scan(&known)
+	if items == known {
+		return nil
+	}
+	if _, err := s.db.Exec("INSERT INTO items_fts(items_fts) VALUES('rebuild')"); err != nil {
+		return err
+	}
+	_, err := s.db.Exec("DELETE FROM fts_meta")
+	if err != nil {
+		return err
+	}
+	_, err = s.db.Exec("INSERT INTO fts_meta(items, rebuilt_at) VALUES(?, datetime('now'))", items)
 	return err
 }
 
@@ -192,6 +206,10 @@ CREATE TABLE IF NOT EXISTS torrent_job_files (
   PRIMARY KEY (job_id, file_index)
 );
 CREATE INDEX IF NOT EXISTS idx_job_files_job ON torrent_job_files(job_id);
+CREATE TABLE IF NOT EXISTS fts_meta (
+  items      INTEGER DEFAULT 0,
+  rebuilt_at TEXT DEFAULT ''
+);
 `
 
 var ftsTriggers = []string{
@@ -271,6 +289,12 @@ func (s *Store) ensureSchema() error {
 		}
 	}
 	return nil
+}
+
+// ClearHistory 清空播放历史字段，不影响文件。
+func (s *Store) ClearHistory() error {
+	_, err := s.db.Exec("UPDATE items SET last_play = '', play_count = '' WHERE last_play <> '' OR play_count <> ''")
+	return err
 }
 
 // LoadRows 按插入顺序读取全部台账。

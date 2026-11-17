@@ -97,6 +97,7 @@ type Settings struct {
 	RetryCount     int    `json:"retryCount"`
 	RetryDelay     int    `json:"retryDelay"`
 	TorrentLimitKB int    `json:"torrentLimitKB"`
+	HTTPLimitKB    int    `json:"httpLimitKB"`
 	TorrentBackend string `json:"torrentBackend"`
 	QbtURL         string `json:"qbtUrl"`
 	QbtUser        string `json:"qbtUser"`

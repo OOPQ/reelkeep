@@ -41,6 +41,7 @@ func candidates() []string {
 		name = "ffmpeg.exe"
 	}
 	var out []string
+	out = append(out, filepath.Join(FFmpegBinDir(), name))
 	if exe, err := os.Executable(); err == nil {
 		dir := filepath.Dir(exe)
 		out = append(out,

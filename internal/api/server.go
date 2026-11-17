@@ -602,6 +602,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/delete", s.handleDelete)
 	mux.HandleFunc("POST /api/scan", s.handleScan)
 	mux.HandleFunc("POST /api/config", s.handleConfig)
+	mux.HandleFunc("POST /api/ffmpeg/install", s.handleFFmpegInstall)
 	mux.HandleFunc("POST /api/collections", s.handleCollectionsWrite)
 	mux.HandleFunc("POST /api/log", s.handleClientLog)
 

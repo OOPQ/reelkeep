@@ -108,8 +108,22 @@ export function SettingsPage() {
     }
   }
 
-  const save = async () => {
-    setBusy('save')
+  const installFFmpeg = async () => {
+    setBusy('ffmpeg')
+    try {
+      const r = await post<{ ok: boolean; error?: string; path?: string }>('/api/ffmpeg/install', {})
+      if (!r.ok) throw new Error(r.error || 'FFmpeg 下载失败')
+      if (r.path) setFfmpeg(r.path)
+      toast.success('FFmpeg 已安装，HLS 下载现在可用')
+      after()
+    } catch (e) {
+      toast.error((e as Error).message, { duration: 8_000 })
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const save = async () => {    setBusy('save')
     try {
       const payload: Record<string, unknown> = {
         proxy: proxy.trim(),
@@ -213,7 +227,13 @@ export function SettingsPage() {
           </Field>
           <Field label="FFmpeg 路径">
             <Input value={ffmpeg} onChange={e => setFfmpeg(e.target.value)} placeholder="D:\ffmpeg\bin\ffmpeg.exe（留空 = 自动查找）" />
-            <div className="mt-1 text-[9px] text-[color:var(--subtle)]">留空会依次查找 PATH、程序目录、常见安装目录和旧版项目配置。</div>
+            <div className="mt-1 flex flex-wrap items-center gap-2 text-[9px] text-[color:var(--subtle)]">
+              <span>留空会依次查找 PATH、程序目录、工具目录和常见安装目录。</span>
+              <Button size="sm" variant="outline" className="h-6 px-2 text-[9px]" onClick={installFFmpeg} disabled={busy === 'ffmpeg'}>
+                <Download className={cn('size-3', busy === 'ffmpeg' && 'animate-pulse')} />
+                {busy === 'ffmpeg' ? '下载中…' : '自动下载 FFmpeg'}
+              </Button>
+            </div>
           </Field>
           <Field label="并发下载数">
             <Select value={concurrent} onValueChange={setConcurrent} options={Array.from({ length: 16 }, (_, i) => ({ value: String(i + 1), label: String(i + 1) }))} className="w-[100px]" aria-label="并发下载数" />

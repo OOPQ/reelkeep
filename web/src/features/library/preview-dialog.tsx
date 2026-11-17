@@ -43,7 +43,7 @@ type Props = {
   autoplay?: boolean
   media?: MediaConfig
   onClose: () => void
-  onNavigate: (token: string) => void
+  onNavigate: (token: string, autoplay?: boolean) => void
   onFav: (row: Row) => void
   downloadItem?: DownloadItem
 }
@@ -173,6 +173,9 @@ export function PreviewDialog({ rows, token, autoplay = false, media, onClose, o
 
   const prev = index > 0 ? rows[index - 1] : null
   const next = index >= 0 && index < rows.length - 1 ? rows[index + 1] : null
+  const keepPlaying = () => playing || isPlaying || Boolean(videoRef.current && !videoRef.current.paused)
+  const goPrev = () => { if (prev) onNavigate(prev.token, keepPlaying()) }
+  const goNext = () => { if (next) onNavigate(next.token, keepPlaying()) }
 
   React.useEffect(() => {
     if (!row) return
@@ -180,16 +183,16 @@ export function PreviewDialog({ rows, token, autoplay = false, media, onClose, o
       if (!e.ctrlKey) return
       if (e.key === 'ArrowLeft' && prev) {
         e.preventDefault()
-        onNavigate(prev.token)
+        onNavigate(prev.token, keepPlaying())
       }
       if (e.key === 'ArrowRight' && next) {
         e.preventDefault()
-        onNavigate(next.token)
+        onNavigate(next.token, keepPlaying())
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [row, prev, next, onNavigate])
+  }, [row, prev, next, onNavigate, playing, isPlaying])
 
   React.useEffect(() => {
     if (seek == null) return
@@ -203,6 +206,7 @@ export function PreviewDialog({ rows, token, autoplay = false, media, onClose, o
   React.useEffect(() => {
     if (!token) return
     let spaceAt = 0
+    let spaceTimer = 0
     let hintTimer = 0
     const showVolume = (v: HTMLVideoElement) => {
       const pct = Math.round(v.volume * 100)
@@ -226,7 +230,14 @@ export function PreviewDialog({ rows, token, autoplay = false, media, onClose, o
           if (canPlay) setPlaying(true)
           return
         }
-        if (!v.paused) { v.playbackRate = longPressRate; setAccelerating(true) }
+        if (!v.paused) {
+          spaceTimer = window.setTimeout(() => {
+            if (!v.paused) {
+              v.playbackRate = longPressRate
+              setAccelerating(true)
+            }
+          }, 300)
+        }
         blurActive()
         return
       }
@@ -274,15 +285,14 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
         e.stopImmediatePropagation()
       const v = videoRef.current
       if (!v) return
+      window.clearTimeout(spaceTimer)
       const held = performance.now() - spaceAt
       v.playbackRate = playbackRate
       setAccelerating(false)
       blurActive()
-      if (held < 250) {
+      if (held < 300) {
         if (v.paused) { void v.play().catch(() => {}); setPlaying(true) }
-        else v.pause()
-      } else {
-        v.playbackRate = playbackRate
+        else { v.pause(); setPlaying(false) }
       }
     }
     window.addEventListener('keydown', onKeyDown, true)
@@ -290,6 +300,7 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
     return () => {
       window.removeEventListener('keydown', onKeyDown, true)
       window.removeEventListener('keyup', onKeyUp, true)
+      window.clearTimeout(spaceTimer)
       window.clearTimeout(hintTimer)
       setAccelerating(false)
     }
@@ -559,7 +570,19 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
         }
       >
         <div ref={stageRef} data-preview-stage className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-[#05080c]">
-          <CoverImage token={row.token} full fit="contain" alt={rowTitle(row)} className={cn('absolute inset-0 h-full w-full transition-opacity', videoReady ? 'opacity-0' : 'opacity-100')} />
+          <button
+            type="button"
+            className="absolute inset-0 z-0 cursor-pointer"
+            aria-label="点击封面播放"
+            onClick={() => {
+              if (!canPlay || playing) return
+              setVideoError(false)
+              setVideoReady(false)
+              setPlaying(true)
+            }}
+          >
+            <CoverImage token={row.token} full fit="contain" alt={rowTitle(row)} className={cn('h-full w-full transition-opacity', videoReady ? 'opacity-0' : 'opacity-100')} />
+          </button>
 
           {playing && !videoError ? (
             <video
@@ -830,10 +853,10 @@ onPlay={() => { setIsPlaying(true); if (videoRef.current) videoRef.current.playb
     />
     {createPortal(
       <div className="pointer-events-none fixed inset-y-0 left-2 right-2 z-[75] flex items-center justify-between">
-        <IconButton label="上一项" className="pointer-events-auto size-11 border-white/20 bg-black/60 text-white backdrop-blur hover:bg-black/75" onClick={() => prev && onNavigate(prev.token)} disabled={!prev}>
+        <IconButton label="上一项" className="pointer-events-auto size-11 border-white/20 bg-black/60 text-white backdrop-blur hover:bg-black/75" onClick={goPrev} disabled={!prev}>
           <ChevronLeft className="size-5" />
         </IconButton>
-        <IconButton label="下一项" className="pointer-events-auto size-11 border-white/20 bg-black/60 text-white backdrop-blur hover:bg-black/75" onClick={() => next && onNavigate(next.token)} disabled={!next}>
+        <IconButton label="下一项" className="pointer-events-auto size-11 border-white/20 bg-black/60 text-white backdrop-blur hover:bg-black/75" onClick={goNext} disabled={!next}>
           <ChevronRight className="size-5" />
         </IconButton>
       </div>,

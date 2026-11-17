@@ -271,8 +271,7 @@ func (m *Manager) run(ctx context.Context, t *Task) {
 	m.mu.Unlock()
 	if state == "cancelled" {
 		// 文件已关闭，这里再删 .part，避免 Windows 上删不掉正在写的文件
-		_, part := m.pathsFor(t)
-		_ = os.Remove(part)
+		m.removePart(t)
 	}
 	// 暂停/取消/立刻继续后，旧 goroutine 不再写终态
 	if state != "downloading" {
@@ -402,6 +401,15 @@ func (m *Manager) Enqueue(t model.DownloadTask) (bool, error) {
 	return true, nil
 }
 
+func (m *Manager) removePart(t *Task) {
+	_, part := m.pathsFor(t)
+	if err := os.Remove(part); err == nil {
+		return
+	}
+	// Windows 上文件可能仍被下载 goroutine 持有；短暂重试一次。
+	time.AfterFunc(200*time.Millisecond, func() { _ = os.Remove(part) })
+}
+
 func jobIDForToken(token string) string {
 	if strings.HasPrefix(token, "torrent@") {
 		return strings.TrimPrefix(token, "torrent@")
@@ -521,6 +529,7 @@ func (m *Manager) Cancel(tokens []string) int {
 			t.cancel()
 		}
 		_ = m.st.SaveTask(t.M)
+		m.removePart(t)
 		if id := jobIDForToken(t.M.Token); id != "" {
 			m.st.UpdateJobState(id, "cancelled")
 			m.setJobFilesState(id, "cancelled")

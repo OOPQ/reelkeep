@@ -228,6 +228,7 @@ jobs:
           New-Item -ItemType Directory -Path windows-artifact -Force | Out-Null
           Copy-Item reelkeep-desktop.exe windows-artifact -Force
           Copy-Item dist/Reelkeep-Setup-*.exe windows-artifact -Force
+          if (Test-Path dist/reelkeep-sources-*.zip) { Copy-Item dist/reelkeep-sources-*.zip windows-artifact -Force }
 
       - uses: actions/upload-artifact@v4
         with:

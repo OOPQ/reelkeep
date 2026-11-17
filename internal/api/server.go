@@ -613,6 +613,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/sources", s.handleSources)
 	mux.HandleFunc("GET /api/sources/package", s.handleSourcePackage)
 	mux.HandleFunc("POST /api/sources/import", s.handleSourceImport)
+	mux.HandleFunc("POST /api/sources/import-zip", s.handleSourceZipImport)
 	mux.HandleFunc("POST /api/sources/enable", s.handleSourceEnable)
 	mux.HandleFunc("POST /api/sources/remove", s.handleSourceRemove)
 	mux.HandleFunc("GET /api/sources/export", s.handleSourceExport)

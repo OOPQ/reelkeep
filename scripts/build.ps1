@@ -25,6 +25,22 @@ try {
     if (-not $go) { throw 'go not found; install Go 1.26+ or add it to PATH' }
 
     if (-not $Version) { $Version = (Get-Content (Join-Path $root 'VERSION') -Raw -Encoding ascii).Trim() }
+
+    function New-SourceZip {
+        $dist = Join-Path $root 'dist'
+        if (-not (Test-Path $dist)) { New-Item -ItemType Directory -Path $dist | Out-Null }
+        $tmp = Join-Path $env:TEMP ('reelkeep-sources-' + [guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path $tmp | Out-Null
+        try {
+            Copy-Item (Join-Path $root 'sources\*.json') $tmp -Force
+            $zip = Join-Path $dist "reelkeep-sources-$Version.zip"
+            Compress-Archive -Path (Join-Path $tmp '*') -DestinationPath $zip -Force
+            Write-Host "packaged $zip" -ForegroundColor Green
+        } finally {
+            Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+
     if (-not (Test-Path (Join-Path $root 'web\dist\index.html'))) {
         throw 'web\dist is missing. Build the frontend first: cd web; pnpm install; pnpm build'
     }
@@ -43,6 +59,7 @@ try {
         if ($LASTEXITCODE -ne 0) { throw "desktop build failed ($LASTEXITCODE)" }
         $dmb = [math]::Round((Get-Item 'reelkeep-desktop.exe').Length / 1MB, 2)
         Write-Host "built reelkeep-desktop.exe ($Version, $dmb MB)" -ForegroundColor Green
+        New-SourceZip
         return
     }
 
@@ -72,6 +89,7 @@ try {
     & $go build -trimpath -ldflags "-H windowsgui $ldflags" -o (Join-Path $outDir $deskName) ./desktop
     if ($LASTEXITCODE -ne 0) { throw "desktop build failed" }
 
+    New-SourceZip
     Get-ChildItem $outDir -File | ForEach-Object {
         "{0}  {1:N1} MB" -f $_.Name, ($_.Length / 1MB)
     }

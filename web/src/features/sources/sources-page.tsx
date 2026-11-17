@@ -115,9 +115,31 @@ export function SourcesPage() {
 
   const importFromFile = async (file: File | undefined) => {
     if (!file) return
+    setError('')
+    if (file.name.toLowerCase().endsWith('.zip') || file.type === 'application/zip') {
+      setBusy('import-zip')
+      try {
+        const res = await fetch(`/api/sources/import-zip?overwrite=${overwrite ? '1' : '0'}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/zip' },
+          body: await file.arrayBuffer(),
+        })
+        const r = await res.json() as { ok: boolean; error?: string; imported?: Array<{ name?: string; id?: string }>; errors?: string[] }
+        if (!r.ok) throw new Error(r.error || 'ZIP 导入失败')
+        toast.success(`已导入 ${r.imported?.length || 0} 个源`)
+        if (r.errors?.length) toast.warning(`${r.errors.length} 个源导入失败`, { duration: 8000 })
+        setOverwrite(false)
+        await refresh()
+      } catch (e) {
+        setError((e as Error).message)
+        toast.error((e as Error).message)
+      } finally {
+        setBusy(null)
+      }
+      return
+    }
     const text = await file.text()
     setDraft(text)
-    setError('')
   }
 
   const doImport = async () => {
@@ -391,7 +413,7 @@ export function SourcesPage() {
           <label className="flex cursor-pointer items-center gap-2 text-[10px] text-[color:var(--muted)]">
             <input
               type="file"
-              accept=".json,application/json"
+              accept=".json,.zip,application/json,application/zip"
               className="hidden"
               onChange={e => {
                 void importFromFile(e.target.files?.[0])
@@ -399,9 +421,9 @@ export function SourcesPage() {
               }}
             />
             <span className="inline-flex h-8 items-center gap-1.5 rounded-[9px] border border-[color:var(--border)] bg-[color:var(--surface-2)] px-2.5 text-[11px] hover:bg-[color:var(--surface-3)]">
-              <FileJson className="size-3.5" /> 选择源包文件
+              <FileJson className="size-3.5" /> 选择源包文件（JSON/ZIP）
             </span>
-            <span className="text-[color:var(--subtle)]">或直接把 JSON 粘贴到下面</span>
+            <span className="text-[color:var(--subtle)]">或直接把 JSON 粘贴到下面；ZIP 会导入其中所有 .json</span>
           </label>
 
           <textarea

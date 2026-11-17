@@ -268,7 +268,8 @@ func (m *Manager) runHLS(ctx context.Context, t *Task) error {
 		return errors.New("HLS 下载需要 ffmpeg：已自动查找 PATH、程序目录和旧项目配置；也可以把 ffmpeg.exe 放到程序目录，或在「设置 → FFmpeg 路径」里填写")
 	}
 	err := m.hlsOnce(ctx, t, ff, part)
-	if err != nil && ctx.Err() == nil && t.M.RefreshOn410 {
+	// 签名 HLS 地址过期时 ffmpeg 通常只报 403，没有状态码；失败后先重解一次详情。
+	if err != nil && ctx.Err() == nil {
 		if rerr := m.refresh(ctx, t); rerr == nil {
 			err = m.hlsOnce(ctx, t, ff, part)
 		}

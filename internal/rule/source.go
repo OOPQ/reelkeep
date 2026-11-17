@@ -437,8 +437,10 @@ func (s *RuleSource) Resolve(ctx context.Context, r model.Row) (source.DownloadS
 	spec.URL = target
 	spec.Mode = dl.Kind
 	spec.Headers = headers
-	if rr, ok := dl.OnStatus["410"]; ok && rr.Action == "refreshDetail" {
-		spec.RefreshOn410 = true
+	for code, rr := range dl.OnStatus {
+		if (code == "403" || code == "410") && rr.Action == "refreshDetail" {
+			spec.RefreshOn410 = true
+		}
 	}
 	return spec, nil
 }

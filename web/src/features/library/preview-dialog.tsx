@@ -292,7 +292,7 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
       blurActive()
       if (held < 300) {
         if (v.paused) { void v.play().catch(() => {}); setPlaying(true) }
-        else { v.pause(); setPlaying(false) }
+        else { v.pause() }
       }
     }
     window.addEventListener('keydown', onKeyDown, true)

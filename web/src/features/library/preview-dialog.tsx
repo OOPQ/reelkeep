@@ -545,6 +545,15 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
               空格 播放/暂停 · 长按 {longPressRate}× · ←→ 5s · ↑↓ 音量 · F 全屏 · M 静音
             </span>
             <div className="ml-auto flex items-center gap-1.5">
+              <div className="mr-1 flex items-center gap-0.5">
+                <IconButton label="上一项" size="sm" onClick={goPrev} disabled={!prev}>
+                  <ChevronLeft className="size-3.5" />
+                </IconButton>
+                <span className="min-w-[38px] text-center text-[9px] tabular-nums text-[color:var(--subtle)]">{index + 1}/{rows.length}</span>
+                <IconButton label="下一项" size="sm" onClick={goNext} disabled={!next}>
+                  <ChevronRight className="size-3.5" />
+                </IconButton>
+              </div>
               <Button size="sm" variant="outline" onClick={() => setTimelineOpen(true)}>
                 <List className="size-3.5" /> 时间轴
               </Button>
@@ -840,14 +849,6 @@ onPlay={() => { setIsPlaying(true); if (videoRef.current) videoRef.current.playb
           </div>
 
         </aside>
-        <div className="pointer-events-none fixed inset-y-0 left-2 right-2 z-[75] flex items-center justify-between">
-          <IconButton label="上一项" className="pointer-events-auto size-11 border-white/20 bg-black/60 text-white backdrop-blur hover:bg-black/75" onClick={goPrev} disabled={!prev}>
-            <ChevronLeft className="size-5" />
-          </IconButton>
-          <IconButton label="下一项" className="pointer-events-auto size-11 border-white/20 bg-black/60 text-white backdrop-blur hover:bg-black/75" onClick={goNext} disabled={!next}>
-            <ChevronRight className="size-5" />
-          </IconButton>
-        </div>
       </DialogContent>
     </Dialog>
     <TimelineDialog

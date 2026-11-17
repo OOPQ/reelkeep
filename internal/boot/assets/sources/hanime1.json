@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "hanime1",
   "name": "Hanime1",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "author": "reelkeep",
   "description": "Hanime1 静态 HTML 源，列表与详情直接提供 mp4 地址。",
   "baseUrl": "https://hanime1.me",
@@ -47,6 +47,84 @@
         "label": "他们正在看",
         "group": "榜单",
         "path": "/search?sort=%E4%BB%96%E5%80%91%E5%9C%A8%E7%9C%8B&page={page}"
+      },
+      {
+        "key": "week",
+        "label": "本周排行",
+        "group": "榜单",
+        "path": "/search?sort=%E6%9C%AC%E9%80%B1%E6%8E%92%E8%A1%8C&page={page}"
+      },
+      {
+        "key": "month",
+        "label": "本月排行",
+        "group": "榜单",
+        "path": "/search?sort=%E6%9C%AC%E6%9C%88%E6%8E%92%E8%A1%8C&page={page}"
+      },
+      {
+        "key": "rating",
+        "label": "最高评分",
+        "group": "榜单",
+        "path": "/search?sort=%E6%9C%80%E9%AB%98%E8%A9%95%E5%88%86&page={page}"
+      },
+      {
+        "key": "favorite",
+        "label": "最多收藏",
+        "group": "榜单",
+        "path": "/search?sort=%E6%9C%80%E5%A4%9A%E6%94%B6%E8%97%8F&page={page}"
+      },
+      {
+        "key": "views",
+        "label": "最多观看",
+        "group": "榜单",
+        "path": "/search?sort=%E6%9C%80%E5%A4%9A%E8%A7%80%E7%9C%8B&page={page}"
+      },
+      {
+        "key": "release",
+        "label": "新作上市",
+        "group": "榜单",
+        "path": "/search?sort=%E6%96%B0%E4%BD%9C%E4%B8%8A%E5%B8%82&page={page}"
+      },
+      {
+        "key": "genre-motion",
+        "label": "Motion Anime",
+        "group": "分类",
+        "path": "/search?genre=Motion%20Anime&sort=%E6%9C%80%E6%96%B0%E4%B8%8A%E5%82%B3&page={page}"
+      },
+      {
+        "key": "genre-3dcg",
+        "label": "3DCG",
+        "group": "分类",
+        "path": "/search?genre=3DCG&sort=%E6%9C%80%E6%96%B0%E4%B8%8A%E5%82%B3&page={page}"
+      },
+      {
+        "key": "genre-25d",
+        "label": "2.5D",
+        "group": "分类",
+        "path": "/search?genre=2.5D&sort=%E6%9C%80%E6%96%B0%E4%B8%8A%E5%82%B3&page={page}"
+      },
+      {
+        "key": "genre-2d",
+        "label": "2D动画",
+        "group": "分类",
+        "path": "/search?genre=2D%E5%8B%95%E7%95%AB&sort=%E6%9C%80%E6%96%B0%E4%B8%8A%E5%82%B3&page={page}"
+      },
+      {
+        "key": "genre-ai",
+        "label": "AI生成",
+        "group": "分类",
+        "path": "/search?genre=AI%E7%94%9F%E6%88%90&sort=%E6%9C%80%E6%96%B0%E4%B8%8A%E5%82%B3&page={page}"
+      },
+      {
+        "key": "genre-mmd",
+        "label": "MMD",
+        "group": "分类",
+        "path": "/search?genre=MMD&sort=%E6%9C%80%E6%96%B0%E4%B8%8A%E5%82%B3&page={page}"
+      },
+      {
+        "key": "genre-cosplay",
+        "label": "Cosplay",
+        "group": "分类",
+        "path": "/search?genre=Cosplay&sort=%E6%9C%80%E6%96%B0%E4%B8%8A%E5%82%B3&page={page}"
       }
     ],
     "item": "a.video-link[href*=\"/watch?v=\"]",

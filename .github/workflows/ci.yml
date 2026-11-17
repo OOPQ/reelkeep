@@ -164,6 +164,15 @@ jobs:
         shell: pwsh
         run: ./scripts/installer.ps1 -SkipBuild
 
+      - name: Package source ZIP
+        shell: pwsh
+        run: |
+          $v = (Get-Content VERSION -Raw).Trim()
+          $tmp = Join-Path $env:RUNNER_TEMP 'reelkeep-sources'
+          New-Item -ItemType Directory -Path $tmp -Force | Out-Null
+          Copy-Item sources/*.json $tmp -Force
+          Compress-Archive -Path (Join-Path $tmp '*') -DestinationPath "dist/reelkeep-sources-$v.zip" -Force
+
       - name: Sign installer (optional)
         shell: pwsh
         env:

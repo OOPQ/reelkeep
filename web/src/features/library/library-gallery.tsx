@@ -71,18 +71,27 @@ export function LibraryGallery({ rows, downloads, selected, onToggle, onOpen, on
                   {row.duration || '—'} · {row.res || '—'} · {formatDate(row.first_seen)}
                 </CardMeta>
                 {row.tags?.length ? (
-                  <div className="mt-1 flex flex-wrap gap-1">
+                  <div className="mt-1.5 flex min-w-0 items-center gap-1 overflow-hidden">
                     {row.tags.slice(0, 3).map(tag => (
                       <span
                         key={tag.id}
-                        className="max-w-[92px] truncate rounded-full px-1.5 py-0.5 text-[8.5px]"
-                        style={{ background: `color-mix(in srgb, ${tag.color || 'var(--primary)'} 16%, transparent)`, color: tag.color || 'var(--primary-2)' }}
+                        className="inline-flex min-w-0 max-w-[86px] items-center gap-1 rounded-[5px] border px-1.5 py-[3px] text-[8.5px] leading-none"
+                        style={{
+                          borderColor: `color-mix(in srgb, ${tag.color || 'var(--primary)'} 32%, transparent)`,
+                          background: `color-mix(in srgb, ${tag.color || 'var(--primary)'} 11%, transparent)`,
+                          color: tag.color || 'var(--primary-2)',
+                        }}
                         title={tag.name}
                       >
-                        {tag.name}
+                        <span className="size-1 shrink-0 rounded-full bg-current opacity-75" />
+                        <span className="truncate">{tag.name}</span>
                       </span>
                     ))}
-                    {row.tags.length > 3 ? <span className="text-[8.5px] text-[color:var(--subtle)]">+{row.tags.length - 3}</span> : null}
+                    {row.tags.length > 3 ? (
+                      <span className="shrink-0 rounded-[5px] border border-[color:var(--border)] bg-[color:var(--surface-2)] px-1.5 py-[3px] text-[8.5px] leading-none text-[color:var(--subtle)]">
+                        +{row.tags.length - 3}
+                      </span>
+                    ) : null}
                   </div>
                 ) : null}
                 <div className="mt-1.5 flex items-center gap-2 text-[9px] text-[color:var(--subtle)]">

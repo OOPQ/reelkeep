@@ -7,16 +7,18 @@ export function RatingInput({
   onChange,
   className,
   size = 'sm',
+  compact = false,
 }: {
   value: number | string
   onChange: (value: number) => void
   className?: string
   size?: 'sm' | 'md'
+  compact?: boolean
 }) {
   const current = Math.max(0, Math.min(5, Math.round(Number(value) || 0)))
   const [hover, setHover] = React.useState(0)
   return (
-    <span className={cn('inline-flex items-center gap-0.5', className)} onMouseLeave={() => setHover(0)}>
+    <span className={cn('inline-flex items-center', compact ? 'gap-0' : 'gap-0.5', className)} onMouseLeave={() => setHover(0)}>
       {Array.from({ length: 5 }, (_, i) => {
         const n = i + 1
         const on = n <= (hover || current)
@@ -31,9 +33,9 @@ export function RatingInput({
               e.stopPropagation()
               onChange(n === current ? 0 : n)
             }}
-            className="rounded p-0.5 transition-transform hover:scale-110 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[color:var(--ring)]"
+            className={cn('rounded transition-transform hover:scale-110 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[color:var(--ring)]', compact ? 'p-0' : 'p-0.5')}
           >
-            <Star className={cn(size === 'md' ? 'size-4' : 'size-3.5', on ? 'fill-current text-[color:var(--warning)]' : 'text-[color:var(--border-strong)]')} />
+            <Star className={cn(compact ? 'size-3' : size === 'md' ? 'size-4' : 'size-3.5', on ? 'fill-current text-[color:var(--warning)]' : 'text-[color:var(--border-strong)]')} />
           </button>
         )
       })}

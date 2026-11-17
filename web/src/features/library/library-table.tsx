@@ -242,8 +242,8 @@ export function LibraryTable({
           {visible.includes('res') ? <td className="px-2 py-2.5 text-[10px] text-[color:var(--muted)]">{row.res || '—'}</td> : null}
           {visible.includes('views') ? <td className="px-2 py-2.5 text-[10px] text-[color:var(--muted)]">{formatCount(row.views)}</td> : null}
           {visible.includes('likes') ? <td className="px-2 py-2.5 text-[10px] text-[color:var(--muted)]">{formatCount(row.likes)}</td> : null}
-          {visible.includes('rating') ? <td className="px-2 py-2.5"><RatingInput value={row.rating} onChange={value => onRate(row, value)} /></td> : null}
-          {visible.includes('first_seen') ? <td className="px-2 py-2.5 text-[10px] text-[color:var(--muted)]">{formatDate(row.first_seen)}</td> : null}
+          {visible.includes('rating') ? <td className="overflow-hidden px-2 py-2.5"><RatingInput compact value={row.rating} onChange={value => onRate(row, value)} /></td> : null}
+          {visible.includes('first_seen') ? <td className="whitespace-nowrap px-2 py-2.5 text-[10px] text-[color:var(--muted)]">{formatDate(row.first_seen)}</td> : null}
           {visible.includes('status') ? <td className="px-2 py-2.5"><StatusBadge status={row.status} /></td> : null}
           <td className="sticky right-0 border-l border-[color:var(--border)] bg-[color:var(--surface)] px-2 py-2.5 group-hover:bg-[color:color-mix(in_srgb,var(--primary)_4%,var(--surface))]">
             <div className="flex items-center justify-center gap-0.5 opacity-70 transition-opacity group-hover:opacity-100">

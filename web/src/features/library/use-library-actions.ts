@@ -8,7 +8,10 @@ import { unlockAudio } from '@/lib/sound'
 export function useLibraryActions() {
   const qc = useQueryClient()
   const navigate = useNavigate()
-  const invalidate = () => qc.invalidateQueries({ queryKey: ['state'] })
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ['state'] })
+    qc.invalidateQueries({ queryKey: ['library-rows'] })
+  }
 
   const download = async (tokens: string[], limit = 0) => {
     unlockAudio()

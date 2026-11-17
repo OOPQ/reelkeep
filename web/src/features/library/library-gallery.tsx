@@ -9,7 +9,6 @@ import { IconButton } from '@/components/ui/icon-button'
 import { RatingInput } from '@/components/rating-input'
 import { CoverImage } from '@/components/cover-image'
 import { downloadButtonLabel, isDownloadBusy } from './download-status'
-import { Button } from '@/components/ui/button'
 import { RowContextMenu, type RowMenuActions } from './row-context-menu'
 
 type Props = {
@@ -100,26 +99,25 @@ export function LibraryGallery({ rows, downloads, selected, onToggle, onOpen, on
                 </div>
               </CardBody>
 
-              <CardFooter className="py-1.5">
-                <div onClick={e => e.stopPropagation()}>
-                  <RatingInput value={row.rating} onChange={value => onRate(row, value)} />
+              <CardFooter className="gap-1 overflow-hidden px-2 py-1.5">
+                <div className="min-w-0 shrink" onClick={e => e.stopPropagation()}>
+                  <RatingInput compact value={row.rating} onChange={value => onRate(row, value)} />
                 </div>
-                <div className="flex items-center gap-0.5" onClick={e => e.stopPropagation()}>
+                <div className="flex shrink-0 items-center gap-0.5" onClick={e => e.stopPropagation()}>
                   {row.file_name ? (
                     <IconButton label="打开文件位置" size="sm" className="text-[color:var(--success)]" onClick={() => menu.reveal(row)}>
                       <Check className="size-3.5" />
                     </IconButton>
                   ) : (
-                    <Button
+                    <IconButton
+                      label={downloadButtonLabel(row, dl)}
                       size="sm"
-                      variant="ghost"
-                      className="h-7 gap-1 px-1.5 text-[9px]"
                       disabled={!!dl && isDownloadBusy(row, dl)}
                       title={dl?.error || downloadButtonLabel(row, dl)}
                       onClick={() => onDownload(row)}
                     >
-                      <Download className="size-3.5" /> {downloadButtonLabel(row, dl)}
-                    </Button>
+                      <Download className="size-3.5" />
+                    </IconButton>
                   )}
                   <IconButton
                     label={row.fav === '1' ? '取消收藏' : '收藏'}

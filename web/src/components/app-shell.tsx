@@ -250,12 +250,15 @@ export function AppShell() {
   const actions = useLibraryActions()
   const previewToken = useUiStore(s => s.previewToken)
   const previewAutoplay = useUiStore(s => s.previewAutoplay)
-  const openPreview = useUiStore(s => s.openPreview)
+  const previewOrder = useUiStore(s => s.previewOrder)
+  const navigatePreview = useUiStore(s => s.navigatePreview)
   const closePreview = useUiStore(s => s.closePreview)
-  const previewRows = React.useMemo(
-    () => (data?.rows || []).filter(r => r.status !== 'recycled'),
-    [data?.rows],
-  )
+  const previewRows = React.useMemo(() => {
+    const all = (data?.rows || []).filter(r => r.status !== 'recycled')
+    if (!previewOrder.length) return all
+    const map = new Map(all.map(r => [r.token, r]))
+    return previewOrder.map(t => map.get(t)).filter((r): r is NonNullable<typeof r> => Boolean(r))
+  }, [data?.rows, previewOrder])
   const previewDownload = previewToken
     ? (data?.download?.items || []).find(i => i.token === previewToken)
     : undefined
@@ -378,7 +381,7 @@ export function AppShell() {
         media={data?.media}
         downloadItem={previewDownload}
         onClose={closePreview}
-        onNavigate={openPreview}
+        onNavigate={navigatePreview}
         onFav={row => actions.fav([row.token], row.fav !== '1')}
       />
     </div>

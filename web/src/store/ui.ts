@@ -48,6 +48,7 @@ type UiState = {
   selected: string[]
   previewToken: string | null
   previewAutoplay: boolean
+  previewOrder: string[]
   toggleSidebar: () => void
   setView: (view: ViewMode) => void
   setTheme: (theme: Theme) => void
@@ -60,7 +61,8 @@ type UiState = {
   toggleSelected: (token: string) => void
   setSelected: (tokens: string[]) => void
   clearSelected: () => void
-  openPreview: (token: string, autoplay?: boolean) => void
+  openPreview: (token: string, autoplay?: boolean, order?: string[]) => void
+  navigatePreview: (token: string, autoplay?: boolean) => void
   closePreview: () => void
 }
 
@@ -85,6 +87,7 @@ export const useUiStore = create<UiState>()(
       selected: [],
       previewToken: null,
       previewAutoplay: false,
+      previewOrder: [],
       toggleSidebar: () => set(s => ({ sidebarCollapsed: !s.sidebarCollapsed })),
       setView: view => set({ view }),
       setTheme: theme => {
@@ -104,8 +107,9 @@ export const useUiStore = create<UiState>()(
       })),
       setSelected: tokens => set({ selected: tokens }),
       clearSelected: () => set({ selected: [] }),
-      openPreview: (token, autoplay = false) => set({ previewToken: token, previewAutoplay: autoplay }),
-      closePreview: () => set({ previewToken: null, previewAutoplay: false }),
+      openPreview: (token, autoplay = false, order) => set({ previewToken: token, previewAutoplay: autoplay, previewOrder: order || [] }),
+      navigatePreview: (token, autoplay = false) => set({ previewToken: token, previewAutoplay: autoplay }),
+      closePreview: () => set({ previewToken: null, previewAutoplay: false, previewOrder: [] }),
     }),
     {
       name: 'pektino.ui',

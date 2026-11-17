@@ -132,6 +132,10 @@ export function TagsPage() {
     })
   }, [itemsQuery.data?.tokens, rowMap, query, status])
 
+  const openPreviewList = React.useCallback((token: string, autoplay = false) => {
+    openPreview(token, autoplay, rows.map(r => r.token))
+  }, [openPreview, rows])
+
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ['tags'] })
     qc.invalidateQueries({ queryKey: ['tag-items'] })
@@ -259,7 +263,7 @@ export function TagsPage() {
   }
 
   const menu: RowMenuActions = {
-    open: openPreview,
+    open: openPreviewList,
     download: row => { void actions.download([row.token]) },
     fav: row => { void actions.fav([row.token], row.fav !== '1') },
     collection: row => { void row; toast.info('在台账中右键加入其他标签') },
@@ -360,7 +364,7 @@ export function TagsPage() {
           rows={rows}
           selected={selected}
           onToggle={token => setSelected(s => s.includes(token) ? s.filter(t => t !== token) : [...s, token])}
-          onOpen={openPreview}
+          onOpen={openPreviewList}
           onFav={row => { void actions.fav([row.token], row.fav !== '1') }}
           onRate={(row, value) => { void actions.rate([row.token], value) }}
           onDownload={row => { void actions.download([row.token]) }}

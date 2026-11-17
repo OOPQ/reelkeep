@@ -220,6 +220,9 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
   const displayTotal = serverMode ? (serverQuery.data?.total || 0) : sorted.length
   const displayPages = serverMode ? Math.max(1, Math.ceil(displayTotal / per)) : pages
   const displayPage = Math.min(page, displayPages)
+  const openPreviewList = React.useCallback((token: string, autoplay = false) => {
+    openPreview(token, autoplay, displayRows.map(r => r.token))
+  }, [openPreview, displayRows])
 
   React.useEffect(() => { setPage(1) }, [deferredQuery, status, source, flag, res, minDur, per, sortKey, sortDir, tagIds, collectionId, batchMode])
   React.useEffect(() => { if (page > displayPages) setPage(displayPages) }, [page, displayPages])
@@ -333,7 +336,7 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
   const selectedRows = (data?.rows || []).filter(r => selected.includes(r.token))
 
   const menu: RowMenuActions = {
-    open: openPreview,
+    open: openPreviewList,
     download: async row => {
       if (row.file_name || row.status === 'done') {
         toast.info('该条目已有本地文件')
@@ -374,11 +377,13 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
   }
 
   const gacha = () => {
-    const all = (data?.rows || []).filter(r => r.file_name)
-    if (!all.length) { toast.error('没有可播放的本地条目'); return }
+    const poolSource = serverMode ? displayRows : (sorted.length ? sorted : displayRows)
+    const all = poolSource.filter(r => r.file_name)
+    if (!all.length) { toast.error('当前筛选结果里没有可播放的本地条目'); return }
     const pool = previewToken ? all.filter(r => r.token !== previewToken) : all
     const list = pool.length ? pool : all
-    openPreview(list[Math.floor(Math.random() * list.length)].token, true)
+    const picked = list[Math.floor(Math.random() * list.length)]
+    openPreview(picked.token, true, list.map(r => r.token))
   }
 
   React.useEffect(() => {
@@ -693,7 +698,7 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
             selected={selected}
             onToggle={toggleSelected}
             onTogglePage={togglePage}
-            onOpen={openPreview}
+            onOpen={openPreviewList}
             onFav={onFav}
             onRate={menu.rate}
             multi={multi}
@@ -703,7 +708,7 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
             onSort={sort}
           />
         ) : (
-            <LibraryGallery rows={displayRows} downloads={downloadMap} selected={selected} onToggle={toggleSelected} onOpen={openPreview} onFav={onFav} onRate={menu.rate} onDownload={menu.download} menu={menu} />
+            <LibraryGallery rows={displayRows} downloads={downloadMap} selected={selected} onToggle={toggleSelected} onOpen={openPreviewList} onFav={onFav} onRate={menu.rate} onDownload={menu.download} menu={menu} />
         )}
       </div>
 

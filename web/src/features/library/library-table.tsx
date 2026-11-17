@@ -201,7 +201,7 @@ export function LibraryTable({
           {visible.includes('cover') ? (
             <td className="px-2 py-2.5">
               <button type="button" onClick={() => onOpen(row.token, true)} className="block" aria-label="打开预览">
-                <CoverImage token={row.token} alt={rowTitle(row)} className="h-[86px] w-[64px] rounded-[7px]" />
+                <CoverImage token={row.token} full alt={rowTitle(row)} className="h-[86px] w-[64px] rounded-[7px]" />
               </button>
             </td>
           ) : null}

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,6 +16,58 @@ import (
 	"github.com/OOPQ/reelkeep/internal/model"
 	"github.com/OOPQ/reelkeep/internal/source"
 )
+
+// pickLinkSource 按 URL host 归类到对应源；无法匹配时回退网页解析器。
+func (s *Server) pickLinkSource(raw string) (string, source.Source, bool) {
+	lower := strings.ToLower(strings.TrimSpace(raw))
+	if strings.HasPrefix(lower, "magnet:") {
+		src, ok := s.reg.Get("web")
+		return "web", src, ok
+	}
+	u, err := url.Parse(raw)
+	if err == nil && u.Hostname() != "" {
+		host := strings.TrimPrefix(strings.ToLower(u.Hostname()), "www.")
+		type candidate struct {
+			key string
+			src source.Source
+		}
+		var candidates []candidate
+		for _, m := range s.reg.Enabled() {
+			if m.Key == "web" || m.SiteURL == "" {
+				continue
+			}
+			su, err := url.Parse(m.SiteURL)
+			if err != nil || strings.TrimPrefix(strings.ToLower(su.Hostname()), "www.") != host {
+				continue
+			}
+			src, ok := s.reg.Get(m.Key)
+			if !ok {
+				continue
+			}
+			if _, ok := src.(source.URLScraper); !ok {
+				continue
+			}
+			candidates = append(candidates, candidate{m.Key, src})
+		}
+		// qise 与 qise-video 共用 host，按路径区分。
+		prefer := ""
+		if strings.Contains(strings.ToLower(u.Path), "/video/") {
+			prefer = "qise-video"
+		} else if strings.Contains(strings.ToLower(u.Path), "/videos/") {
+			prefer = "qise"
+		}
+		for _, c := range candidates {
+			if c.key == prefer {
+				return c.key, c.src, true
+			}
+		}
+		if len(candidates) > 0 {
+			return candidates[0].key, candidates[0].src, true
+		}
+	}
+	src, ok := s.reg.Get("web")
+	return "web", src, ok
+}
 
 // scrapeJob 是一次抓取任务（同一时间只允许一个）。
 type scrapeJob struct {
@@ -156,10 +209,13 @@ func (s *Server) handleScrape(w http.ResponseWriter, r *http.Request) {
 	}
 	if body.URL != "" {
 		srcKey := body.Source
+		var src source.Source
+		var ok bool
 		if srcKey == "" {
-			srcKey = "web"
+			srcKey, src, ok = s.pickLinkSource(body.URL)
+		} else {
+			src, ok = s.reg.Get(srcKey)
 		}
-		src, ok := s.reg.Get(srcKey)
 		if !ok {
 			bad(w, "未知源："+srcKey)
 			return

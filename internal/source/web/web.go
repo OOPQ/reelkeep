@@ -167,7 +167,7 @@ func MagnetRow(raw string) (model.Row, error) {
 	}
 	return model.Row{
 		Token: "magnet@" + strings.ToLower(hash), Status: "new",
-		Source: "web", SourceID: hash, Site: "magnet",
+		Source: "local", SourceID: hash, Site: "magnet",
 		Title: title, PageURL: raw, URL: raw, DownloadKind: "torrent",
 	}, nil
 }

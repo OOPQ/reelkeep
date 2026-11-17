@@ -381,9 +381,9 @@
   },
   {
     "key": "web",
-    "name": "网页/直链",
+    "name": "网页",
     "file": "web.ps1",
-    "enabled": true,
+    "enabled": false,
     "order": 80,
     "capabilities": [
       "scrape",

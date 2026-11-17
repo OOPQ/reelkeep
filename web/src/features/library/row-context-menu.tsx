@@ -23,6 +23,7 @@ export type RowMenuActions = {
   download: (row: Row) => void
   fav: (row: Row) => void
   collection: (row: Row) => void
+  tag: (row: Row) => void
   watched: (row: Row) => void
   rate: (row: Row, value: number) => void
   recycle: (row: Row) => void
@@ -71,9 +72,12 @@ export function RowContextMenu({
           <ContextMenuPrimitive.Item className={itemClass} onSelect={() => actions.collection(row)}>
             <ListPlus className="size-3.5" /> 加入合集
           </ContextMenuPrimitive.Item>
+          <ContextMenuPrimitive.Item className={itemClass} onSelect={() => actions.tag(row)}>
+            <ListPlus className="size-3.5" /> 编辑标签
+          </ContextMenuPrimitive.Item>
           {actions.removeFromCollection ? (
             <ContextMenuPrimitive.Item className={itemClass} onSelect={() => actions.removeFromCollection!(row)}>
-              <X className="size-3.5" /> 移除合集
+              <X className="size-3.5" /> 移出合集
             </ContextMenuPrimitive.Item>
           ) : null}
           <ContextMenuPrimitive.Sub>

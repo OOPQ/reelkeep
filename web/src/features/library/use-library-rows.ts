@@ -12,6 +12,7 @@ export type LibraryRowQuery = {
   dir: string
   offset: number
   limit: number
+  tags?: string
 }
 
 export function useLibraryRows(params: LibraryRowQuery, enabled: boolean) {
@@ -26,6 +27,7 @@ export function useLibraryRows(params: LibraryRowQuery, enabled: boolean) {
     dir: params.dir,
     offset: String(params.offset),
     limit: String(params.limit),
+    tags: params.tags || '',
   })
   return useQuery<{ ok: boolean; rows: Row[]; total: number }>({
     queryKey: ['library-rows', qs.toString()],

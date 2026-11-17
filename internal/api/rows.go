@@ -23,6 +23,12 @@ func (s *Server) handleRows(w http.ResponseWriter, r *http.Request) {
 		offset = 0
 	}
 	minDur, _ := strconv.Atoi(q.Get("minDur"))
+	var tags []int64
+	for _, raw := range strings.Split(q.Get("tags"), ",") {
+		if id, err := strconv.ParseInt(strings.TrimSpace(raw), 10, 64); err == nil && id > 0 {
+			tags = append(tags, id)
+		}
+	}
 	rows, total, err := s.st.QueryRows(store.RowQuery{
 		Q:      strings.TrimSpace(q.Get("q")),
 		Status: q.Get("status"),
@@ -30,6 +36,7 @@ func (s *Server) handleRows(w http.ResponseWriter, r *http.Request) {
 		Flag:   q.Get("flag"),
 		Res:    q.Get("res"),
 		MinDur: minDur,
+		Tags:   tags,
 		Sort:   q.Get("sort"),
 		Dir:    q.Get("dir"),
 		Offset: offset,
@@ -39,6 +46,7 @@ func (s *Server) handleRows(w http.ResponseWriter, r *http.Request) {
 		bad(w, "查询失败: "+err.Error())
 		return
 	}
+	rows = s.attachTags(rows)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"ok": true, "rows": rows, "total": total, "offset": offset, "limit": limit,
 	})

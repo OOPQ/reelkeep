@@ -371,7 +371,7 @@
     "name": "本地",
     "file": "",
     "enabled": true,
-    "order": 90,
+    "order": 1,
     "capabilities": [],
     "siteUrl": "",
     "pageSize": 0,

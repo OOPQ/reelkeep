@@ -511,6 +511,25 @@ func (s *Server) project() Project {
 	}
 }
 
+// attachTags 给返回给前端的 row 补标签，不写入 items 表。
+func (s *Server) attachTags(rows []model.Row) []model.Row {
+	if len(rows) == 0 {
+		return rows
+	}
+	tokens := make([]string, 0, len(rows))
+	for i := range rows {
+		tokens = append(tokens, rows[i].Token)
+	}
+	tags, err := s.st.TagsByToken(tokens)
+	if err != nil {
+		return rows
+	}
+	for i := range rows {
+		rows[i].Tags = tags[rows[i].Token]
+	}
+	return rows
+}
+
 // SettingsPayload 是前端 settings 的形状。
 func (s *Server) settingsPayload() map[string]any {
 	s.mu.RLock()
@@ -553,6 +572,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/logo", s.handleLogo)
 	mux.HandleFunc("GET /api/deleted", s.handleDeleted)
 	mux.HandleFunc("GET /api/collections", s.handleCollections)
+	mux.HandleFunc("GET /api/tags", s.handleTags)
+	mux.HandleFunc("GET /api/tags/items", s.handleTagItems)
+	mux.HandleFunc("POST /api/tags", s.handleTagsWrite)
 	mux.HandleFunc("GET /api/collections/items", s.handleCollectionItems)
 	mux.HandleFunc("GET /api/snapshots", s.handleSnapshots)
 	mux.HandleFunc("GET /api/snapshot/jobs", s.handleSnapshotJobs)

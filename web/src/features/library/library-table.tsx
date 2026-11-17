@@ -35,7 +35,7 @@ type Props = {
   menu: RowMenuActions
 }
 
-const COL_ORDER: TableColKey[] = ['cover', 'title', 'rank', 'duration', 'res', 'views', 'likes', 'rating', 'first_seen', 'status']
+const COL_ORDER: TableColKey[] = ['cover', 'title', 'tags', 'rank', 'duration', 'res', 'views', 'likes', 'rating', 'first_seen', 'status']
 const SORTABLE: Partial<Record<TableColKey, SortKey>> = {
   title: 'title',
   rank: 'rank',
@@ -46,7 +46,7 @@ const SORTABLE: Partial<Record<TableColKey, SortKey>> = {
   first_seen: 'first_seen',
 }
 const COL_LABEL: Record<TableColKey, string> = {
-  cover: '封面', title: '标题', rank: '排名', duration: '时长', res: '分辨率',
+  cover: '封面', title: '标题', tags: '标签', rank: '排名', duration: '时长', res: '分辨率',
   views: '观看', likes: '点赞', rating: '评分', first_seen: '入库', status: '状态',
 }
 
@@ -217,6 +217,24 @@ export function LibraryTable({
                   {formatDate(row.first_seen)}
                 </div>
               </button>
+            </td>
+          ) : null}
+          {visible.includes('tags') ? (
+            <td className="px-2 py-2.5">
+              <div className="flex max-h-[42px] flex-wrap gap-1 overflow-hidden">
+                {(row.tags || []).slice(0, 3).map(tag => (
+                  <span
+                    key={tag.id}
+                    className="max-w-[88px] truncate rounded-full px-1.5 py-0.5 text-[8.5px]"
+                    style={{ background: `color-mix(in srgb, ${tag.color || 'var(--primary)'} 16%, transparent)`, color: tag.color || 'var(--primary-2)' }}
+                    title={tag.name}
+                  >
+                    {tag.name}
+                  </span>
+                ))}
+                {(row.tags?.length || 0) > 3 ? <span className="text-[8.5px] text-[color:var(--subtle)]">+{(row.tags?.length || 0) - 3}</span> : null}
+                {!row.tags?.length ? <span className="text-[9px] text-[color:var(--subtle)]">—</span> : null}
+              </div>
             </td>
           ) : null}
           {visible.includes('rank') ? <td className="px-2 py-2.5 text-[color:var(--muted)]">{row.rank || '—'}</td> : null}

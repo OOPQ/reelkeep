@@ -147,6 +147,21 @@ CREATE TABLE IF NOT EXISTS collections (
   updated_at TEXT DEFAULT ''
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_collections_name ON collections(name COLLATE NOCASE);
+CREATE TABLE IF NOT EXISTS tags (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  name       TEXT NOT NULL,
+  color      TEXT DEFAULT '',
+  created_at TEXT DEFAULT '',
+  updated_at TEXT DEFAULT ''
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_tags_name ON tags(name COLLATE NOCASE);
+CREATE TABLE IF NOT EXISTS item_tags (
+  tag_id   INTEGER NOT NULL,
+  token    TEXT NOT NULL,
+  added_at TEXT DEFAULT '',
+  PRIMARY KEY (tag_id, token)
+);
+CREATE INDEX IF NOT EXISTS idx_item_tags_token ON item_tags(token);
 CREATE TABLE IF NOT EXISTS collection_items (
   collection_id INTEGER NOT NULL,
   token         TEXT NOT NULL,
@@ -299,6 +314,58 @@ func (s *Store) ensureSchema() error {
 		}
 	}
 	return nil
+}
+
+// TagsByToken 批量返回每条数据的标签。
+func (s *Store) TagsByToken(tokens []string) (map[string][]model.TagRef, error) {
+	out := map[string][]model.TagRef{}
+	for start := 0; start < len(tokens); start += 400 {
+		end := start + 400
+		if end > len(tokens) {
+			end = len(tokens)
+		}
+		part := tokens[start:end]
+		args := make([]any, len(part))
+		for i, t := range part {
+			args[i] = t
+		}
+		placeholders := strings.TrimRight(strings.Repeat("?,", len(part)), ",")
+		rows, err := s.db.Query(`SELECT ci.token, c.id, c.name, COALESCE(c.color,'')
+			FROM item_tags ci JOIN tags c ON c.id = ci.tag_id
+			WHERE ci.token IN (`+placeholders+`) ORDER BY c.name`, args...)
+		if err != nil {
+			return nil, err
+		}
+		for rows.Next() {
+			var token string
+			var tag model.TagRef
+			if err := rows.Scan(&token, &tag.ID, &tag.Name, &tag.Color); err == nil {
+				out[token] = append(out[token], tag)
+			}
+		}
+		rows.Close()
+	}
+	return out, nil
+}
+
+// MergeCollection 把 source 标签下的数据合并到 target，并删除 source。
+func (s *Store) MergeCollection(source, target int64) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(`INSERT OR IGNORE INTO collection_items(collection_id, token, added_at)
+		SELECT ?, token, added_at FROM collection_items WHERE collection_id = ?`, target, source); err != nil {
+		return err
+	}
+	if _, err := tx.Exec("DELETE FROM collection_items WHERE collection_id = ?", source); err != nil {
+		return err
+	}
+	if _, err := tx.Exec("DELETE FROM collections WHERE id = ?", source); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // ClearHistory 清空播放历史字段，不影响文件。

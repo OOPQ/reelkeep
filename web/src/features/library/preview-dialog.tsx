@@ -60,6 +60,8 @@ export function PreviewDialog({ rows, token, autoplay = false, media, onClose, o
   const [pendingSnap, setPendingSnap] = React.useState<{ id: string; name: string } | null>(null)
   const [downloading, setDownloading] = React.useState(false)
   const [collectionsEditing, setCollectionsEditing] = React.useState(false)
+  const [collectionEditing, setCollectionEditing] = React.useState(false)
+  const [tagsEditing, setTagsEditing] = React.useState(false)
   const [hoverSnap, setHoverSnap] = React.useState<Snapshot | null>(null)
   const [timelineOpen, setTimelineOpen] = React.useState(false)
   const [volumeHint, setVolumeHint] = React.useState('')
@@ -125,6 +127,16 @@ export function PreviewDialog({ rows, token, autoplay = false, media, onClose, o
     queryFn: async () => {
       const res = await fetch(`/api/collections?token=${encodeURIComponent(token || '')}`, { cache: 'no-store' })
       if (!res.ok) throw new Error('读取合集失败')
+      return res.json()
+    },
+    enabled: !!token,
+    staleTime: 3_000,
+  })
+  const tagsQuery = useQuery<{ items: Array<{ id: number; name: string; color: string; has: boolean }> }>({
+    queryKey: ['tags', token],
+    queryFn: async () => {
+      const res = await fetch(`/api/tags?token=${encodeURIComponent(token || '')}`, { cache: 'no-store' })
+      if (!res.ok) throw new Error('读取标签失败')
       return res.json()
     },
     enabled: !!token,
@@ -288,7 +300,8 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
 
   const videoSrc = canPlay ? mediaUrl(media!.base, media!.key, row.token, Number(row.last_seen?.replace(/\D/g, '').slice(-9)) || 0) : ''
   const source = statusOf(row.status)
-  const memberships = collectionsQuery.data?.items || []
+  const memberships = tagsQuery.data?.items || []
+  const collectionMemberships = collectionsQuery.data?.items || []
 
   const copy = async () => {
     if (await copyText(row.page_url || row.url)) {
@@ -377,15 +390,27 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
   }
 
   const toggleCollection = async (col: { id: number; name: string; has: boolean }) => {
+    const r = await post<{ ok: boolean; error?: string }>('/api/collections', {
+      action: col.has ? 'remove' : 'add',
+      id: col.id,
+      tokens: [row?.token].filter(Boolean),
+    })
+    if (r.ok) {
+      qc.invalidateQueries({ queryKey: ['collections'] })
+      qc.invalidateQueries({ queryKey: ['state'] })
+    }
+  }
+
+  const toggleTag = async (col: { id: number; name: string; has: boolean }) => {
     try {
-      const r = await post<{ ok: boolean; error?: string }>('/api/collections', {
+      const r = await post<{ ok: boolean; error?: string }>('/api/tags', {
         action: col.has ? 'remove' : 'add',
         id: col.id,
         tokens: [row.token],
       })
       if (!r.ok) throw new Error(r.error || '操作失败')
       toast.success(col.has ? `已移出「${col.name}」` : `已加入「${col.name}」`)
-      qc.invalidateQueries({ queryKey: ['collections'] })
+      qc.invalidateQueries({ queryKey: ['tags'] })
       qc.invalidateQueries({ queryKey: ['state'] })
     } catch (e) {
       toast.error((e as Error).message)
@@ -689,13 +714,13 @@ onPlay={() => { setIsPlaying(true); if (videoRef.current) videoRef.current.playb
           <div className="mt-2">
             <div className="flex items-center gap-2">
               <span className="ui-field-label">合集</span>
-              <span className="text-[9px] text-[color:var(--subtle)]">{memberships.filter(c => c.has).length} 个</span>
-              <Button size="sm" variant="ghost" className="ml-auto h-6 px-1.5" onClick={() => setCollectionsEditing(v => !v)}>
-                <Pencil className="size-3" /> {collectionsEditing ? '完成' : '编辑'}
+              <span className="text-[9px] text-[color:var(--subtle)]">{collectionMemberships.filter(c => c.has).length} 个</span>
+              <Button size="sm" variant="ghost" className="ml-auto h-6 px-1.5" onClick={() => setCollectionEditing(v => !v)}>
+                <Pencil className="size-3" /> {collectionEditing ? '完成' : '编辑'}
               </Button>
             </div>
             <div className="mt-1 flex flex-wrap gap-1">
-              {(collectionsEditing ? memberships : memberships.filter(c => c.has)).map(col => (
+              {(collectionEditing ? collectionMemberships : collectionMemberships.filter(c => c.has)).map(col => (
                 <button
                   key={col.id}
                   type="button"
@@ -712,8 +737,39 @@ onPlay={() => { setIsPlaying(true); if (videoRef.current) videoRef.current.playb
                   {col.has ? <Check className="size-2.5" /> : null}
                 </button>
               ))}
-              {!memberships.length ? <span className="text-[9px] text-[color:var(--subtle)]">还没有合集</span> : null}
-              {!collectionsEditing && memberships.length && !memberships.some(c => c.has) ? <span className="text-[9px] text-[color:var(--subtle)]">未加入合集</span> : null}
+              {!collectionMemberships.length ? <span className="text-[9px] text-[color:var(--subtle)]">还没有合集</span> : null}
+              {!collectionEditing && collectionMemberships.length && !collectionMemberships.some(c => c.has) ? <span className="text-[9px] text-[color:var(--subtle)]">未加入合集</span> : null}
+            </div>
+          </div>
+
+          <div className="mt-2">
+            <div className="flex items-center gap-2">
+              <span className="ui-field-label">标签</span>
+              <span className="text-[9px] text-[color:var(--subtle)]">{memberships.filter(c => c.has).length} 个</span>
+              <Button size="sm" variant="ghost" className="ml-auto h-6 px-1.5" onClick={() => setTagsEditing(v => !v)}>
+                <Pencil className="size-3" /> {tagsEditing ? '完成' : '编辑'}
+              </Button>
+            </div>
+            <div className="mt-1 flex flex-wrap gap-1">
+              {(tagsEditing ? memberships : memberships.filter(c => c.has)).map(col => (
+                <button
+                  key={col.id}
+                  type="button"
+                  onClick={() => toggleTag(col)}
+                  className={cn(
+                    'inline-flex items-center gap-1 rounded-md border px-1.5 py-1 text-[9px] transition-colors',
+                    col.has
+                      ? 'border-[color:color-mix(in_srgb,var(--primary)_35%,var(--border))] bg-[color:color-mix(in_srgb,var(--primary)_8%,transparent)] text-[color:var(--primary-2)]'
+                      : 'border-[color:var(--border)] bg-[color:var(--surface-2)] text-[color:var(--muted)] hover:border-[color:var(--border-strong)]',
+                  )}
+                >
+                  <span className="size-1.5 rounded-full" style={{ background: col.color }} />
+                  {col.name}
+                  {col.has ? <Check className="size-2.5" /> : null}
+                </button>
+              ))}
+              {!memberships.length ? <span className="text-[9px] text-[color:var(--subtle)]">还没有标签</span> : null}
+              {!tagsEditing && memberships.length && !memberships.some(c => c.has) ? <span className="text-[9px] text-[color:var(--subtle)]">未添加标签</span> : null}
             </div>
           </div>
 

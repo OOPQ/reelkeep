@@ -15,6 +15,7 @@ export type DownloadItem = {
 export type Row = {
   token: string
   status: string
+  tags?: Array<{ id: number; name: string; color: string }>
   fav: string
   rank: string
   page: string

@@ -4,11 +4,12 @@ import { persist } from 'zustand/middleware'
 export type ViewMode = 'table' | 'gallery'
 export type Theme = 'dark' | 'light'
 export type Density = 'compact' | 'cozy' | 'large'
-export type TableColKey = 'cover' | 'title' | 'rank' | 'duration' | 'res' | 'views' | 'likes' | 'rating' | 'first_seen' | 'status'
+export type TableColKey = 'cover' | 'title' | 'tags' | 'rank' | 'duration' | 'res' | 'views' | 'likes' | 'rating' | 'first_seen' | 'status'
 
 export const TABLE_COL_LABELS: Record<TableColKey, string> = {
   cover: '封面',
   title: '标题',
+  tags: '标签',
   rank: '排名',
   duration: '时长',
   res: '分辨率',
@@ -24,6 +25,7 @@ export type TableColSetting = { visible: boolean; width: number }
 const DEFAULT_TABLE_COLS: Record<TableColKey, TableColSetting> = {
   cover: { visible: true, width: 84 },
   title: { visible: true, width: 320 },
+  tags: { visible: true, width: 170 },
   rank: { visible: true, width: 64 },
   duration: { visible: true, width: 78 },
   res: { visible: true, width: 94 },

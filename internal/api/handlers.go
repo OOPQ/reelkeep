@@ -65,6 +65,7 @@ func (s *Server) handleState(w http.ResponseWriter, r *http.Request) {
 		copy(rows, s.rows)
 	}
 	s.mu.RUnlock()
+	rows = s.attachTags(rows)
 
 	payload := map[string]any{
 		"ok":       true,
@@ -926,11 +927,12 @@ var palette = []string{"#4f8cff", "#f2a33c", "#3fb950", "#d2a8ff", "#f778ba", "#
 
 func (s *Server) handleCollectionsWrite(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		Action string   `json:"action"`
-		ID     int64    `json:"id"`
-		Name   string   `json:"name"`
-		Color  string   `json:"color"`
-		Tokens []string `json:"tokens"`
+		Action   string   `json:"action"`
+		ID       int64    `json:"id"`
+		TargetID int64    `json:"targetId"`
+		Name     string   `json:"name"`
+		Color    string   `json:"color"`
+		Tokens   []string `json:"tokens"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "invalid json"})
@@ -953,7 +955,7 @@ func (s *Server) handleCollectionsWrite(w http.ResponseWriter, r *http.Request) 
 			bad(w, "创建合集失败（可能重名）："+err.Error())
 			return
 		}
-		s.Bump(false)
+		s.Bump(true)
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "id": id})
 	case "rename", "color":
 		if body.ID <= 0 {
@@ -964,7 +966,18 @@ func (s *Server) handleCollectionsWrite(w http.ResponseWriter, r *http.Request) 
 			bad(w, err.Error())
 			return
 		}
-		s.Bump(false)
+		s.Bump(true)
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+	case "merge":
+		if body.ID <= 0 || body.TargetID <= 0 || body.ID == body.TargetID {
+			bad(w, "合并标签参数不正确")
+			return
+		}
+		if err := s.st.MergeCollection(body.ID, body.TargetID); err != nil {
+			bad(w, err.Error())
+			return
+		}
+		s.Bump(true)
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 	case "delete":
 		if body.ID <= 0 {
@@ -975,7 +988,7 @@ func (s *Server) handleCollectionsWrite(w http.ResponseWriter, r *http.Request) 
 			bad(w, err.Error())
 			return
 		}
-		s.Bump(false)
+		s.Bump(true)
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 	case "add", "remove":
 		if body.ID <= 0 || len(body.Tokens) == 0 {
@@ -992,7 +1005,7 @@ func (s *Server) handleCollectionsWrite(w http.ResponseWriter, r *http.Request) 
 			bad(w, err.Error())
 			return
 		}
-		s.Bump(false)
+		s.Bump(true)
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 	default:
 		bad(w, "未知动作: "+body.Action)

@@ -5,6 +5,7 @@ export function SelectionBar({
   count,
   onDownload,
   onCollection,
+  onTag,
   onRecycle,
   onFav,
   onWatched,
@@ -15,6 +16,7 @@ export function SelectionBar({
   count: number
   onDownload: () => void
   onCollection: () => void
+  onTag: () => void
   onRecycle: () => void
   onFav: () => void
   onWatched: () => void
@@ -28,6 +30,7 @@ export function SelectionBar({
       <span className="whitespace-nowrap px-1.5 text-[10px] text-[color:var(--muted)]">已选 <b className="text-[color:var(--foreground)]">{count}</b></span>
       <Button size="sm" variant="default" className="h-7 px-2" onClick={onDownload}><Download className="size-3.5" /> 下载</Button>
       <Button size="sm" variant="ghost" className="h-7 px-2" onClick={onCollection}><Layers className="size-3.5" /> 合集</Button>
+      <Button size="sm" variant="ghost" className="h-7 px-2" onClick={onTag}><Layers className="size-3.5" /> 标签</Button>
       <Button size="sm" variant="ghost" className="h-7 px-2" onClick={onFav}><Heart className="size-3.5" /> 收藏</Button>
       <Button size="sm" variant="ghost" className="h-7 px-2" onClick={onWatched}><Eye className="size-3.5" /> 已看</Button>
       <Button size="sm" variant="ghost" className="h-7 px-2" onClick={onMarkDone}><Check className="size-3.5" /> 完成</Button>

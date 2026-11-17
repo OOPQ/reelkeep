@@ -15,6 +15,7 @@ type RowQuery struct {
 	Flag   string
 	Res    string
 	MinDur int
+	Tags   []int64
 	Sort   string
 	Dir    string
 	Offset int
@@ -40,6 +41,14 @@ func (q RowQuery) where() (string, []any) {
 	if q.MinDur > 0 {
 		parts = append(parts, "CAST(NULLIF(seconds,'') AS INTEGER) >= ?")
 		args = append(args, q.MinDur)
+	}
+	if len(q.Tags) > 0 {
+		ph := strings.TrimRight(strings.Repeat("?,", len(q.Tags)), ",")
+		parts = append(parts, "token IN (SELECT token FROM item_tags WHERE tag_id IN ("+ph+") GROUP BY token HAVING COUNT(DISTINCT tag_id) = ?)")
+		for _, id := range q.Tags {
+			args = append(args, id)
+		}
+		args = append(args, len(q.Tags))
 	}
 	switch q.Flag {
 	case "fav":

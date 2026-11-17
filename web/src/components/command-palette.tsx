@@ -34,7 +34,7 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
   const items: Item[] = [
     { key: 'library', label: '媒体库', hint: '台账 / 画廊', icon: Library, run: () => go('/') },
     { key: 'queue', label: '下载队列', hint: '进度 / 历史', icon: Download, run: () => go('/queue') },
-    { key: 'collections', label: '合集', hint: '分组浏览', icon: Layers, run: () => go('/collections') },
+    { key: 'tags', label: '标签', hint: '标签浏览', icon: Layers, run: () => go('/tags') },
     { key: 'bin', label: '回收站', hint: '恢复 / 彻底删除', icon: Trash2, run: () => go('/bin') },
     { key: 'settings', label: '设置', hint: '路径 / 代理 / 界面', icon: Settings, run: () => go('/settings') },
     {

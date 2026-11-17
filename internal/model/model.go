@@ -3,40 +3,48 @@ package model
 // Row 是台账的一行。字段顺序与 data.db 的 items 表、ledger.csv 表头完全一致，
 // 34 列一个不多一个不少 —— 这是旧版（PowerShell）和前端共同依赖的硬契约。
 type Row struct {
-	Token           string `json:"token"`
-	Status          string `json:"status"`
-	Fav             string `json:"fav"`
-	Rank            string `json:"rank"`
-	Page            string `json:"page"`
-	Duration        string `json:"duration"`
-	Seconds         string `json:"seconds"`
-	Res             string `json:"res"`
-	Views           string `json:"views"`
-	Likes           string `json:"likes"`
-	Uploaded        string `json:"uploaded"`
-	URL             string `json:"url"`
-	PageURL         string `json:"page_url"`
-	Site            string `json:"site"`
-	Source          string `json:"source"`
-	SourceID        string `json:"source_id"`
-	Title           string `json:"title"`
-	CoverURL        string `json:"cover_url"`
-	DownloadKind    string `json:"download_kind"`
-	DownloadHeaders string `json:"download_headers"`
-	Extra           string `json:"extra"`
-	FirstSeen       string `json:"first_seen"`
-	LastSeen        string `json:"last_seen"`
-	SentAt          string `json:"sent_at"`
-	Note            string `json:"note"`
-	FileName        string `json:"file_name"`
-	FilePath        string `json:"file_path"`
-	FileSize        string `json:"file_size"`
-	FileDate        string `json:"file_date"`
-	PlayCount       string `json:"play_count"`
-	LastPlay        string `json:"last_play"`
-	Rating          string `json:"rating"`
-	RecycledAt      string `json:"recycled_at"`
-	RecycledFrom    string `json:"recycled_from"`
+	Token           string   `json:"token"`
+	Status          string   `json:"status"`
+	Fav             string   `json:"fav"`
+	Rank            string   `json:"rank"`
+	Page            string   `json:"page"`
+	Duration        string   `json:"duration"`
+	Seconds         string   `json:"seconds"`
+	Res             string   `json:"res"`
+	Views           string   `json:"views"`
+	Likes           string   `json:"likes"`
+	Uploaded        string   `json:"uploaded"`
+	URL             string   `json:"url"`
+	PageURL         string   `json:"page_url"`
+	Site            string   `json:"site"`
+	Source          string   `json:"source"`
+	SourceID        string   `json:"source_id"`
+	Title           string   `json:"title"`
+	CoverURL        string   `json:"cover_url"`
+	DownloadKind    string   `json:"download_kind"`
+	DownloadHeaders string   `json:"download_headers"`
+	Extra           string   `json:"extra"`
+	FirstSeen       string   `json:"first_seen"`
+	LastSeen        string   `json:"last_seen"`
+	SentAt          string   `json:"sent_at"`
+	Note            string   `json:"note"`
+	FileName        string   `json:"file_name"`
+	FilePath        string   `json:"file_path"`
+	FileSize        string   `json:"file_size"`
+	FileDate        string   `json:"file_date"`
+	PlayCount       string   `json:"play_count"`
+	LastPlay        string   `json:"last_play"`
+	Rating          string   `json:"rating"`
+	RecycledAt      string   `json:"recycled_at"`
+	RecycledFrom    string   `json:"recycled_from"`
+	Tags            []TagRef `json:"tags,omitempty"`
+}
+
+// TagRef 是媒体库条目携带的标签。
+type TagRef struct {
+	ID    int64  `json:"id"`
+	Name  string `json:"name"`
+	Color string `json:"color"`
 }
 
 // Columns 是 items 表的列名，顺序与 Row 字段一致。

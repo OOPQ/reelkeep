@@ -244,6 +244,7 @@ export function CollectionsPage() {
     download: row => { void actions.download([row.token]) },
     fav: row => { void actions.fav([row.token], row.fav !== '1') },
     collection: row => { void row; toast.info('在台账中右键加入其他合集') },
+    tag: row => { void row; toast.info('在台账中右键编辑标签') },
     watched: row => { void actions.watched([row.token], !row.last_play) },
     rate: (row, value) => { void actions.rate([row.token], value) },
     recycle: row => { void actions.recycle([row.token]) },

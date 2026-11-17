@@ -250,6 +250,18 @@ func (r *Registry) Remove(id string) {
 	r.extra = kept
 }
 
+// sourceRank 固定本地在最前、其他在最后。
+func sourceRank(key string) int {
+	switch strings.ToLower(key) {
+	case "local":
+		return 0
+	case "other":
+		return 2
+	default:
+		return 1
+	}
+}
+
 // Enabled 返回已启用的源（内置 + 导入，按 order 排序）。
 // 同 id 的导入源会覆盖内置清单，避免界面上出现两条同名源。
 func (r *Registry) Enabled() []Manifest {
@@ -267,17 +279,9 @@ func (r *Registry) Enabled() []Manifest {
 	}
 	all = append(all, r.extra...)
 	sort.SliceStable(all, func(i, j int) bool {
-		if all[i].Key == "pektino" {
-			return all[j].Key != "pektino"
-		}
-		if all[j].Key == "pektino" {
-			return false
-		}
-		if all[i].Key == "local" {
-			return false
-		}
-		if all[j].Key == "local" {
-			return true
+		ri, rj := sourceRank(all[i].Key), sourceRank(all[j].Key)
+		if ri != rj {
+			return ri < rj
 		}
 		if all[i].Order != all[j].Order {
 			return all[i].Order < all[j].Order

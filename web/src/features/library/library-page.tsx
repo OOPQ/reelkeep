@@ -16,6 +16,7 @@ import {
   FolderX,
   Heart,
   LayoutGrid,
+  Layers,
   Library,
   ListChecks,
   Link2,
@@ -25,6 +26,7 @@ import {
   SlidersHorizontal,
   Sparkles,
   Table2,
+  Tags,
 } from 'lucide-react'
 import { useAppState } from '@/features/use-app-state'
 import { confirmAction } from '@/store/confirm'
@@ -48,6 +50,7 @@ import { filterRows, sortRows, type LibraryFilters, type SortDir, type SortKey }
 import { useLibraryRows } from './use-library-rows'
 import { SelectionBar } from './selection-bar'
 import { CollectionPicker } from './collection-picker'
+import { TagPicker } from './tag-picker'
 import { LinkScrapeDialog, ScrapeDialog } from './scrape-dialog'
 import type { RowMenuActions } from './row-context-menu'
 
@@ -106,7 +109,6 @@ export function LibraryPage() {
   const actions = useLibraryActions()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
-  const collectionId = Number(searchParams.get('collection')) || null
   const batchMode = searchParams.get('batch') === '1'
 
   const view = useUiStore(s => s.view)
@@ -120,6 +122,9 @@ export function LibraryPage() {
   const previewToken = useUiStore(s => s.previewToken)
   const openPreview = useUiStore(s => s.openPreview)
 
+const collectionId = Number(searchParams.get('collection')) || null
+const tagIds = React.useMemo(() => (searchParams.get('tags') || '')
+  .split(',').map(Number).filter(n => Number.isFinite(n) && n > 0), [searchParams])
 const [query, setQuery] = React.useState(searchParams.get('q') || '')
   const deferredQuery = React.useDeferredValue(query)
 const [status, setStatus] = React.useState(searchParams.get('status') || 'all')
@@ -132,17 +137,38 @@ const [sortDir, setSortDir] = React.useState<SortDir>((searchParams.get('sort')?
 const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
   const [page, setPage] = React.useState(1)
   const [filterOpen, setFilterOpen] = React.useState(false)
+  const [tagsOpen, setTagsOpen] = React.useState(false)
+  const [collectionsOpen, setCollectionsOpen] = React.useState(false)
   const [colsOpen, setColsOpen] = React.useState(false)
   const tableCols = useUiStore(s => s.tableCols)
   const setTableCol = useUiStore(s => s.setTableCol)
   const resetTableCols = useUiStore(s => s.resetTableCols)
   const [pickerTokens, setPickerTokens] = React.useState<string[] | null>(null)
+  const [tagPickerTokens, setTagPickerTokens] = React.useState<string[] | null>(null)
   const [scrapeOpen, setScrapeOpen] = React.useState(false)
   const [linkOpen, setLinkOpen] = React.useState(false)
   const [savedViews, setSavedViews] = React.useState<SavedView[]>(() => {
     try { return JSON.parse(localStorage.getItem('pektino.views.v1') || '[]') } catch { return [] }
   })
 
+  const tagsQuery = useQuery<{ items: Array<{ id: number; name: string; color: string }> }>({
+    queryKey: ['tags'],
+    queryFn: async () => {
+      const res = await fetch('/api/tags', { cache: 'no-store' })
+      if (!res.ok) throw new Error('读取标签失败')
+      return res.json()
+    },
+    staleTime: 5_000,
+  })
+  const collectionsQuery = useQuery<{ items: Array<{ id: number; name: string }> }>({
+    queryKey: ['collections'],
+    queryFn: async () => {
+      const res = await fetch('/api/collections', { cache: 'no-store' })
+      if (!res.ok) throw new Error('读取合集失败')
+      return res.json()
+    },
+    staleTime: 5_000,
+  })
   const collectionItems = useQuery<{ tokens: string[] }>({
     queryKey: ['collection-items', collectionId],
     queryFn: async () => {
@@ -153,22 +179,17 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
     enabled: !!collectionId,
     staleTime: 3_000,
   })
-  const collections = useQuery<{ items: Array<{ id: number; name: string }> }>({
-    queryKey: ['collections'],
-    queryFn: async () => {
-      const res = await fetch('/api/collections', { cache: 'no-store' })
-      if (!res.ok) throw new Error('读取合集失败')
-      return res.json()
-    },
-    enabled: !!collectionId,
-    staleTime: 5_000,
-  })
-  const collectionName = collections.data?.items?.find(c => c.id === collectionId)?.name
   const collectionTokens = React.useMemo(() => new Set(collectionItems.data?.tokens || []), [collectionItems.data?.tokens])
+  const collectionName = collectionsQuery.data?.items.find(c => c.id === collectionId)?.name
+  const allTags = tagsQuery.data?.items || []
+  const selectedTagNames = allTags.filter(t => tagIds.includes(t.id)).map(t => t.name)
   const serverMode = !collectionId && !batchMode && per > 0
   const baseRows = React.useMemo(() => collectionId ? (data?.rows || []).filter(r => collectionTokens.has(r.token)) : (data?.rows || []), [data?.rows, collectionId, collectionTokens])
   const filters: LibraryFilters = { q: deferredQuery, status, source, flag, res, minDur }
-  const filtered = React.useMemo(() => serverMode ? [] : filterRows(baseRows, filters), [baseRows, deferredQuery, status, source, flag, res, minDur, serverMode])
+  const filtered = React.useMemo(() => {
+    if (serverMode) return []
+    return filterRows(baseRows, filters).filter(row => tagIds.every(id => (row.tags || []).some(t => t.id === id)))
+  }, [baseRows, deferredQuery, status, source, flag, res, minDur, serverMode, tagIds])
   const batchSet = React.useMemo(() => {
     if (!batchMode) return null
     let tokens: string[] = []
@@ -193,13 +214,14 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
     dir: sortDir,
     offset: Math.max(0, (page - 1) * per),
     limit: per,
+    tags: tagIds.join(','),
   }, serverMode)
   const displayRows = serverMode ? (serverQuery.data?.rows || []) : visible
   const displayTotal = serverMode ? (serverQuery.data?.total || 0) : sorted.length
   const displayPages = serverMode ? Math.max(1, Math.ceil(displayTotal / per)) : pages
   const displayPage = Math.min(page, displayPages)
 
-  React.useEffect(() => { setPage(1) }, [deferredQuery, status, source, flag, res, minDur, per, sortKey, sortDir, collectionId, batchMode])
+  React.useEffect(() => { setPage(1) }, [deferredQuery, status, source, flag, res, minDur, per, sortKey, sortDir, tagIds, collectionId, batchMode])
   React.useEffect(() => { if (page > displayPages) setPage(displayPages) }, [page, displayPages])
 
   React.useEffect(() => {
@@ -211,6 +233,8 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
     put('flag', flag, 'none')
     put('res', res, 'all')
     put('minDur', minDur, '')
+    put('tags', tagIds.join(','), '')
+    put('collection', collectionId ? String(collectionId) : '', '')
     put('per', String(per), '50')
     put('sort', `${sortKey}:${sortDir}`, 'rank:asc')
     if (next.toString() !== window.location.search.replace(/^\?/, '')) setSearchParams(next, { replace: true })
@@ -222,7 +246,18 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
   )
 
   const filterCount = [res !== 'all', minDur !== ''].filter(Boolean).length
-  const hasFilters = filterCount > 0 || query || status !== 'all' || source !== 'all' || flag !== 'none'
+  const hasFilters = filterCount > 0 || query || status !== 'all' || source !== 'all' || flag !== 'none' || tagIds.length > 0 || !!collectionId
+
+  const toggleTag = (id: number) => {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      const cur = (next.get('tags') || '').split(',').filter(Boolean).map(Number)
+      const out = cur.includes(id) ? cur.filter(x => x !== id) : [...cur, id]
+      if (out.length) next.set('tags', out.join(',')); else next.delete('tags')
+      next.delete('collection')
+      return next
+    })
+  }
 
   const reset = () => {
     setQuery('')
@@ -234,6 +269,7 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
     setSortKey('rank')
     setSortDir('asc')
     setPage(1)
+    setSearchParams(prev => { const n = new URLSearchParams(prev); n.delete('tags'); n.delete('collection'); return n })
   }
 
   const saveView = () => {
@@ -299,6 +335,7 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
     },
     fav: row => actions.fav([row.token], row.fav !== '1'),
     collection: row => setPickerTokens([row.token]),
+    tag: row => setTagPickerTokens([row.token]),
     watched: row => actions.watched([row.token], !row.last_play),
     rate: (row, value) => actions.rate([row.token], value),
     recycle: async row => {
@@ -475,6 +512,55 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
             </div>
           </PopoverContent>
         </Popover>
+        <Popover open={collectionsOpen} onOpenChange={setCollectionsOpen}>
+          <PopoverTrigger asChild>
+            <Button size="sm" variant="outline" className={cn(collectionId && 'border-[color:var(--primary)] text-[color:var(--primary-2)]')}>
+              <Layers className="size-3.5" /> 合集
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-[240px] p-2">
+            <button
+              type="button"
+              className="flex w-full items-center rounded-md px-2 py-1.5 text-left text-[11px] hover:bg-[color:var(--surface-2)]"
+              onClick={() => setSearchParams(prev => { const n = new URLSearchParams(prev); n.delete('collection'); return n })}
+            >
+              全部合集
+            </button>
+            {(collectionsQuery.data?.items || []).map(c => (
+              <button
+                key={c.id}
+                type="button"
+                className={cn('flex w-full items-center rounded-md px-2 py-1.5 text-left text-[11px] hover:bg-[color:var(--surface-2)]', collectionId === c.id && 'bg-[color:var(--surface-2)] text-[color:var(--primary-2)]')}
+                onClick={() => setSearchParams(prev => { const n = new URLSearchParams(prev); n.set('collection', String(c.id)); return n })}
+              >
+                {c.name}
+              </button>
+            ))}
+          </PopoverContent>
+        </Popover>
+        <Popover open={tagsOpen} onOpenChange={setTagsOpen}>
+          <PopoverTrigger asChild>
+            <Button size="sm" variant="outline" className={cn(tagIds.length > 0 && 'border-[color:var(--primary)] text-[color:var(--primary-2)]')}>
+              <Tags className="size-3.5" /> 标签{tagIds.length ? ` ${tagIds.length}` : ''}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-[260px] p-3">
+            <div className="mb-2 flex items-center justify-between text-[10px] text-[color:var(--subtle)]">
+              <span>多选为交集筛选</span>
+              {tagIds.length ? <button type="button" className="text-[color:var(--primary-2)]" onClick={() => setSearchParams(prev => { const n = new URLSearchParams(prev); n.delete('tags'); n.delete('collection'); return n })}>清空</button> : null}
+            </div>
+            <div className="max-h-[280px] space-y-1 overflow-auto">
+              {allTags.map(tag => (
+                <label key={tag.id} className="flex cursor-pointer items-center gap-2 rounded-lg px-1.5 py-1 text-[11px] hover:bg-[color:var(--surface-2)]">
+                  <Checkbox checked={tagIds.includes(tag.id)} onCheckedChange={() => toggleTag(tag.id)} />
+                  <span className="size-2 rounded-full" style={{ background: tag.color || 'var(--primary)' }} />
+                  <span className="truncate">{tag.name}</span>
+                </label>
+              ))}
+              {!allTags.length ? <div className="py-4 text-center text-[10px] text-[color:var(--subtle)]">还没有标签</div> : null}
+            </div>
+          </PopoverContent>
+        </Popover>
         <Popover open={colsOpen} onOpenChange={setColsOpen}>
           <PopoverTrigger asChild>
             <Button size="sm" variant="outline">
@@ -528,8 +614,8 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
         <Button size="sm" variant="outline" onClick={() => navigate('/queue')}>
           <Download className="size-3.5" /> 下载队列
         </Button>
-        <Button size="sm" variant="ghost" onClick={() => navigate('/collections')}>
-          <Library className="size-3.5" /> 合集
+        <Button size="sm" variant="ghost" onClick={() => navigate('/tags')}>
+          <Tags className="size-3.5" /> 标签
         </Button>
         <Button size="sm" variant={multi ? 'outline' : 'ghost'} onClick={() => setMulti(!multi)}>
           <ListChecks className="size-3.5" /> 多选
@@ -578,9 +664,9 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
             {source !== 'all' ? ` · ${sourceLabel}` : ''}
             {flag !== 'none' ? ` · ${flagLabel}` : ''}
             {query ? ` · 搜索“${query}”` : ''}
-            {collectionId ? ` · 合集「${collectionName || collectionId}」` : ''}
-            {collectionId ? (
-              <button type="button" onClick={() => setSearchParams({})} className="ml-1 text-[color:var(--primary-2)] hover:underline">清除合集</button>
+            {selectedTagNames.length ? ` · 标签「${selectedTagNames.join(' + ')}」` : ''}
+            {tagIds.length ? (
+              <button type="button" onClick={() => { setSearchParams(prev => { const n = new URLSearchParams(prev); n.delete('tags'); return n }) }} className="ml-1 text-[color:var(--primary-2)] hover:underline">清除标签</button>
             ) : null}
           </div>
           {isFetching ? <span className="text-[10px] text-[color:var(--primary-2)]">同步中…</span> : null}
@@ -628,6 +714,7 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
         count={multi ? selected.length : 0}
         onDownload={bulkDownload}
         onCollection={() => setPickerTokens(selected)}
+        onTag={() => setTagPickerTokens(selected)}
         onRecycle={bulkRecycle}
         onFav={() => actions.fav(selected, true)}
         onWatched={() => actions.watched(selected, true)}
@@ -640,6 +727,11 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
         open={pickerTokens !== null}
         tokens={pickerTokens || []}
         onOpenChange={open => { if (!open) setPickerTokens(null) }}
+      />
+      <TagPicker
+        open={tagPickerTokens !== null}
+        tokens={tagPickerTokens || []}
+        onOpenChange={open => { if (!open) setTagPickerTokens(null) }}
       />
       <ScrapeDialog open={scrapeOpen} onOpenChange={setScrapeOpen} sources={data?.sources || []} />
       <LinkScrapeDialog open={linkOpen} onOpenChange={setLinkOpen} />

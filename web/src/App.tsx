@@ -9,6 +9,7 @@ import { LibraryPage } from '@/features/library/library-page'
 import { HistoryPage } from '@/features/history/history-page'
 import { QueuePage } from '@/features/queue/queue-page'
 import { CollectionsPage } from '@/features/collections/collections-page'
+import { TagsPage } from '@/features/collections/tags-page'
 import { SettingsPage } from '@/features/settings/settings-page'
 import { BinPage } from '@/features/bin/bin-page'
 import { SourcesPage } from '@/features/sources/sources-page'
@@ -38,6 +39,7 @@ export default function App() {
               <Route index element={<LibraryPage />} />
               <Route path="queue" element={<QueuePage />} />
               <Route path="collections" element={<CollectionsPage />} />
+              <Route path="tags" element={<TagsPage />} />
               <Route path="bin" element={<BinPage />} />
               <Route path="sources" element={<SourcesPage />} />
               <Route path="settings" element={<SettingsPage />} />

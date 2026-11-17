@@ -70,6 +70,21 @@ export function LibraryGallery({ rows, downloads, selected, onToggle, onOpen, on
                 <CardMeta>
                   {row.duration || '—'} · {row.res || '—'} · {formatDate(row.first_seen)}
                 </CardMeta>
+                {row.tags?.length ? (
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {row.tags.slice(0, 3).map(tag => (
+                      <span
+                        key={tag.id}
+                        className="max-w-[92px] truncate rounded-full px-1.5 py-0.5 text-[8.5px]"
+                        style={{ background: `color-mix(in srgb, ${tag.color || 'var(--primary)'} 16%, transparent)`, color: tag.color || 'var(--primary-2)' }}
+                        title={tag.name}
+                      >
+                        {tag.name}
+                      </span>
+                    ))}
+                    {row.tags.length > 3 ? <span className="text-[8.5px] text-[color:var(--subtle)]">+{row.tags.length - 3}</span> : null}
+                  </div>
+                ) : null}
                 <div className="mt-1.5 flex items-center gap-2 text-[9px] text-[color:var(--subtle)]">
                   <span className="inline-flex items-center gap-1"><Eye className="size-3" /> {formatCount(row.views)}</span>
                   <span className="inline-flex items-center gap-1"><Heart className="size-3" /> {formatCount(row.likes)}</span>

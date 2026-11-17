@@ -63,6 +63,10 @@ func (q RowQuery) where() (string, []any) {
 		parts = append(parts, "last_play <> ''")
 	case "rated":
 		parts = append(parts, "CAST(NULLIF(rating,'') AS INTEGER) > 0")
+	case "top":
+		parts = append(parts, "CAST(NULLIF(rating,'') AS INTEGER) >= 4")
+	case "today":
+		parts = append(parts, "substr(first_seen,1,10) = date('now','localtime')")
 	}
 	search := strings.TrimSpace(q.Q)
 	if search != "" {

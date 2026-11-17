@@ -13,7 +13,12 @@ export type LibraryFilters = {
   minDur: string
 }
 
-const today = () => new Date().toISOString().slice(0, 10)
+const today = () => {
+  const d = new Date()
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  return `${d.getFullYear()}-${mm}-${dd}`
+}
 
 export function filterRows(rows: Row[], f: LibraryFilters) {
   const q = f.q.trim().toLowerCase()

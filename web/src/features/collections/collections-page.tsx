@@ -52,6 +52,11 @@ type Collection = {
 }
 
 const COLORS = ['#4f8cff', '#f2a33c', '#f06292', '#54c08a', '#9b7bff', '#ef5350', '#5bc0de', '#d4b106']
+const COLLECTION_SORT = [
+  { value: 'updated', label: '最近更新' },
+  { value: 'name', label: '按名称' },
+  { value: 'count', label: '条目最多' },
+]
 
 const COLLECTION_STATUS = [
   { value: 'all', label: '全部状态' },
@@ -70,6 +75,9 @@ export function CollectionsPage() {
   const [status, setStatus] = React.useState('all')
   const [newName, setNewName] = React.useState('')
   const [newColor, setNewColor] = React.useState(COLORS[0])
+  const [createOpen, setCreateOpen] = React.useState(false)
+  const [collectionSort, setCollectionSort] = React.useState('updated')
+  const [onlyNonEmpty, setOnlyNonEmpty] = React.useState(false)
   const [editorOpen, setEditorOpen] = React.useState(false)
   const [editName, setEditName] = React.useState('')
   const [editColor, setEditColor] = React.useState(COLORS[0])
@@ -101,8 +109,17 @@ export function CollectionsPage() {
   const current = currentId ? collections.find(c => c.id === currentId) || null : null
   const visibleCollections = React.useMemo(() => {
     const q = query.trim().toLowerCase()
-    return q ? collections.filter(c => c.name.toLowerCase().includes(q)) : collections
-  }, [collections, query])
+    const list = collections.filter(c => {
+      if (q && !c.name.toLowerCase().includes(q)) return false
+      if (onlyNonEmpty && c.count <= 0) return false
+      return true
+    })
+    return [...list].sort((a, b) => {
+      if (collectionSort === 'name') return a.name.localeCompare(b.name, 'zh-CN')
+      if (collectionSort === 'count') return b.count - a.count
+      return (b.updatedAt || b.createdAt || '').localeCompare(a.updatedAt || a.createdAt || '')
+    })
+  }, [collections, query, onlyNonEmpty, collectionSort])
 
   React.useEffect(() => {
     setSelected([])
@@ -169,6 +186,7 @@ export function CollectionsPage() {
       const r = await post<{ ok: boolean; id?: number; error?: string }>('/api/collections', { action: 'create', name, color: newColor })
       if (!r.ok || !r.id) throw new Error(r.error || '新建失败')
       setNewName('')
+      setCreateOpen(false)
       navigate(`/collections/${r.id}`)
       toast.success('合集已创建')
       invalidate()
@@ -296,28 +314,57 @@ export function CollectionsPage() {
           </div>
         </div>
         <div className="ml-auto flex flex-wrap items-center gap-1.5">
-          {currentId ? <Button size="sm" variant="ghost" onClick={() => navigate('/collections')}><ChevronLeft className="size-3.5" /> 返回合集</Button> : null}
-          <Button size="sm" variant="outline" disabled={!current} onClick={openEditor}><Pencil className="size-3.5" /> 编辑合集</Button>
-          <Button size="sm" variant="outline" disabled={!current} onClick={() => setCoverOpen(true)}><Image className="size-3.5" /> 更换封面</Button>
-          <Button size="sm" variant="ghost" disabled={!current} onClick={openCollectionInLibrary}><Eye className="size-3.5" /> 在台账中查看</Button>
+          {currentId ? (
+            <>
+              <Button size="sm" variant="ghost" onClick={() => navigate('/collections')}><ChevronLeft className="size-3.5" /> 返回合集</Button>
+              <Button size="sm" variant="outline" onClick={openEditor}><Pencil className="size-3.5" /> 编辑合集</Button>
+              <Button size="sm" variant="outline" onClick={() => setCoverOpen(true)}><Image className="size-3.5" /> 更换封面</Button>
+              <Button size="sm" variant="ghost" onClick={openCollectionInLibrary}><Eye className="size-3.5" /> 在台账中查看</Button>
+            </>
+          ) : (
+            <Button size="sm" onClick={() => setCreateOpen(true)}><Plus className="size-3.5" /> 新建合集</Button>
+          )}
         </div>
       </div>
 
       {!currentId ? (
+        <div className="flex flex-wrap items-center gap-2 rounded-[12px] border border-[color:var(--border)] bg-[color:var(--surface)] p-2.5">
+          <div className="relative min-w-[220px] flex-1">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-[color:var(--subtle)]" />
+            <Input value={query} onChange={e => setQuery(e.target.value)} placeholder="搜索合集名称" className="pl-8" />
+          </div>
+          <Select value={collectionSort} onValueChange={setCollectionSort} options={COLLECTION_SORT} className="w-[126px]" aria-label="合集排序" />
+          <label className="flex items-center gap-1.5 rounded-md border border-[color:var(--border)] px-2.5 py-1.5 text-[10px] text-[color:var(--muted)]">
+            <Checkbox checked={onlyNonEmpty} onCheckedChange={v => setOnlyNonEmpty(v === true)} />
+            仅看有内容
+          </label>
+          <span className="ml-auto text-[10px] text-[color:var(--subtle)]">{visibleCollections.length} / {collections.length}</span>
+        </div>
+      ) : (
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative min-w-[180px] flex-1">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-[color:var(--subtle)]" />
+            <Input value={query} onChange={e => setQuery(e.target.value)} placeholder="过滤 token / 标题" className="pl-8" />
+          </div>
+          <Select value={status} onValueChange={setStatus} options={COLLECTION_STATUS} className="w-[116px]" aria-label="合集状态筛选" />
+          <Button size="sm" variant={multi ? 'outline' : 'ghost'} onClick={() => setMulti(!multi)}><ListChecks className="size-3.5" /> 多选</Button>
+          <Button size="sm" variant="ghost" onClick={() => { setQuery(''); setStatus('all') }} disabled={!query && status === 'all'}><RotateCcw className="size-3.5" /> 重置</Button>
+        </div>
+      )}
+
+      {!currentId ? (
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
         {visibleCollections.map(col => {
-          const active = current?.id === col.id
           return (
             <button
               key={col.id}
               type="button"
               onClick={() => navigate(`/collections/${col.id}`)}
               className={cn(
-                'group relative overflow-hidden rounded-[12px] border bg-[color:var(--surface)] text-left transition-all hover:-translate-y-0.5 hover:border-[color:var(--border-strong)]',
-                active ? 'border-[color:var(--primary)] ring-1 ring-[color:var(--primary)]/30' : 'border-[color:var(--border)]',
+                'group overflow-hidden rounded-[14px] border border-[color:var(--border)] bg-[color:var(--surface)] text-left shadow-[0_6px_18px_rgba(0,0,0,.10)] transition-all hover:-translate-y-0.5 hover:border-[color:var(--border-strong)] hover:shadow-[0_12px_28px_rgba(0,0,0,.18)]',
               )}
             >
-              <div className="aspect-[16/10] overflow-hidden bg-[#070b10]">
+              <div className="aspect-[16/9] overflow-hidden bg-[#070b10]">
                 {col.coverToken ? (
                   <CoverImage token={col.coverToken} full alt={col.name} className="h-full w-full transition-transform duration-300 group-hover:scale-[1.03]" />
                 ) : (
@@ -326,48 +373,22 @@ export function CollectionsPage() {
                   </div>
                 )}
               </div>
-              <div className="absolute inset-x-0 bottom-0 bg-[linear-gradient(0deg,rgba(0,0,0,.86),rgba(0,0,0,.45),transparent)] px-3 pb-2.5 pt-8">
-                <div className="flex items-center gap-1.5">
-                  <span className="size-1.5 shrink-0 rounded-full" style={{ background: col.color || COLORS[0] }} />
-                  <span className="truncate text-[11px] font-medium text-white">{col.name}</span>
+              <div className="flex items-start gap-2.5 px-3 py-2.5">
+                <span className="mt-1.5 size-2 shrink-0 rounded-full" style={{ background: col.color || COLORS[0] }} />
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[12px] font-semibold text-[color:var(--foreground)]">{col.name}</div>
+                  <div className="mt-1 flex items-center gap-2 text-[9px] text-[color:var(--subtle)]">
+                    <span>{col.count} 条</span>
+                    {col.updatedAt ? <span>· {formatDate(col.updatedAt)}</span> : null}
+                  </div>
                 </div>
-                <div className="mt-0.5 text-[9px] text-white/55">{col.count} 条</div>
               </div>
-              {active ? <span className="absolute right-2 top-2 rounded-full bg-[color:var(--primary)] px-1.5 py-0.5 text-[8px] text-white">当前</span> : null}
             </button>
           )
         })}
       </div>
 
-      ) : null}
-
-
-      <div className="flex flex-wrap items-center gap-2">
-        <Input value={newName} onChange={e => setNewName(e.target.value)} placeholder="新合集名称" className="w-[170px]" onKeyDown={e => { if (e.key === 'Enter') create() }} />
-        <div className="flex items-center gap-1 rounded-lg border border-[color:var(--border)] bg-[color:var(--surface-2)] p-1">
-          {COLORS.map(c => (
-            <button
-              key={c}
-              type="button"
-              aria-label={`颜色 ${c}`}
-              onClick={() => setNewColor(c)}
-              className={cn('size-4 rounded-full border-2', newColor === c ? 'border-white' : 'border-transparent')}
-              style={{ background: c }}
-            />
-          ))}
-        </div>
-        <Button size="sm" onClick={create} disabled={!newName.trim() || busy}><Plus className="size-3.5" /> 新建</Button>
-        <div className="relative min-w-[180px] flex-1">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-[color:var(--subtle)]" />
-          <Input value={query} onChange={e => setQuery(e.target.value)} placeholder="过滤 token / 标题" className="pl-8" />
-        </div>
-        <Select value={status} onValueChange={setStatus} options={COLLECTION_STATUS} className="w-[116px]" aria-label="合集状态筛选" />
-        <Button size="sm" variant={multi ? 'outline' : 'ghost'} onClick={() => setMulti(!multi)}><ListChecks className="size-3.5" /> 多选</Button>
-        <Button size="sm" variant="ghost" onClick={() => { setQuery(''); setStatus('all') }} disabled={!query && status === 'all'}><RotateCcw className="size-3.5" /> 重置</Button>
-      </div>
-
-
-      {current ? (
+      ) : null}      {current ? (
         <div className="flex items-center justify-between gap-2 text-[10px] text-[color:var(--subtle)]">
           <span><b className="text-[color:var(--foreground)]">{rows.length}</b> 条 · {current.name}</span>
           {selected.length ? (
@@ -422,6 +443,48 @@ export function CollectionsPage() {
         ) : null}
         </>
       ) : null}
+
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent
+          title="新建合集"
+          description="合集用于把同一主题的影片放在一起。"
+          className="w-[min(440px,calc(100vw-40px))]"
+          footer={
+            <div className="flex w-full items-center gap-2">
+              <span className="flex-1" />
+              <Button size="sm" variant="outline" onClick={() => setCreateOpen(false)}>取消</Button>
+              <Button size="sm" onClick={create} disabled={!newName.trim() || busy}>创建合集</Button>
+            </div>
+          }
+        >
+          <div className="space-y-3 p-4">
+            <div>
+              <div className="ui-field-label mb-1.5">名称</div>
+              <Input value={newName} onChange={e => setNewName(e.target.value)} placeholder="例如：某系列、待看清单" maxLength={60} autoFocus onKeyDown={e => { if (e.key === 'Enter') create() }} />
+            </div>
+            <div>
+              <div className="ui-field-label mb-1.5">颜色</div>
+              <div className="flex flex-wrap gap-1.5">
+                {COLORS.map(c => (
+                  <button
+                    key={c}
+                    type="button"
+                    aria-label={`颜色 ${c}`}
+                    onClick={() => setNewColor(c)}
+                    className={cn('size-6 rounded-full border-2', newColor === c ? 'border-white' : 'border-transparent')}
+                    style={{ background: c }}
+                  />
+                ))}
+              </div>
+            </div>
+            <div className="flex items-center gap-2 rounded-lg border border-[color:var(--border)] bg-[color:var(--surface-2)] px-2.5 py-2">
+              <span className="size-2.5 rounded-full" style={{ background: newColor }} />
+              <span className="truncate text-[11px] text-[color:var(--muted)]">{newName || '合集名称'}</span>
+              <Badge className="ml-auto" tone="default">0 条</Badge>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={editorOpen} onOpenChange={setEditorOpen}>
         <DialogContent

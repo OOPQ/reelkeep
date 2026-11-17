@@ -257,6 +257,8 @@ type CollectionView struct {
 	Color      string `json:"color"`
 	CoverToken string `json:"coverToken,omitempty"`
 	Count      int    `json:"count,omitempty"`
+	CreatedAt  string `json:"createdAt,omitempty"`
+	UpdatedAt  string `json:"updatedAt,omitempty"`
 	Has        bool   `json:"has,omitempty"`
 }
 
@@ -275,14 +277,14 @@ func (s *Server) handleCollections(w http.ResponseWriter, r *http.Request) {
 		}
 		items := make([]CollectionView, 0, len(list))
 		for _, c := range list {
-			items = append(items, CollectionView{ID: c.ID, Name: c.Name, Color: c.Color, CoverToken: c.CoverToken, Has: has[c.ID]})
+			items = append(items, CollectionView{ID: c.ID, Name: c.Name, Color: c.Color, CoverToken: c.CoverToken, CreatedAt: c.CreatedAt, UpdatedAt: c.UpdatedAt, Has: has[c.ID]})
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"items": items})
 		return
 	}
 	items := make([]CollectionView, 0, len(list))
 	for _, c := range list {
-		items = append(items, CollectionView{ID: c.ID, Name: c.Name, Color: c.Color, CoverToken: c.CoverToken, Count: c.Count})
+		items = append(items, CollectionView{ID: c.ID, Name: c.Name, Color: c.Color, CoverToken: c.CoverToken, Count: c.Count, CreatedAt: c.CreatedAt, UpdatedAt: c.UpdatedAt})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"items": items})
 }

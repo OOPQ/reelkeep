@@ -102,6 +102,8 @@ type Collection struct {
 	Color      string `json:"color"`
 	CoverToken string `json:"coverToken,omitempty"`
 	Count      int    `json:"count"`
+	CreatedAt  string `json:"createdAt,omitempty"`
+	UpdatedAt  string `json:"updatedAt,omitempty"`
 }
 
 // DownloadTask 是一条下载任务（持久化在 download_tasks 表）。

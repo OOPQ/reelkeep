@@ -610,7 +610,8 @@ func (s *Store) Collections() ([]model.Collection, error) {
 	rows, err := s.db.Query(`
 		SELECT c.id, COALESCE(c.name,''), COALESCE(c.color,''),
 		       COALESCE(NULLIF(c.cover_token,''), (SELECT ci.token FROM collection_items ci WHERE ci.collection_id = c.id ORDER BY ci.added_at ASC, ci.rowid ASC LIMIT 1), ''),
-		       (SELECT COUNT(*) FROM collection_items ci WHERE ci.collection_id = c.id)
+		       (SELECT COUNT(*) FROM collection_items ci WHERE ci.collection_id = c.id),
+		       COALESCE(c.created_at,''), COALESCE(c.updated_at,'')
 		FROM collections c ORDER BY c.id`)
 	if err != nil {
 		return nil, err
@@ -619,7 +620,7 @@ func (s *Store) Collections() ([]model.Collection, error) {
 	var out []model.Collection
 	for rows.Next() {
 		var c model.Collection
-		if err := rows.Scan(&c.ID, &c.Name, &c.Color, &c.CoverToken, &c.Count); err != nil {
+		if err := rows.Scan(&c.ID, &c.Name, &c.Color, &c.CoverToken, &c.Count, &c.CreatedAt, &c.UpdatedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, c)
@@ -720,6 +721,9 @@ func (s *Store) AddToCollection(id int64, tokens []string) error {
 			return err
 		}
 	}
+	if _, err := tx.Exec("UPDATE collections SET updated_at = ? WHERE id = ?", now, id); err != nil {
+		return err
+	}
 	return tx.Commit()
 }
 
@@ -734,6 +738,9 @@ func (s *Store) RemoveFromCollection(id int64, tokens []string) error {
 		if _, err := tx.Exec("DELETE FROM collection_items WHERE collection_id = ? AND token = ?", id, t); err != nil {
 			return err
 		}
+	}
+	if _, err := tx.Exec("UPDATE collections SET updated_at = ? WHERE id = ?", time.Now().Format("2006-01-02 15:04:05"), id); err != nil {
+		return err
 	}
 	return tx.Commit()
 }

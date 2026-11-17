@@ -185,23 +185,7 @@ export function LinkScrapeDialog({
     const value = url.trim()
     if (!value) return
     if (value.toLowerCase().startsWith('magnet:')) {
-      setBusy(true)
-      try {
-        const r = await post<{ ok: boolean; error?: string; files?: { index: number; path: string; length: number }[] }>('/api/torrent/files', { url: value })
-        if (!r.ok) throw new Error(r.error || '读取磁力文件失败')
-        const list = (r.files || []).filter(f => f.length > 0 && /\.(mp4|mkv|webm|mov|m4v|avi|ts|flv|wmv)$/i.test(f.path))
-        if (!list.length) throw new Error('磁力任务没有可下载文件')
-        setFiles(list)
-        const video = list
-          .filter(f => /\.(mp4|mkv|webm|mov|m4v|avi|ts|flv|wmv)$/i.test(f.path))
-          .sort((a, b) => b.length - a.length)[0]
-        setSelected(video ? [video.index] : [])
-        setStep('files')
-      } catch (e) {
-        toast.error((e as Error).message)
-      } finally {
-        setBusy(false)
-      }
+      toast.error('暂不支持磁力链接')
       return
     }
     setBusy(true)
@@ -265,9 +249,9 @@ export function LinkScrapeDialog({
         <div className="space-y-3 p-4">
           {step === 'input' ? (
             <>
-              <Input value={url} onChange={e => setUrl(e.target.value)} placeholder="视频页 / .m3u8 / .mp4 / magnet:" autoFocus />
+              <Input value={url} onChange={e => setUrl(e.target.value)} placeholder="视频页 / .m3u8 / .mp4" autoFocus />
               <div className="text-[10px] leading-5 text-[color:var(--subtle)]">
-                磁力链接确认后必须先勾选文件并确认下载；取消则不会入库、不会创建任务。
+                目前仅支持网页链接和直链；磁力链接暂不支持。
               </div>
             </>
           ) : (

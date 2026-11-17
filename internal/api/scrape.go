@@ -208,6 +208,10 @@ func (s *Server) handleScrape(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if body.URL != "" {
+		if strings.HasPrefix(strings.ToLower(strings.TrimSpace(body.URL)), "magnet:") {
+			bad(w, "暂不支持磁力链接")
+			return
+		}
 		srcKey := body.Source
 		var src source.Source
 		var ok bool

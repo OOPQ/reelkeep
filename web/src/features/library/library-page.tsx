@@ -49,7 +49,6 @@ import { useLibraryRows } from './use-library-rows'
 import { SelectionBar } from './selection-bar'
 import { CollectionPicker } from './collection-picker'
 import { LinkScrapeDialog, ScrapeDialog } from './scrape-dialog'
-import { TorrentPickerDialog } from './torrent-picker-dialog'
 import type { RowMenuActions } from './row-context-menu'
 
 const STATUS_OPTIONS = [
@@ -140,7 +139,6 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
   const [pickerTokens, setPickerTokens] = React.useState<string[] | null>(null)
   const [scrapeOpen, setScrapeOpen] = React.useState(false)
   const [linkOpen, setLinkOpen] = React.useState(false)
-  const [torrentRow, setTorrentRow] = React.useState<Row | null>(null)
   const [savedViews, setSavedViews] = React.useState<SavedView[]>(() => {
     try { return JSON.parse(localStorage.getItem('pektino.views.v1') || '[]') } catch { return [] }
   })
@@ -288,7 +286,7 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
     open: openPreview,
     download: async row => {
       if (row.download_kind === 'torrent' || row.url?.toLowerCase().startsWith('magnet:')) {
-        setTorrentRow(row)
+        toast.error('暂不支持磁力链接')
         return
       }
       if (await confirmAction({ title: '开始下载', description: `把「${row.title?.trim() || row.token}」加入下载队列？`, confirmText: '开始下载' })) {
@@ -641,7 +639,6 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
       />
       <ScrapeDialog open={scrapeOpen} onOpenChange={setScrapeOpen} sources={data?.sources || []} />
       <LinkScrapeDialog open={linkOpen} onOpenChange={setLinkOpen} />
-      <TorrentPickerDialog row={torrentRow} onClose={() => setTorrentRow(null)} />
     </div>
   )
 }

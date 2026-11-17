@@ -222,40 +222,6 @@ export function SettingsPage() {
           <Field label="并发下载数">
             <Select value={concurrent} onValueChange={setConcurrent} options={Array.from({ length: 16 }, (_, i) => ({ value: String(i + 1), label: String(i + 1) }))} className="w-[100px]" aria-label="并发下载数" />
           </Field>
-          <Field label="磁力引擎">
-            <Select
-              value={torrentBackend}
-              onValueChange={setTorrentBackend}
-              options={[
-                { value: 'builtin', label: '内置 BT 引擎' },
-                { value: 'qbittorrent', label: 'qBittorrent Web API' },
-              ]}
-              className="w-full"
-              aria-label="磁力下载引擎"
-            />
-          </Field>
-          {torrentBackend === 'qbittorrent' ? (
-            <>
-              <Field label="qBittorrent 地址">
-                <Input value={qbtUrl} onChange={e => setQbtUrl(e.target.value)} placeholder="http://127.0.0.1:8080" />
-              </Field>
-              <Field label="qBittorrent 账号">
-                <div className="flex gap-2">
-                  <Input value={qbtUser} onChange={e => setQbtUser(e.target.value)} placeholder="用户名" className="flex-1" />
-                  <Input type="password" value={qbtPass} onChange={e => setQbtPass(e.target.value)} placeholder="密码" className="flex-1" />
-                </div>
-              </Field>
-              <div className="text-[9.5px] leading-5 text-[color:var(--subtle)]">
-                qBittorrent 需要能写入项目的 media/local 目录；建议关闭“自动管理种子”，由 Reelkeep 指定保存路径。
-              </div>
-            </>
-          ) : null}
-          <Field label="磁力限速">
-            <div className="flex items-center gap-2">
-              <Input type="number" min={0} max={102400} value={torrentLimit} onChange={e => setTorrentLimit(e.target.value)} className="w-[96px]" aria-label="磁力限速 KB/s" />
-              <span className="text-[10px] text-[color:var(--subtle)]">KB/s，0 表示不限速</span>
-            </div>
-          </Field>
           <Field label="失败重试">
             <div className="flex items-center gap-2">
               <Input type="number" min={1} max={8} value={retryCount} onChange={e => setRetryCount(e.target.value)} className="w-[72px]" aria-label="重试次数" />

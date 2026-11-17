@@ -34,6 +34,10 @@ type Settings struct {
 	RetryCount     int
 	RetryDelay     time.Duration
 	TorrentLimitKB int
+	TorrentBackend string
+	QbtURL         string
+	QbtUser        string
+	QbtPass        string
 }
 
 // Manager 管理下载队列。
@@ -254,7 +258,11 @@ func (m *Manager) run(ctx context.Context, t *Task) {
 	case strings.EqualFold(t.M.Mode, "hls"):
 		err = m.runHLS(ctx, t)
 	case strings.EqualFold(t.M.Mode, "torrent"):
-		err = m.runTorrent(ctx, t)
+		if strings.EqualFold(m.getSettings().TorrentBackend, "qbittorrent") {
+			err = m.runQbt(ctx, t)
+		} else {
+			err = m.runTorrent(ctx, t)
+		}
 	default:
 		err = m.runHTTP(ctx, t)
 	}

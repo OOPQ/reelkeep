@@ -84,6 +84,10 @@ func (s *Server) handleState(w http.ResponseWriter, r *http.Request) {
 			"retryCount":     cfg.RetryCount,
 			"retryDelay":     cfg.RetryDelay,
 			"torrentLimitKB": cfg.TorrentLimitKB,
+			"torrentBackend": cfg.TorrentBackend,
+			"qbtUrl":         cfg.QbtURL,
+			"qbtUser":        cfg.QbtUser,
+			"qbtPass":        cfg.QbtPass,
 		},
 		"sources": s.reg.Enabled(),
 		"media": map[string]any{
@@ -795,6 +799,10 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 		RetryCount     *int    `json:"retryCount"`
 		RetryDelay     *int    `json:"retryDelay"`
 		TorrentLimitKB *int    `json:"torrentLimitKB"`
+		TorrentBackend *string `json:"torrentBackend"`
+		QbtURL         *string `json:"qbtUrl"`
+		QbtUser        *string `json:"qbtUser"`
+		QbtPass        *string `json:"qbtPass"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "invalid json"})
@@ -862,6 +870,23 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 		}
 		cfg.TorrentLimitKB = *body.TorrentLimitKB
 	}
+	if body.TorrentBackend != nil {
+		v := strings.ToLower(strings.TrimSpace(*body.TorrentBackend))
+		if v != "builtin" && v != "qbittorrent" {
+			bad(w, "磁力后端需为 builtin 或 qbittorrent")
+			return
+		}
+		cfg.TorrentBackend = v
+	}
+	if body.QbtURL != nil {
+		cfg.QbtURL = strings.TrimSpace(*body.QbtURL)
+	}
+	if body.QbtUser != nil {
+		cfg.QbtUser = strings.TrimSpace(*body.QbtUser)
+	}
+	if body.QbtPass != nil {
+		cfg.QbtPass = *body.QbtPass
+	}
 	if err := config.SaveSettings(s.paths, cfg); err != nil {
 		bad(w, err.Error())
 		return
@@ -882,6 +907,8 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 			RetryCount:     cfg.RetryCount,
 			RetryDelay:     time.Duration(cfg.RetryDelay) * time.Second,
 			TorrentLimitKB: cfg.TorrentLimitKB,
+			TorrentBackend: cfg.TorrentBackend,
+			QbtURL:         cfg.QbtURL, QbtUser: cfg.QbtUser, QbtPass: cfg.QbtPass,
 		})
 	}
 	s.logbuf.Add("config", fmt.Sprintf("代理=%s 并发=%d", cfg.Proxy, cfg.Concurrent))

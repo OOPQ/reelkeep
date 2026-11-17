@@ -44,6 +44,10 @@ export function SettingsPage() {
   const [retryCount, setRetryCount] = React.useState('4')
   const [retryDelay, setRetryDelay] = React.useState('1')
   const [torrentLimit, setTorrentLimit] = React.useState('0')
+  const [torrentBackend, setTorrentBackend] = React.useState('builtin')
+  const [qbtUrl, setQbtUrl] = React.useState('http://127.0.0.1:8080')
+  const [qbtUser, setQbtUser] = React.useState('')
+  const [qbtPass, setQbtPass] = React.useState('')
   const [showCookie, setShowCookie] = React.useState(false)
   const [busy, setBusy] = React.useState<string | null>(null)
   const [checking, setChecking] = React.useState(false)
@@ -72,6 +76,10 @@ export function SettingsPage() {
     setRetryCount(String(data.settings.retryCount || 4))
     setRetryDelay(String(data.settings.retryDelay || 1))
     setTorrentLimit(String(data.settings.torrentLimitKB || 0))
+    setTorrentBackend(data.settings.torrentBackend || 'builtin')
+    setQbtUrl(data.settings.qbtUrl || 'http://127.0.0.1:8080')
+    setQbtUser(data.settings.qbtUser || '')
+    setQbtPass(data.settings.qbtPass || '')
   }, [data?.settings])
 
   const after = () => qc.invalidateQueries({ queryKey: ['state'] })
@@ -116,6 +124,10 @@ export function SettingsPage() {
         retryCount: Number(retryCount) || 4,
         retryDelay: Number(retryDelay) || 1,
         torrentLimitKB: Number(torrentLimit) || 0,
+        torrentBackend,
+        qbtUrl,
+        qbtUser,
+        qbtPass,
       })
       if (!r.ok) throw new Error(r.error || '保存失败')
       toast.success('下载设置已保存')
@@ -210,6 +222,34 @@ export function SettingsPage() {
           <Field label="并发下载数">
             <Select value={concurrent} onValueChange={setConcurrent} options={Array.from({ length: 16 }, (_, i) => ({ value: String(i + 1), label: String(i + 1) }))} className="w-[100px]" aria-label="并发下载数" />
           </Field>
+          <Field label="磁力引擎">
+            <Select
+              value={torrentBackend}
+              onValueChange={setTorrentBackend}
+              options={[
+                { value: 'builtin', label: '内置 BT 引擎' },
+                { value: 'qbittorrent', label: 'qBittorrent Web API' },
+              ]}
+              className="w-full"
+              aria-label="磁力下载引擎"
+            />
+          </Field>
+          {torrentBackend === 'qbittorrent' ? (
+            <>
+              <Field label="qBittorrent 地址">
+                <Input value={qbtUrl} onChange={e => setQbtUrl(e.target.value)} placeholder="http://127.0.0.1:8080" />
+              </Field>
+              <Field label="qBittorrent 账号">
+                <div className="flex gap-2">
+                  <Input value={qbtUser} onChange={e => setQbtUser(e.target.value)} placeholder="用户名" className="flex-1" />
+                  <Input type="password" value={qbtPass} onChange={e => setQbtPass(e.target.value)} placeholder="密码" className="flex-1" />
+                </div>
+              </Field>
+              <div className="text-[9.5px] leading-5 text-[color:var(--subtle)]">
+                qBittorrent 需要能写入项目的 media/local 目录；建议关闭“自动管理种子”，由 Reelkeep 指定保存路径。
+              </div>
+            </>
+          ) : null}
           <Field label="磁力限速">
             <div className="flex items-center gap-2">
               <Input type="number" min={0} max={102400} value={torrentLimit} onChange={e => setTorrentLimit(e.target.value)} className="w-[96px]" aria-label="磁力限速 KB/s" />

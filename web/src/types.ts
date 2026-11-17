@@ -93,6 +93,10 @@ export type AppSettings = {
   retryCount?: number
   retryDelay?: number
   torrentLimitKB?: number
+  torrentBackend?: string
+  qbtUrl?: string
+  qbtUser?: string
+  qbtPass?: string
 }
 
 export type Snapshot = {

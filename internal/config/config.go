@@ -97,6 +97,10 @@ type Settings struct {
 	RetryCount     int    `json:"retryCount"`
 	RetryDelay     int    `json:"retryDelay"`
 	TorrentLimitKB int    `json:"torrentLimitKB"`
+	TorrentBackend string `json:"torrentBackend"`
+	QbtURL         string `json:"qbtUrl"`
+	QbtUser        string `json:"qbtUser"`
+	QbtPass        string `json:"qbtPass"`
 }
 
 // LoadSettings 读配置；缺省值与原版一致。
@@ -115,6 +119,9 @@ func LoadSettings(p Paths) Settings {
 	}
 	if s.RetryDelay <= 0 {
 		s.RetryDelay = 1
+	}
+	if s.TorrentBackend == "" {
+		s.TorrentBackend = "builtin"
 	}
 	return s
 }

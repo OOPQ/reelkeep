@@ -524,6 +524,10 @@ func (s *Server) settingsPayload() map[string]any {
 		"retryCount":     cfg.RetryCount,
 		"retryDelay":     cfg.RetryDelay,
 		"torrentLimitKB": cfg.TorrentLimitKB,
+		"torrentBackend": cfg.TorrentBackend,
+		"qbtUrl":         cfg.QbtURL,
+		"qbtUser":        cfg.QbtUser,
+		"qbtPass":        cfg.QbtPass,
 	}
 }
 

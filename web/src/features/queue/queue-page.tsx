@@ -88,7 +88,8 @@ export function QueuePage() {
     const map = new Map<string, DItem[]>()
     const ordered = [...list].sort((a, b) => {
       const at = (x: DItem) => x.addedAt || rowMap.get(x.token)?.first_seen || ''
-      return at(b).localeCompare(at(a))
+      const byTime = at(b).localeCompare(at(a))
+      return byTime !== 0 ? byTime : a.token.localeCompare(b.token)
     })
     for (const item of ordered) {
       const row = rowMap.get(item.token)

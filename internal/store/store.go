@@ -168,6 +168,30 @@ CREATE TABLE IF NOT EXISTS download_tasks (
   history        INTEGER DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_download_state ON download_tasks(state);
+CREATE TABLE IF NOT EXISTS torrent_jobs (
+  id           TEXT PRIMARY KEY,
+  infohash     TEXT DEFAULT '',
+  magnet       TEXT DEFAULT '',
+  title        TEXT DEFAULT '',
+  save_dir     TEXT DEFAULT '',
+  state        TEXT DEFAULT 'queued',
+  total_bytes  INTEGER DEFAULT 0,
+  created_at   TEXT DEFAULT '',
+  updated_at   TEXT DEFAULT ''
+);
+CREATE TABLE IF NOT EXISTS torrent_job_files (
+  job_id       TEXT NOT NULL,
+  file_index   INTEGER NOT NULL,
+  path         TEXT DEFAULT '',
+  length       INTEGER DEFAULT 0,
+  selected     INTEGER DEFAULT 1,
+  state        TEXT DEFAULT 'queued',
+  bytes        INTEGER DEFAULT 0,
+  error        TEXT DEFAULT '',
+  media_token  TEXT DEFAULT '',
+  PRIMARY KEY (job_id, file_index)
+);
+CREATE INDEX IF NOT EXISTS idx_job_files_job ON torrent_job_files(job_id);
 `
 
 var ftsTriggers = []string{

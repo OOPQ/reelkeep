@@ -133,6 +133,7 @@ func Start(ctx context.Context, opt Options) (*Instance, error) {
 	dl.SetSettings(download.Settings{
 		Concurrent: settings.Concurrent, FFmpeg: settings.FFmpegPath, Proxy: settings.Proxy,
 		RetryCount: settings.RetryCount, RetryDelay: time.Duration(settings.RetryDelay) * time.Second,
+		TorrentLimitKB: settings.TorrentLimitKB,
 	})
 
 	srv := api.New(paths, st, reg, mgr, dl, settings, assets)

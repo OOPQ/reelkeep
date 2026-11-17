@@ -77,12 +77,13 @@ func (s *Server) handleState(w http.ResponseWriter, r *http.Request) {
 		"download": s.downloadInfo(),
 		"project":  proj,
 		"settings": map[string]any{
-			"proxy":      cfg.Proxy,
-			"concurrent": cfg.Concurrent,
-			"ffmpegPath": cfg.FFmpegPath,
-			"qiseCookie": cfg.QiseCookie,
-			"retryCount": cfg.RetryCount,
-			"retryDelay": cfg.RetryDelay,
+			"proxy":          cfg.Proxy,
+			"concurrent":     cfg.Concurrent,
+			"ffmpegPath":     cfg.FFmpegPath,
+			"qiseCookie":     cfg.QiseCookie,
+			"retryCount":     cfg.RetryCount,
+			"retryDelay":     cfg.RetryDelay,
+			"torrentLimitKB": cfg.TorrentLimitKB,
 		},
 		"sources": s.reg.Enabled(),
 		"media": map[string]any{
@@ -787,12 +788,13 @@ func (s *Server) handleScan(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		Proxy      *string `json:"proxy"`
-		Concurrent *int    `json:"concurrent"`
-		FFmpegPath *string `json:"ffmpegPath"`
-		QiseCookie *string `json:"qiseCookie"`
-		RetryCount *int    `json:"retryCount"`
-		RetryDelay *int    `json:"retryDelay"`
+		Proxy          *string `json:"proxy"`
+		Concurrent     *int    `json:"concurrent"`
+		FFmpegPath     *string `json:"ffmpegPath"`
+		QiseCookie     *string `json:"qiseCookie"`
+		RetryCount     *int    `json:"retryCount"`
+		RetryDelay     *int    `json:"retryDelay"`
+		TorrentLimitKB *int    `json:"torrentLimitKB"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "invalid json"})
@@ -853,6 +855,13 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 		}
 		cfg.RetryDelay = *body.RetryDelay
 	}
+	if body.TorrentLimitKB != nil {
+		if *body.TorrentLimitKB < 0 || *body.TorrentLimitKB > 102400 {
+			bad(w, "磁力限速需在 0–102400 KB/s")
+			return
+		}
+		cfg.TorrentLimitKB = *body.TorrentLimitKB
+	}
 	if err := config.SaveSettings(s.paths, cfg); err != nil {
 		bad(w, err.Error())
 		return
@@ -867,11 +876,12 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 	websource.Configure(cfg.Proxy)
 	if s.dl != nil {
 		s.dl.SetSettings(download.Settings{
-			Concurrent: cfg.Concurrent,
-			FFmpeg:     cfg.FFmpegPath,
-			Proxy:      cfg.Proxy,
-			RetryCount: cfg.RetryCount,
-			RetryDelay: time.Duration(cfg.RetryDelay) * time.Second,
+			Concurrent:     cfg.Concurrent,
+			FFmpeg:         cfg.FFmpegPath,
+			Proxy:          cfg.Proxy,
+			RetryCount:     cfg.RetryCount,
+			RetryDelay:     time.Duration(cfg.RetryDelay) * time.Second,
+			TorrentLimitKB: cfg.TorrentLimitKB,
 		})
 	}
 	s.logbuf.Add("config", fmt.Sprintf("代理=%s 并发=%d", cfg.Proxy, cfg.Concurrent))

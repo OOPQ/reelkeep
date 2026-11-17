@@ -43,6 +43,7 @@ export function SettingsPage() {
   const [concurrent, setConcurrent] = React.useState('3')
   const [retryCount, setRetryCount] = React.useState('4')
   const [retryDelay, setRetryDelay] = React.useState('1')
+  const [torrentLimit, setTorrentLimit] = React.useState('0')
   const [showCookie, setShowCookie] = React.useState(false)
   const [busy, setBusy] = React.useState<string | null>(null)
   const [checking, setChecking] = React.useState(false)
@@ -70,6 +71,7 @@ export function SettingsPage() {
     setConcurrent(String(data.settings.concurrent || 3))
     setRetryCount(String(data.settings.retryCount || 4))
     setRetryDelay(String(data.settings.retryDelay || 1))
+    setTorrentLimit(String(data.settings.torrentLimitKB || 0))
   }, [data?.settings])
 
   const after = () => qc.invalidateQueries({ queryKey: ['state'] })
@@ -113,6 +115,7 @@ export function SettingsPage() {
         concurrent: Number(concurrent) || 3,
         retryCount: Number(retryCount) || 4,
         retryDelay: Number(retryDelay) || 1,
+        torrentLimitKB: Number(torrentLimit) || 0,
       })
       if (!r.ok) throw new Error(r.error || '保存失败')
       toast.success('下载设置已保存')
@@ -206,6 +209,12 @@ export function SettingsPage() {
           </Field>
           <Field label="并发下载数">
             <Select value={concurrent} onValueChange={setConcurrent} options={Array.from({ length: 16 }, (_, i) => ({ value: String(i + 1), label: String(i + 1) }))} className="w-[100px]" aria-label="并发下载数" />
+          </Field>
+          <Field label="磁力限速">
+            <div className="flex items-center gap-2">
+              <Input type="number" min={0} max={102400} value={torrentLimit} onChange={e => setTorrentLimit(e.target.value)} className="w-[96px]" aria-label="磁力限速 KB/s" />
+              <span className="text-[10px] text-[color:var(--subtle)]">KB/s，0 表示不限速</span>
+            </div>
           </Field>
           <Field label="失败重试">
             <div className="flex items-center gap-2">

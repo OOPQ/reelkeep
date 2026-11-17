@@ -517,12 +517,13 @@ func (s *Server) settingsPayload() map[string]any {
 	cfg := s.settings
 	s.mu.RUnlock()
 	return map[string]any{
-		"proxy":      cfg.Proxy,
-		"concurrent": cfg.Concurrent,
-		"ffmpegPath": cfg.FFmpegPath,
-		"qiseCookie": cfg.QiseCookie,
-		"retryCount": cfg.RetryCount,
-		"retryDelay": cfg.RetryDelay,
+		"proxy":          cfg.Proxy,
+		"concurrent":     cfg.Concurrent,
+		"ffmpegPath":     cfg.FFmpegPath,
+		"qiseCookie":     cfg.QiseCookie,
+		"retryCount":     cfg.RetryCount,
+		"retryDelay":     cfg.RetryDelay,
+		"torrentLimitKB": cfg.TorrentLimitKB,
 	}
 }
 
@@ -605,6 +606,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/download/repair", s.handleDownloadRepair)
 	mux.HandleFunc("POST /api/torrent/files", s.handleTorrentFiles)
 	mux.HandleFunc("POST /api/torrent/add", s.handleTorrentAdd)
+	mux.HandleFunc("GET /api/torrent/jobs", s.handleTorrentJobs)
 
 	// 尚未迁移到 Go 的能力：明确报错，不伪装成功
 	mux.HandleFunc("POST /api/refresh-url", s.handleRefreshURL)

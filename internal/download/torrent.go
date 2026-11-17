@@ -14,7 +14,9 @@ import (
 	"time"
 
 	"github.com/anacrolix/torrent"
+	"golang.org/x/time/rate"
 
+	"github.com/OOPQ/reelkeep/internal/model"
 	"github.com/OOPQ/reelkeep/internal/proc"
 )
 
@@ -27,6 +29,13 @@ type TorrentFile struct {
 
 var publicTrackers = [][]string{
 	{"udp://tracker.opentrackr.org:1337/announce", "udp://open.stealth.si:80/announce", "udp://tracker.torrent.eu.org:451/announce"},
+}
+
+func maxInt(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 type torrentSession struct {
@@ -75,6 +84,18 @@ func ListTorrentFiles(ctx context.Context, magnet, cachePath string) ([]TorrentF
 		return nil, err
 	}
 	defer client.Close()
+	if cachePath != "" {
+		if st, statErr := os.Stat(cachePath); statErr == nil && st.Size() > 0 {
+			if tor, err := client.AddTorrentFromFile(cachePath); err == nil {
+				files := tor.Files()
+				out := make([]TorrentFile, 0, len(files))
+				for i, f := range files {
+					out = append(out, TorrentFile{Index: i, Path: f.Path(), Length: f.Length()})
+				}
+				return out, nil
+			}
+		}
+	}
 	tor, err := client.AddMagnet(magnet)
 	if err != nil {
 		return nil, err
@@ -162,6 +183,9 @@ func (m *Manager) initTorrentSession(s *torrentSession, magnet string) {
 	cfg.Seed = false
 	cfg.ListenPort = 0
 	cfg.DisableIPv6 = false
+	if limit := m.getSettings().TorrentLimitKB; limit > 0 {
+		cfg.DownloadRateLimiter = rate.NewLimiter(rate.Limit(limit*1024), maxInt(limit*1024, 64*1024))
+	}
 	client, err := torrent.NewClient(cfg)
 	if err != nil {
 		s.err = fmt.Errorf("启动 BT 引擎失败: %w", err)
@@ -232,71 +256,177 @@ func (s *torrentSession) releaseFile(index int) {
 	}
 }
 
-// runTorrent 用同一个 infohash 的共享 BT 会话下载当前任务文件。
+// runTorrent 使用共享会话下载一个 Job 下所有勾选文件，完成后才生成媒体条目。
 func (m *Manager) runTorrent(ctx context.Context, t *Task) error {
-	final, _ := m.pathsFor(t)
-	if st, err := os.Stat(final); err == nil && st.Size() > 0 {
-		return nil
-	}
 	sess, err := m.acquireTorrent(ctx, t.M.URL)
 	if err != nil {
 		return err
 	}
 	defer m.releaseTorrent(sess)
-	index := 0
-	if len(t.M.Files) > 0 {
-		index = t.M.Files[0]
+	job, ok, err := m.st.GetJob(sess.hash)
+	if err != nil {
+		return err
 	}
-	file := sess.addFile(index)
-	if file == nil {
-		return errors.New("磁力任务没有这个文件")
+	if !ok {
+		return errors.New("磁力任务不存在")
 	}
-	defer sess.releaseFile(index)
-	if file.Length() <= 0 {
-		return errors.New("磁力文件为空")
+	type jobItem struct {
+		file *torrent.File
+		meta model.TorrentJobFile
 	}
+	var items []jobItem
+	var total int64
+	for _, jf := range job.Files {
+		if !jf.Selected {
+			continue
+		}
+		f := sess.addFile(jf.Index)
+		if f == nil {
+			continue
+		}
+		items = append(items, jobItem{file: f, meta: jf})
+		total += f.Length()
+	}
+	if len(items) == 0 {
+		return errors.New("磁力任务没有可下载文件")
+	}
+	defer func() {
+		for _, it := range items {
+			sess.releaseFile(it.meta.Index)
+		}
+	}()
 	m.mu.Lock()
-	t.M.Total = file.Length()
+	t.M.Total = total
+	t.M.Name = job.Title
 	m.mu.Unlock()
+	_ = m.st.SaveTask(t.M)
+	m.st.UpdateJobState(job.ID, "downloading")
 
-	ticker := time.NewTicker(500 * time.Millisecond)
+	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
-	tick := 0
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
-			tick++
-			done := file.BytesCompleted()
-			m.updateProgress(t, done)
-			if tick%10 == 0 {
-				st := sess.tor.Stats()
-				m.logf("torrent", fmt.Sprintf("hash=%s bytes=%d total=%d peers=%d seeders=%d", sess.hash, done, file.Length(), st.TotalPeers, st.ConnectedSeeders))
+			var done int64
+			all := true
+			for _, it := range items {
+				n := it.file.BytesCompleted()
+				done += n
+				if n < it.file.Length() {
+					all = false
+				}
+				m.st.UpdateJobFile(job.ID, it.meta.Index, "downloading", n, "", "")
 			}
-			if done >= file.Length() {
+			m.updateProgress(t, done)
+			if all {
 				goto complete
 			}
 		}
 	}
 
 complete:
-	if err := os.MkdirAll(filepath.Dir(final), 0o755); err != nil {
-		return err
+	used := map[string]bool{}
+	for _, it := range items {
+		if !isVideoFile(it.meta.Path) {
+			m.st.UpdateJobFile(job.ID, it.meta.Index, "done", it.file.Length(), "", "")
+			continue
+		}
+		src := filepath.Join(sess.dataDir, filepath.FromSlash(it.meta.Path))
+		dst := jobTargetPath(job.SaveDir, it.meta.Path, used)
+		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+			return err
+		}
+		if _, err := os.Stat(dst); err != nil {
+			if err := m.exportTorrentFile(ctx, src, dst); err != nil {
+				m.st.UpdateJobFile(job.ID, it.meta.Index, "failed", it.file.Length(), err.Error(), "")
+				continue
+			}
+		}
+		token := fmt.Sprintf("local@%s_%d", sess.hash, it.meta.Index)
+		m.registerJobItem(token, job, it.meta, dst)
+		m.st.UpdateJobFile(job.ID, it.meta.Index, "done", it.file.Length(), "", token)
 	}
-	src := filepath.Join(sess.dataDir, filepath.FromSlash(file.Path()))
-	if !isVideoFile(file.Path()) {
-		return errors.New("选中的文件不是视频")
-	}
-	m.mu.Lock()
-	t.M.Name = filepath.Base(file.Path())
-	m.mu.Unlock()
-	_ = m.st.SaveTask(t.M)
-	final = m.finalPath(t)
-	if err := m.exportTorrentFile(ctx, src, final); err != nil {
-		return err
-	}
+	m.st.UpdateJobState(job.ID, "done")
 	return nil
+}
+
+func (m *Manager) registerJobItem(token string, job model.TorrentJob, f model.TorrentJobFile, file string) {
+	st, err := os.Stat(file)
+	if err != nil {
+		return
+	}
+	title := strings.TrimSuffix(filepath.Base(file), filepath.Ext(file))
+	now := time.Now().Format("2006-01-02 15:04:05")
+	row := model.Row{
+		Token: token, Status: "done", Source: "local", Site: "local",
+		Title: title, URL: file, PageURL: filepath.Dir(file), DownloadKind: "local",
+		FileName: filepath.Base(file), FilePath: file,
+		FileSize: fmt.Sprintf("%d", st.Size()), FileDate: st.ModTime().Format("2006-01-02 15:04:05"),
+		FirstSeen: now, LastSeen: now, Note: "auto:torrent",
+	}
+	if err := m.st.UpsertRows([]model.Row{row}); err != nil {
+		m.logf("torrent", "写入媒体条目失败: "+err.Error())
+		return
+	}
+	m.autoCover(token, file)
+	if m.onRow != nil {
+		m.onRow(token)
+	}
+}
+
+func cleanSegment(s string) string {
+	s = strings.TrimSpace(s)
+	s = strings.Map(func(r rune) rune {
+		switch r {
+		case '/', '\\', ':', '*', '?', '"', '<', '>', '|':
+			return '_'
+		}
+		if r < 32 {
+			return -1
+		}
+		return r
+	}, s)
+	s = strings.Trim(s, " .")
+	if s == "" {
+		return "_"
+	}
+	return s
+}
+
+func jobTargetPath(saveDir, rel string, used map[string]bool) string {
+	parts := strings.Split(filepath.ToSlash(rel), "/")
+	for i := range parts {
+		parts[i] = cleanSegment(parts[i])
+	}
+	if len(parts) == 0 {
+		parts = []string{"video.mp4"}
+	}
+	last := parts[len(parts)-1]
+	if !strings.HasSuffix(strings.ToLower(last), ".mp4") {
+		last = strings.TrimSuffix(last, filepath.Ext(last)) + ".mp4"
+	}
+	parts[len(parts)-1] = last
+	relPath := filepath.Join(parts...)
+	full := filepath.Join(saveDir, relPath)
+	for used[strings.ToLower(full)] {
+		ext := filepath.Ext(full)
+		full = strings.TrimSuffix(full, ext) + "_2" + ext
+	}
+	used[strings.ToLower(full)] = true
+	return full
+}
+
+func (m *Manager) TorrentSessionStats(id string) (peers, seeders int) {
+	m.sessionMu.Lock()
+	s := m.sessions[id]
+	m.sessionMu.Unlock()
+	if s == nil || s.tor == nil {
+		return 0, 0
+	}
+	st := s.tor.Stats()
+	return st.TotalPeers, st.ConnectedSeeders
 }
 
 func (m *Manager) exportTorrentFile(ctx context.Context, src, dst string) error {

@@ -1,12 +1,15 @@
 export type DownloadItem = {
   token: string
+  title?: string
   state: string
   bytes: number
+  total?: number
   expected?: number
   speed?: number
   error?: string
   history?: boolean
   addedAt?: string
+  source?: string
 }
 
 export type Row = {
@@ -89,6 +92,7 @@ export type AppSettings = {
   qiseCookie?: string
   retryCount?: number
   retryDelay?: number
+  torrentLimitKB?: number
 }
 
 export type Snapshot = {

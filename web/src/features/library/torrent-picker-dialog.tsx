@@ -60,7 +60,7 @@ export function TorrentPickerDialog({ row, onClose }: { row: Row | null; onClose
         files: files.filter(f => selected.includes(f.index)),
       })
       if (!r.ok) throw new Error(r.error || '开始下载失败')
-      toast.success(`已创建 ${selected.length} 个下载任务`, { action: { label: '查看队列', onClick: () => navigate('/queue') } })
+      toast.success('已创建磁力任务', { action: { label: '查看队列', onClick: () => navigate('/queue') } })
       onClose()
     } catch (e) {
       toast.error((e as Error).message)

@@ -28,11 +28,12 @@ import (
 
 // Settings 是下载器需要的可变配置。
 type Settings struct {
-	Concurrent int
-	FFmpeg     string
-	Proxy      string
-	RetryCount int
-	RetryDelay time.Duration
+	Concurrent     int
+	FFmpeg         string
+	Proxy          string
+	RetryCount     int
+	RetryDelay     time.Duration
+	TorrentLimitKB int
 }
 
 // Manager 管理下载队列。
@@ -289,7 +290,9 @@ func (m *Manager) finish(t *Task, state string, err error) {
 	_ = m.st.SaveTask(t.M)
 	m.mu.Unlock()
 
-	if state == "done" {
+	if strings.HasPrefix(t.M.Token, "torrent@") {
+		m.st.UpdateJobState(strings.TrimPrefix(t.M.Token, "torrent@"), state)
+	} else if state == "done" {
 		m.updateLedger(t)
 	}
 	if m.onChange != nil {
@@ -391,6 +394,29 @@ func (m *Manager) Enqueue(t model.DownloadTask) (bool, error) {
 	return true, nil
 }
 
+func jobIDForToken(token string) string {
+	if strings.HasPrefix(token, "torrent@") {
+		return strings.TrimPrefix(token, "torrent@")
+	}
+	return ""
+}
+
+func (m *Manager) setJobFilesState(id, state string) {
+	if id == "" {
+		return
+	}
+	files, err := m.st.JobFiles(id)
+	if err != nil {
+		return
+	}
+	for _, f := range files {
+		if f.State == "done" {
+			continue
+		}
+		m.st.UpdateJobFile(id, f.Index, state, f.Bytes, f.Error, f.MediaToken)
+	}
+}
+
 // Pause 暂停/继续：tokens 为空表示全部。
 func (m *Manager) Pause(on bool, tokens []string) int {
 	m.mu.Lock()
@@ -405,11 +431,18 @@ func (m *Manager) Pause(on bool, tokens []string) int {
 					t.cancel()
 				}
 				_ = m.st.SaveTask(t.M)
+				if id := jobIDForToken(t.M.Token); id != "" {
+					m.st.UpdateJobState(id, "paused")
+				}
 				n++
 			}
 			if !on && t.M.State == "paused" {
 				t.M.State = "queued"
 				_ = m.st.SaveTask(t.M)
+				if id := jobIDForToken(t.M.Token); id != "" {
+					m.st.UpdateJobState(id, "queued")
+					m.setJobFilesState(id, "queued")
+				}
 				n++
 			}
 		}
@@ -434,11 +467,18 @@ func (m *Manager) Pause(on bool, tokens []string) int {
 					t.cancel()
 				}
 				_ = m.st.SaveTask(t.M)
+				if id := jobIDForToken(t.M.Token); id != "" {
+					m.st.UpdateJobState(id, "paused")
+				}
 				n++
 			}
 		} else if t.M.State == "paused" {
 			t.M.State = "queued"
 			_ = m.st.SaveTask(t.M)
+			if id := jobIDForToken(t.M.Token); id != "" {
+				m.st.UpdateJobState(id, "queued")
+				m.setJobFilesState(id, "queued")
+			}
 			n++
 		}
 	}
@@ -473,6 +513,10 @@ func (m *Manager) Cancel(tokens []string) int {
 			t.cancel()
 		}
 		_ = m.st.SaveTask(t.M)
+		if id := jobIDForToken(t.M.Token); id != "" {
+			m.st.UpdateJobState(id, "cancelled")
+			m.setJobFilesState(id, "cancelled")
+		}
 	}
 	m.mu.Unlock()
 	if m.onChange != nil {
@@ -508,6 +552,7 @@ func (m *Manager) Reset() int {
 // Item 是给前端的队列项。
 type Item struct {
 	Token   string `json:"token"`
+	Title   string `json:"title,omitempty"`
 	State   string `json:"state"`
 	Bytes   int64  `json:"bytes"`
 	Total   int64  `json:"total"`
@@ -563,7 +608,7 @@ func (m *Manager) Info() Info {
 		}
 		info.Bytes += t.M.Bytes
 		info.Items = append(info.Items, Item{
-			Token: t.M.Token, State: state, Bytes: t.M.Bytes, Total: t.M.Total,
+			Token: t.M.Token, Title: t.M.Name, State: state, Bytes: t.M.Bytes, Total: t.M.Total,
 			Speed: t.speed, Error: t.M.Error, History: t.M.History,
 			AddedAt: t.M.AddedAt, Source: t.M.Source,
 		})

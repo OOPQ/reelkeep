@@ -90,12 +90,13 @@ func IsProject(root string) bool {
 
 // Settings 对应 项目\data\config.json。
 type Settings struct {
-	Proxy      string `json:"proxy"`
-	Concurrent int    `json:"concurrent"`
-	FFmpegPath string `json:"ffmpegPath"`
-	QiseCookie string `json:"qiseCookie"`
-	RetryCount int    `json:"retryCount"`
-	RetryDelay int    `json:"retryDelay"`
+	Proxy          string `json:"proxy"`
+	Concurrent     int    `json:"concurrent"`
+	FFmpegPath     string `json:"ffmpegPath"`
+	QiseCookie     string `json:"qiseCookie"`
+	RetryCount     int    `json:"retryCount"`
+	RetryDelay     int    `json:"retryDelay"`
+	TorrentLimitKB int    `json:"torrentLimitKB"`
 }
 
 // LoadSettings 读配置；缺省值与原版一致。

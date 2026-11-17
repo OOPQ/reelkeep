@@ -8,6 +8,7 @@ import {
   Download,
   FolderOpen,
   LoaderCircle,
+  ListTree,
   Pause,
   Play,
   RefreshCw,
@@ -33,10 +34,11 @@ import { Card } from '@/components/ui/card'
 import { CoverImage } from '@/components/cover-image'
 import { StatusBadge } from '@/components/status-badge'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { TorrentJobDialog } from './torrent-job-dialog'
 import { PreviewDialog } from '@/features/library/preview-dialog'
 
 type Tab = 'active' | 'done' | 'failed' | 'cancelled'
-type DItem = { token: string; state: string; bytes: number; speed?: number; error?: string; history?: boolean; addedAt?: string }
+type DItem = { token: string; title?: string; state: string; bytes: number; total?: number; speed?: number; error?: string; history?: boolean; addedAt?: string; source?: string }
 
 const ACTIVE = new Set(['downloading', 'queued', 'paused'])
 
@@ -53,6 +55,7 @@ export function QueuePage() {
   const [searchParams] = useSearchParams()
   const tabParam = searchParams.get('tab')
   const [tab, setTab] = React.useState<Tab>((tabParam as Tab) || 'active')
+  const [jobId, setJobId] = React.useState<string | null>(null)
   const openPreview = useUiStore(s => s.openPreview)
   const userPicked = React.useRef(Boolean(tabParam))
   React.useEffect(() => {
@@ -231,7 +234,7 @@ export function QueuePage() {
             <div className="space-y-2 border-t border-[color:var(--border)] p-2.5">
         {groupItems.map(item => {
           const row = rowMap.get(item.token)
-          const expected = Number(row?.file_size) || 0
+          const expected = Number(row?.file_size) || Number(item.total) || 0
           const pct = item.state === 'done' ? 100 : expected ? Math.min(99, Math.round((item.bytes / expected) * 100)) : 0
           const canPause = item.state === 'downloading' || item.state === 'queued'
           const canResume = item.state === 'paused'
@@ -260,7 +263,7 @@ export function QueuePage() {
 
               <div className="min-w-0 flex-1">
                 <div className="flex min-w-0 items-center gap-2">
-                  <div className="truncate text-[11.5px] font-medium">{row ? rowTitle(row) : item.token}</div>
+                  <div className="truncate text-[11.5px] font-medium">{row ? rowTitle(row) : (item.title || item.token)}</div>
                   <StatusBadge status={item.state} />
                   {item.state === 'downloading' ? <span className="text-[9px] text-[color:var(--primary-2)]">{formatSpeed(item.speed ?? download?.speed) ? `${formatSpeed(item.speed ?? download?.speed)} MB/s` : '下载中'}</span> : null}
                 </div>
@@ -288,6 +291,11 @@ export function QueuePage() {
                   <IconButton label="重试" size="sm" onClick={() => retryItem(item.token)}><RotateCcw className="size-3.5" /></IconButton>
                 ) : null}
                 {canCancel ? <IconButton label="取消" size="sm" tone="danger" onClick={() => cancelItem(item.token)}><Ban className="size-3.5" /></IconButton> : null}
+                {item.token.startsWith('torrent@') ? (
+                  <IconButton label="任务文件" size="sm" onClick={() => setJobId(item.token.slice('torrent@'.length))}>
+                    <ListTree className="size-3.5" />
+                  </IconButton>
+                ) : null}
                 <IconButton label="定位文件" size="sm" disabled={!row?.file_name} onClick={() => row && actions.reveal(row.token)}>
                   <FolderOpen className="size-3.5" />
                 </IconButton>
@@ -299,6 +307,8 @@ export function QueuePage() {
           </details>
         ))}
       </div>
+
+      <TorrentJobDialog jobId={jobId} onClose={() => setJobId(null)} />
 
       <PreviewDialog
         rows={data?.rows || []}

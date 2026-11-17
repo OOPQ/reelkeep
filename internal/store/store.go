@@ -220,6 +220,10 @@ CREATE TABLE IF NOT EXISTS torrent_job_files (
   PRIMARY KEY (job_id, file_index)
 );
 CREATE INDEX IF NOT EXISTS idx_job_files_job ON torrent_job_files(job_id);
+CREATE TABLE IF NOT EXISTS app_meta (
+  key   TEXT PRIMARY KEY,
+  value TEXT DEFAULT ''
+);
 CREATE TABLE IF NOT EXISTS fts_meta (
   items      INTEGER DEFAULT 0,
   rebuilt_at TEXT DEFAULT ''
@@ -325,6 +329,19 @@ func (s *Store) ensureSchema() error {
 }
 
 // TagsByToken 批量返回每条数据的标签。
+// MetaGet reads an application-level migration marker.
+func (s *Store) MetaGet(key string) (string, bool) {
+	var v string
+	err := s.db.QueryRow("SELECT COALESCE(value,'') FROM app_meta WHERE key = ?", key).Scan(&v)
+	return v, err == nil
+}
+
+// MetaSet writes an application-level migration marker.
+func (s *Store) MetaSet(key, value string) error {
+	_, err := s.db.Exec("INSERT INTO app_meta(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", key, value)
+	return err
+}
+
 func (s *Store) TagsByToken(tokens []string) (map[string][]model.TagRef, error) {
 	out := map[string][]model.TagRef{}
 	for start := 0; start < len(tokens); start += 400 {

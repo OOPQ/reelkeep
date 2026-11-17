@@ -10,9 +10,11 @@ import (
 	"github.com/OOPQ/reelkeep/internal/source"
 )
 
-// StartLegacyPektinoRepair re-fetches legacy pektino rows that only have a bare
-// native id and no usable title/cover/play URL. It runs in the background so it
-// never blocks startup.
+const pektinoRefreshMarker = "pektino-data-refresh-v1"
+
+// StartLegacyPektinoRepair normalizes old pektino titles and refreshes source
+// metadata. The first run refreshes every pektino row once; later runs only
+// fill rows that are still incomplete.
 func (s *Server) StartLegacyPektinoRepair() {
 	src, ok := s.reg.Get("pektino")
 	if !ok {
@@ -22,6 +24,9 @@ func (s *Server) StartLegacyPektinoRepair() {
 	if !ok {
 		return
 	}
+	_, refreshed := s.st.MetaGet(pektinoRefreshMarker)
+	full := !refreshed
+
 	s.mu.RLock()
 	var targets []model.Row
 	var dirty []model.Row
@@ -36,22 +41,25 @@ func (s *Server) StartLegacyPektinoRepair() {
 		if r.SourceID == "" || r.PageURL == "" {
 			continue
 		}
-		if r.Title != "" && r.CoverURL != "" && r.URL != "" {
-			continue
+		if full || r.Title == "" || r.CoverURL == "" || r.URL == "" {
+			targets = append(targets, r)
 		}
-		targets = append(targets, r)
 	}
 	s.mu.RUnlock()
+
 	for i := range dirty {
 		_ = s.st.UpsertRows([]model.Row{dirty[i]})
 		s.ReloadRow(dirty[i].Token)
 	}
 	if len(targets) == 0 {
+		if full {
+			_ = s.st.MetaSet(pektinoRefreshMarker, time.Now().Format("2006-01-02 15:04:05"))
+		}
 		return
 	}
-	s.logbuf.Add("repair", "开始刷新 pektino 旧数据 "+itoa(len(targets))+" 条")
+	s.logbuf.Add("repair", "refreshing pektino metadata: "+itoa(len(targets))+" rows")
 	go func() {
-		sem := make(chan struct{}, 3)
+		sem := make(chan struct{}, 6)
 		var wg sync.WaitGroup
 		done := 0
 		var mu sync.Mutex
@@ -82,12 +90,15 @@ func (s *Server) StartLegacyPektinoRepair() {
 				n := done
 				mu.Unlock()
 				if n%25 == 0 {
-					s.logbuf.Add("repair", "pektino 旧数据已刷新 "+itoa(n)+"/"+itoa(len(targets)))
+					s.logbuf.Add("repair", "pektino metadata refreshed: "+itoa(n)+"/"+itoa(len(targets)))
 				}
 			}()
 		}
 		wg.Wait()
-		s.logbuf.Add("repair", "pektino 旧数据刷新完成 "+itoa(done)+"/"+itoa(len(targets)))
+		if full && done == len(targets) {
+			_ = s.st.MetaSet(pektinoRefreshMarker, time.Now().Format("2006-01-02 15:04:05"))
+		}
+		s.logbuf.Add("repair", "pektino metadata refresh finished: "+itoa(done)+"/"+itoa(len(targets)))
 	}()
 }
 

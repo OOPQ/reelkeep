@@ -70,34 +70,33 @@ export function LibraryGallery({ rows, downloads, selected, onToggle, onOpen, on
                 <CardMeta>
                   {row.duration || '—'} · {row.res || '—'} · {formatDate(row.first_seen)}
                 </CardMeta>
-                {row.tags?.length ? (
-                  <div className="mt-1.5 flex min-w-0 items-center gap-1 overflow-hidden">
-                    {row.tags.slice(0, 3).map(tag => (
-                      <span
-                        key={tag.id}
-                        className="inline-flex min-w-0 max-w-[86px] items-center gap-1 rounded-[5px] border px-1.5 py-[3px] text-[8.5px] leading-none"
-                        style={{
-                          borderColor: `color-mix(in srgb, ${tag.color || 'var(--primary)'} 32%, transparent)`,
-                          background: `color-mix(in srgb, ${tag.color || 'var(--primary)'} 11%, transparent)`,
-                          color: tag.color || 'var(--primary-2)',
-                        }}
-                        title={tag.name}
-                      >
-                        <span className="size-1 shrink-0 rounded-full bg-current opacity-75" />
-                        <span className="truncate">{tag.name}</span>
-                      </span>
-                    ))}
-                    {row.tags.length > 3 ? (
-                      <span className="shrink-0 rounded-[5px] border border-[color:var(--border)] bg-[color:var(--surface-2)] px-1.5 py-[3px] text-[8.5px] leading-none text-[color:var(--subtle)]">
-                        +{row.tags.length - 3}
-                      </span>
-                    ) : null}
-                  </div>
-                ) : null}
-                <div className="mt-1.5 flex items-center gap-2 text-[9px] text-[color:var(--subtle)]">
-                  <span className="inline-flex items-center gap-1"><Eye className="size-3" /> {formatCount(row.views)}</span>
-                  <span className="inline-flex items-center gap-1"><Heart className="size-3" /> {formatCount(row.likes)}</span>
-                  <span className="ml-auto">#{row.rank || '—'}</span>
+                <div className="mt-1.5 flex min-w-0 items-center gap-2 text-[9px] text-[color:var(--subtle)]">
+                  <span className="inline-flex shrink-0 items-center gap-1"><Eye className="size-3" /> {formatCount(row.views)}</span>
+                  <span className="inline-flex shrink-0 items-center gap-1"><Heart className="size-3" /> {formatCount(row.likes)}</span>
+                  {row.tags?.length ? (
+                    <div className="ml-auto flex min-w-0 items-center justify-end gap-1 overflow-hidden">
+                      {row.tags.slice(0, 2).map(tag => (
+                        <span
+                          key={tag.id}
+                          className="inline-flex min-w-0 max-w-[64px] items-center gap-1 rounded-[5px] border px-1.5 py-[2px] text-[8px] leading-none"
+                          style={{
+                            borderColor: `color-mix(in srgb, ${tag.color || 'var(--primary)'} 32%, transparent)`,
+                            background: `color-mix(in srgb, ${tag.color || 'var(--primary)'} 11%, transparent)`,
+                            color: tag.color || 'var(--primary-2)',
+                          }}
+                          title={tag.name}
+                        >
+                          <span className="size-1 shrink-0 rounded-full bg-current opacity-75" />
+                          <span className="truncate">{tag.name}</span>
+                        </span>
+                      ))}
+                      {row.tags.length > 2 ? (
+                        <span className="shrink-0 rounded-[5px] border border-[color:var(--border)] bg-[color:var(--surface-2)] px-1.5 py-[2px] text-[8px] leading-none text-[color:var(--subtle)]">
+                          +{row.tags.length - 2}
+                        </span>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </div>
               </CardBody>
 

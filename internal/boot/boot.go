@@ -112,6 +112,7 @@ func Start(ctx context.Context, opt Options) (*Instance, error) {
 	reg.Register("other", websource.New)
 	websource.Configure(settings.Proxy)
 	mgr := rule.NewManager(config.ImportedSourcesDir(), reg)
+	seedBuiltinSources()
 	mgr.SetProxy(settings.Proxy)
 	loadErrs := mgr.LoadAll()
 

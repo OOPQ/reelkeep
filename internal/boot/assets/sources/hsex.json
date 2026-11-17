@@ -1,0 +1,113 @@
+{
+  "schema": 1,
+  "id": "hsex",
+  "name": "Hsex",
+  "version": "1.0.1",
+  "author": "reelkeep",
+  "description": "hsex.icu 视频列表：最新/New、最热、周榜/Weekly、月榜/Monthly、5分钟/5min+、10分钟/+；播放地址为多码率 HLS，需要 ffmpeg；默认跟随系统代理。",
+  "baseUrl": "https://hsex.icu",
+  "hosts": [
+    "cdn.hdcdn.store",
+    "i.hdcdn.store",
+    "p.tengxuny.com"
+  ],
+  "capabilities": [
+    "scrape",
+    "detail",
+    "cover",
+    "download"
+  ],
+  "defaults": {
+    "proxy": "system",
+    "timeoutSec": 25
+  },
+  "list": {
+    "url": "/list-{page}.htm",
+    "pageSize": 48,
+    "ranks": [
+      {
+        "key": "latest",
+        "label": "最新 / New",
+        "group": "榜单",
+        "path": "/list-{page}.htm"
+      },
+      {
+        "key": "hot",
+        "label": "最热",
+        "group": "榜单",
+        "path": "/list-{page}.htm?sort=hot"
+      },
+      {
+        "key": "weekly",
+        "label": "周榜 / Weekly",
+        "group": "榜单",
+        "path": "/top7_list-{page}.htm"
+      },
+      {
+        "key": "monthly",
+        "label": "月榜 / Monthly",
+        "group": "榜单",
+        "path": "/top_list-{page}.htm"
+      },
+      {
+        "key": "min5",
+        "label": "5分钟 / 5min+",
+        "group": "时长",
+        "path": "/5min_list-{page}.htm"
+      },
+      {
+        "key": "long",
+        "label": "10分钟 / +",
+        "group": "时长",
+        "path": "/long_list-{page}.htm"
+      }
+    ],
+    "item": "div.thumbnail",
+    "fields": {
+      "id": {
+        "selector": "a[href^='video-']",
+        "attr": "href",
+        "regex": "video-(\\d+)\\.htm"
+      },
+      "title": {
+        "selector": "h5 a"
+      },
+      "cover": {
+        "selector": "div.image",
+        "attr": "style",
+        "regex": "url\\('([^']+)'\\)"
+      },
+      "duration": {
+        "selector": "var.duration"
+      }
+    }
+  },
+  "detail": {
+    "url": "/video-{id}.htm",
+    "fields": {
+      "title": {
+        "selector": "meta[property='og:title']",
+        "attr": "content"
+      },
+      "cover": {
+        "selector": "meta[property='og:image']",
+        "attr": "content"
+      },
+      "duration": {
+        "selector": "meta[property='video:duration']",
+        "attr": "content"
+      },
+      "playable": {
+        "selector": "source#video-source",
+        "attr": "src"
+      }
+    }
+  },
+  "download": {
+    "kind": "hls",
+    "url": "{playable}",
+    "headers": {
+      "Referer": "{baseUrl}/"
+    }
+  }
+}

@@ -20,6 +20,18 @@ try {
     $dist = Join-Path $root 'dist'
     if (-not (Test-Path $dist)) { New-Item -ItemType Directory -Path $dist | Out-Null }
 
+    # Bundle WebView2 bootstrapper when available.
+    $webview = Join-Path $root 'build\MicrosoftEdgeWebview2Setup.exe'
+    if (-not (Test-Path $webview)) {
+        try {
+            New-Item -ItemType Directory -Force (Split-Path $webview) | Out-Null
+            Invoke-WebRequest -UseBasicParsing -Uri 'https://go.microsoft.com/fwlink/p/?LinkId=2124703' -OutFile $webview -TimeoutSec 90
+            Write-Host "downloaded WebView2 bootstrapper" -ForegroundColor Green
+        } catch {
+            Write-Warning "WebView2 bootstrapper download failed: $($_.Exception.Message)"
+        }
+    }
+
     $makensis = 'C:\Program Files (x86)\NSIS\makensis.exe'
     if (Get-Command makensis -ErrorAction SilentlyContinue) {
         $makensis = (Get-Command makensis).Source

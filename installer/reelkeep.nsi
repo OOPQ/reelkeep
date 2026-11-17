@@ -60,6 +60,9 @@ Section "Install"
   File "..\reelkeep-desktop.exe"
   File "..\README.md"
   File "..\LICENSE"
+  !if /FileExists "..\build\MicrosoftEdgeWebview2Setup.exe"
+    File "..\build\MicrosoftEdgeWebview2Setup.exe"
+  !endif
   WriteUninstaller "$INSTDIR\Uninstall.exe"
 
   CreateDirectory "$SMPROGRAMS\${APPNAME}"
@@ -82,12 +85,22 @@ Section "Install"
   IntFmt $0 "0x%08X" $0
   WriteRegDWORD HKCU "${UNINSTKEY}" "EstimatedSize" "$0"
 
-  ; WebView2 Runtime 检查（Win10/11 一般已内置）
+  ; WebView2 Runtime 检查；安装器自带引导程序时直接静默安装
   ReadRegStr $0 HKLM "SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}" "pv"
   ReadRegStr $1 HKCU "Software\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}" "pv"
   ${If} $0 == ""
   ${AndIf} $1 == ""
-    MessageBox MB_ICONINFORMATION|MB_OK "没有检测到 Microsoft Edge WebView2 Runtime。$\r$\n$\r$\n${APPNAME} 使用 WebView2 显示界面，请先安装 WebView2 Runtime（微软官网免费下载），否则程序无法启动。"
+    !if /FileExists "..\build\MicrosoftEdgeWebview2Setup.exe"
+      DetailPrint "正在安装 Microsoft Edge WebView2 Runtime..."
+      ExecWait '"$INSTDIR\MicrosoftEdgeWebview2Setup.exe" /silent /install' $2
+      Delete "$INSTDIR\MicrosoftEdgeWebview2Setup.exe"
+      ReadRegStr $0 HKLM "SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}" "pv"
+      ReadRegStr $1 HKCU "Software\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}" "pv"
+    !endif
+    ${If} $0 == ""
+    ${AndIf} $1 == ""
+      MessageBox MB_ICONINFORMATION|MB_OK "WebView2 Runtime is required. Please install Microsoft Edge WebView2 Runtime."
+    ${EndIf}
   ${EndIf}
 SectionEnd
 

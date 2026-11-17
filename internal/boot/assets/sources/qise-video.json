@@ -1,0 +1,56 @@
+{
+  "schema": 1,
+  "id": "qise-video",
+  "name": "Qise 单视频 / 91",
+  "version": "1.0.1",
+  "author": "reelkeep",
+  "description": "qise100 /video 单视频分类（旧版）。列表卡片指向 viewhd，详情从 embed 页取 m3u8；登录 Cookie 可提高清晰度。",
+  "baseUrl": "https://rfdjzz.qise100.com",
+  "hosts": ["cdn.cdnkdjs.com", "cdn2.jiuse2.cloud", "cdn2.jiuse3.cloud", "cdn3.jiuse3.cloud", "cdn3.jiuse2.cloud", "int.ucloud165.xyz"],
+  "capabilities": ["scrape", "detail", "cover", "download"],
+  "defaults": { "proxy": "system", "timeoutSec": 30 },
+  "auth": { "type": "cookie", "loginUrl": "/login", "domains": ["qise100.com"] },
+  "list": {
+    "url": "/video?page={page}",
+    "pageSize": 24,
+    "ranks": [
+      { "key": "all", "label": "全部", "group": "单视频", "path": "/video?page={page}" },
+      { "key": "hd", "label": "高清视频", "group": "单视频", "path": "/video/category/hd?page={page}" },
+      { "key": "hot-list", "label": "当前最热", "group": "单视频", "path": "/video/category/hot-list?page={page}" },
+      { "key": "latest", "label": "最近更新", "group": "单视频", "path": "/video/category/latest?page={page}" },
+      { "key": "longer-list", "label": "20分钟以上", "group": "时长", "path": "/video/category/longer-list?page={page}" },
+      { "key": "long-list", "label": "10分钟以上", "group": "时长", "path": "/video/category/long-list?page={page}" },
+      { "key": "month-discuss", "label": "本月讨论", "group": "榜单", "path": "/video/category/month-discuss?page={page}" },
+      { "key": "most-favorite", "label": "收藏最多", "group": "榜单", "path": "/video/category/most-favorite?page={page}" },
+      { "key": "nonpaid", "label": "非付费", "group": "单视频", "path": "/video/category/nonpaid?page={page}" },
+      { "key": "ori", "label": "91原创", "group": "单视频", "path": "/video/category/ori?page={page}" },
+      { "key": "recent-favorite", "label": "最近加精", "group": "榜单", "path": "/video/category/recent-favorite?page={page}" },
+      { "key": "recent-rating", "label": "最近得分", "group": "榜单", "path": "/video/category/recent-rating?page={page}" },
+      { "key": "top-favorite", "label": "本月收藏", "group": "榜单", "path": "/video/category/top-favorite?page={page}" },
+      { "key": "top-last", "label": "上月最热", "group": "榜单", "path": "/video/category/top-last?page={page}" },
+      { "key": "top-list", "label": "本月最热", "group": "榜单", "path": "/video/category/top-list?page={page}" }
+    ],
+    "item": "div.video-elem",
+    "fields": {
+      "id": { "selector": "a[href*='/video/view']", "attr": "href", "regex": "/video/view(?:hd)?/([A-Za-z0-9]+)" },
+      "title": { "selector": "a.title" },
+      "cover": { "selector": "img.img", "attr": "src", "absolute": true },
+      "duration": { "selector": "small.layer" },
+      "pageUrl": { "selector": "a[href*='/video/view']", "attr": "href", "absolute": true }
+    }
+  },
+  "detail": {
+    "url": "/video/embed/{id}",
+    "fields": {
+      "title": { "selector": "meta[property='og:title']", "attr": "content" },
+      "cover": { "selector": "meta[property='og:image']", "attr": "content" },
+      "playable": { "raw": true, "regex": "https?://[^\"']+\\.m3u8[^\"']*" }
+    }
+  },
+  "download": {
+    "kind": "hls",
+    "url": "{playable}",
+    "headers": { "Referer": "{baseUrl}/" },
+    "onStatus": { "410": { "action": "refreshDetail", "retryOnce": true } }
+  }
+}

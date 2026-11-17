@@ -37,6 +37,43 @@ func (s *Store) dedupeItems() error {
 			return err
 		}
 	}
+	return s.normalizeLegacyTokens("pektino")
+}
+
+// normalizeLegacyTokens turns bare native ids into source@native-id for one source.
+func (s *Store) normalizeLegacyTokens(source string) error {
+	rows, err := s.db.Query(`SELECT token, source_id FROM items
+		WHERE LOWER(source) = ? AND source_id <> ''
+		  AND token <> ? || '@' || source_id`, strings.ToLower(source), strings.ToLower(source))
+	if err != nil {
+		return err
+	}
+	type pair struct{ token, id string }
+	var list []pair
+	for rows.Next() {
+		var p pair
+		if rows.Scan(&p.token, &p.id) == nil {
+			list = append(list, p)
+		}
+	}
+	_ = rows.Close()
+	for _, p := range list {
+		canonical := strings.ToLower(source) + "@" + p.id
+		var exists int
+		_ = s.db.QueryRow("SELECT COUNT(*) FROM items WHERE token = ?", canonical).Scan(&exists)
+		if exists > 0 {
+			if err := s.dedupeGroup(strings.ToLower(source), p.id); err != nil {
+				return err
+			}
+			continue
+		}
+		if _, err := s.db.Exec("UPDATE items SET token = ? WHERE token = ?", canonical, p.token); err != nil {
+			return err
+		}
+		if err := s.moveTokenReferences(p.token, canonical); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

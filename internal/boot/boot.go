@@ -148,6 +148,7 @@ func Start(ctx context.Context, opt Options) (*Instance, error) {
 		return nil, fmt.Errorf("启动失败: %w", err)
 	}
 	dl.SetOnRow(srv.ReloadRow)
+	srv.StartLegacyPektinoRepair()
 
 	ln, actualPort, err := listen(port)
 	if err != nil {

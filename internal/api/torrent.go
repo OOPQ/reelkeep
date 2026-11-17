@@ -100,7 +100,7 @@ func (s *Server) handleTorrentFiles(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 80*time.Second)
 	defer cancel()
-	files, err := download.ListTorrentFiles(ctx, raw)
+	files, err := download.ListTorrentFiles(ctx, raw, filepath.Join(s.paths.DataDir, "torrents", download.TorrentHash(raw), "info.torrent"))
 	if err != nil {
 		bad(w, err.Error())
 		return

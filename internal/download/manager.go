@@ -47,7 +47,8 @@ type Manager struct {
 	client   *http.Client
 
 	mu        sync.Mutex
-	torrentMu sync.Mutex
+	sessionMu sync.Mutex
+	sessions  map[string]*torrentSession
 	tasks     map[string]*Task
 	active    map[string]int
 	running   int

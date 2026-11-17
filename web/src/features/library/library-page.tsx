@@ -240,9 +240,23 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
     if (next.toString() !== window.location.search.replace(/^\?/, '')) setSearchParams(next, { replace: true })
   }, [query, status, source, flag, res, minDur, per, sortKey, sortDir, setSearchParams])
 
+  const installedSourcesQuery = useQuery<{ items: Array<{ id: string; name: string; enabled?: boolean }> }>({
+    queryKey: ['sources-all'],
+    queryFn: async () => {
+      const res = await fetch('/api/sources', { cache: 'no-store' })
+      if (!res.ok) throw new Error('读取源列表失败')
+      return res.json()
+    },
+    staleTime: 5_000,
+  })
+  const filterSources = React.useMemo(() => {
+    const all = installedSourcesQuery.data?.items
+    if (all?.length) return all.map(s => ({ key: s.id, name: s.name || s.id }))
+    return (data?.sources || []).map(s => ({ key: s.key, name: s.name || s.key }))
+  }, [installedSourcesQuery.data?.items, data?.sources])
   const sourceOptions = React.useMemo(
-    () => [{ value: 'all', label: '全部来源' }, ...(data?.sources || []).map(s => ({ value: s.key, label: s.name || s.key }))],
-    [data?.sources],
+    () => [{ value: 'all', label: '全部来源' }, ...filterSources.map(s => ({ value: s.key, label: s.name }))],
+    [filterSources],
   )
 
   const filterCount = [res !== 'all', minDur !== ''].filter(Boolean).length
@@ -444,7 +458,7 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
 
   const stats = data?.stats
   const job = data?.job as { running?: boolean; rank?: string; progress?: { phase?: string; done?: number; total?: number } } | undefined
-  const sourceLabel = source === 'all' ? '全部来源' : (data?.sources || []).find(s => s.key === source)?.name || source
+  const sourceLabel = source === 'all' ? '全部来源' : filterSources.find(s => s.key === source)?.name || source
   const flagLabel = FLAG_OPTIONS.find(f => f.value === flag)?.label || '不限标记'
 
   return (

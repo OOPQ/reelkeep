@@ -24,8 +24,7 @@ export function ScrapeDialog({
 }) {
   const qc = useQueryClient()
   const scrapeSources = React.useMemo(() => sources
-    .filter(s => s.key !== 'web' && (s.capabilities || []).includes('scrape'))
-    .sort((a, b) => a.key === 'pektino' ? -1 : b.key === 'pektino' ? 1 : 0), [sources])
+    .filter(s => s.key !== 'web' && (s.capabilities || []).includes('scrape')), [sources])
   const [mode, setMode] = React.useState('online')
   const [source, setSource] = React.useState('')
   const [rank, setRank] = React.useState('')

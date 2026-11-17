@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import {
   ChevronLeft,
   Camera,
-  Check,
   Pencil,
   ChevronRight,
   Copy,
@@ -58,7 +57,6 @@ export function PreviewDialog({ rows, token, autoplay = false, media, onClose, o
   const [busySnap, setBusySnap] = React.useState(false)
   const [pendingSnap, setPendingSnap] = React.useState<{ id: string; name: string } | null>(null)
   const [downloading, setDownloading] = React.useState(false)
-  const [collectionsEditing, setCollectionsEditing] = React.useState(false)
   const [collectionEditing, setCollectionEditing] = React.useState(false)
   const [tagsEditing, setTagsEditing] = React.useState(false)
   const [hoverSnap, setHoverSnap] = React.useState<Snapshot | null>(null)
@@ -765,17 +763,19 @@ onPlay={() => { setIsPlaying(true); if (videoRef.current) videoRef.current.playb
                 <button
                   key={col.id}
                   type="button"
-                  onClick={() => toggleCollection(col)}
+                  disabled={!collectionEditing}
+                  onClick={() => collectionEditing && toggleCollection(col)}
                   className={cn(
                     'inline-flex items-center gap-1 rounded-md border px-1.5 py-1 text-[9px] transition-colors',
+                    collectionEditing ? 'cursor-pointer' : 'cursor-default',
                     col.has
                       ? 'border-[color:color-mix(in_srgb,var(--primary)_35%,var(--border))] bg-[color:color-mix(in_srgb,var(--primary)_8%,transparent)] text-[color:var(--primary-2)]'
-                      : 'border-[color:var(--border)] bg-[color:var(--surface-2)] text-[color:var(--muted)] hover:border-[color:var(--border-strong)]',
+                      : 'border-[color:var(--border)] bg-[color:var(--surface-2)] text-[color:var(--muted)]',
+                    collectionEditing && !col.has && 'hover:border-[color:var(--border-strong)]',
                   )}
                 >
                   <span className="size-1.5 rounded-full" style={{ background: col.color }} />
                   {col.name}
-                  {col.has ? <Check className="size-2.5" /> : null}
                 </button>
               ))}
               {!collectionMemberships.length ? <span className="text-[9px] text-[color:var(--subtle)]">还没有合集</span> : null}
@@ -796,17 +796,19 @@ onPlay={() => { setIsPlaying(true); if (videoRef.current) videoRef.current.playb
                 <button
                   key={col.id}
                   type="button"
-                  onClick={() => toggleTag(col)}
+                  disabled={!tagsEditing}
+                  onClick={() => tagsEditing && toggleTag(col)}
                   className={cn(
                     'inline-flex items-center gap-1 rounded-md border px-1.5 py-1 text-[9px] transition-colors',
+                    tagsEditing ? 'cursor-pointer' : 'cursor-default',
                     col.has
                       ? 'border-[color:color-mix(in_srgb,var(--primary)_35%,var(--border))] bg-[color:color-mix(in_srgb,var(--primary)_8%,transparent)] text-[color:var(--primary-2)]'
-                      : 'border-[color:var(--border)] bg-[color:var(--surface-2)] text-[color:var(--muted)] hover:border-[color:var(--border-strong)]',
+                      : 'border-[color:var(--border)] bg-[color:var(--surface-2)] text-[color:var(--muted)]',
+                    tagsEditing && !col.has && 'hover:border-[color:var(--border-strong)]',
                   )}
                 >
                   <span className="size-1.5 rounded-full" style={{ background: col.color }} />
                   {col.name}
-                  {col.has ? <Check className="size-2.5" /> : null}
                 </button>
               ))}
               {!memberships.length ? <span className="text-[9px] text-[color:var(--subtle)]">还没有标签</span> : null}

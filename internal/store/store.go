@@ -40,12 +40,11 @@ func Open(path string) (*Store, error) {
 	db.SetMaxOpenConns(1)
 	db.SetMaxIdleConns(1)
 
-	s := &Store{db: db}
+	s := &Store{db: db, cols: strings.Join(quotedCoalesce(), ", ")}
 	if err := s.ensureSchema(); err != nil {
 		db.Close()
 		return nil, err
 	}
-	s.cols = strings.Join(quotedCoalesce(), ", ")
 	if err := s.rebuildFTSIfNeeded(); err != nil {
 		db.Close()
 		return nil, err
@@ -317,6 +316,10 @@ func (s *Store) ensureSchema() error {
 		if _, err := s.db.Exec("ALTER TABLE download_tasks ADD COLUMN name TEXT DEFAULT ''"); err != nil {
 			return err
 		}
+	}
+	// 合并旧版无前缀 token 与新版 source@id token，修复历史脏数据。
+	if err := s.dedupeItems(); err != nil {
+		return err
 	}
 	return nil
 }

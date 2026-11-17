@@ -113,6 +113,11 @@ type URLScraper interface {
 	ScrapeURL(ctx context.Context, rawURL string) (model.Row, error)
 }
 
+// PlaylistScraper 是可选能力：从播放清单页批量抓取条目，并返回清单名。
+type PlaylistScraper interface {
+	ScrapePlaylist(ctx context.Context, rawURL string) (rows []model.Row, name string, err error)
+}
+
 // Registry 保存构造函数、动态导入的源和已启用的清单。
 type Registry struct {
 	mu        sync.RWMutex

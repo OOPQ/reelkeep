@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "hanime1",
   "name": "Hanime1",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": "reelkeep",
   "description": "Hanime1 静态 HTML 源，列表与详情直接提供 mp4 地址。",
   "baseUrl": "https://hanime1.me",
@@ -120,6 +120,43 @@
       "410": {
         "action": "refreshDetail",
         "retryOnce": true
+      }
+    }
+  },
+  "playlist": {
+    "item": "div.playlist-item-row",
+    "name": {
+      "selector": ".playlist-title",
+      "text": true
+    },
+    "fields": {
+      "id": {
+        "selector": "[data-href]",
+        "attr": "data-href",
+        "regex": "[?&]v=(\\d+)"
+      },
+      "pageUrl": {
+        "selector": "[data-href]",
+        "attr": "data-href",
+        "absolute": true
+      },
+      "title": {
+        "selector": ".video-title a",
+        "text": true
+      },
+      "cover": {
+        "selector": "img.main-thumb",
+        "attr": "src",
+        "absolute": true
+      },
+      "duration": {
+        "selector": ".duration",
+        "text": true
+      },
+      "views": {
+        "selector": ".stats-container .stat-item:last-child",
+        "text": true,
+        "regex": "([0-9,]+)"
       }
     }
   }

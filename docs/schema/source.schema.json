@@ -38,6 +38,17 @@
     "defaults": { "$ref": "#/$defs/defaults" },
     "list": { "$ref": "#/$defs/list" },
     "detail": { "$ref": "#/$defs/detail" },
+    "playlist": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["item", "fields"],
+      "description": "Playlist page parsing; used by URL scrape to import all items.",
+      "properties": {
+        "item": { "type": "string", "minLength": 1 },
+        "name": { "$ref": "#/$defs/field" },
+        "fields": { "$ref": "#/$defs/fields" }
+      }
+    },
     "download": { "$ref": "#/$defs/download" },
     "auth": { "$ref": "#/$defs/auth" }
   },

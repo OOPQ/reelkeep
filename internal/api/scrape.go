@@ -382,7 +382,18 @@ func (s *Server) runScrapeURL(ctx context.Context, j *scrapeJob, us source.URLSc
 	runID := time.Now().Format("20060102-150405") + "-" + sanitizeName(j.Source) + "-url"
 	j.logf("run=%s source=%s url=%s", runID, j.Source, j.TargetURL)
 
-	row, err := us.ScrapeURL(ctx, j.TargetURL)
+	var rows []model.Row
+	playlistName := ""
+	var err error
+	if ps, ok := us.(source.PlaylistScraper); ok {
+		rows, playlistName, err = ps.ScrapePlaylist(ctx, j.TargetURL)
+	} else {
+		var row model.Row
+		row, err = us.ScrapeURL(ctx, j.TargetURL)
+		if err == nil {
+			rows = []model.Row{row}
+		}
+	}
 	if err != nil {
 		j.logf("链接抓取失败: %v", err)
 		s.writeScrapeDiag(runID, j, nil, "failed", err.Error(), 0, 0, 0)
@@ -393,35 +404,48 @@ func (s *Server) runScrapeURL(ctx context.Context, j *scrapeJob, us source.URLSc
 		s.logbuf.Add("scrape", "链接抓取失败："+err.Error())
 		return
 	}
-	if j.Source == "other" {
-		row.Source = "other"
-		row.Site = "other"
-		if strings.HasPrefix(row.Token, "web@") {
-			row.Token = "other@" + strings.TrimPrefix(row.Token, "web@")
+	if len(rows) == 0 {
+		err = fmt.Errorf("没有抓取到任何条目")
+		j.logf("%v", err)
+		s.writeScrapeDiag(runID, j, nil, "failed", err.Error(), 0, 0, 0)
+		j.finish(err)
+		return
+	}
+	for i := range rows {
+		if j.Source == "other" {
+			rows[i].Source = "other"
+			rows[i].Site = "other"
+			if strings.HasPrefix(rows[i].Token, "web@") {
+				rows[i].Token = "other@" + strings.TrimPrefix(rows[i].Token, "web@")
+			}
 		}
 	}
-	added, updated, skipped, addedTokens, mergeErr := s.applyScrape([]model.Row{row}, skipDeleted)
+	added, updated, skipped, addedTokens, mergeErr := s.applyScrape(rows, skipDeleted)
 	if mergeErr != nil {
 		j.logf("入库失败: %v", mergeErr)
-		s.writeScrapeDiag(runID, j, []model.Row{row}, "failed", mergeErr.Error(), added, updated, skipped)
+		s.writeScrapeDiag(runID, j, rows, "failed", mergeErr.Error(), added, updated, skipped)
 		j.finish(mergeErr)
 		if s.srcMgr != nil {
 			s.srcMgr.RecordResult(j.Source, mergeErr)
 		}
 		return
 	}
+	if playlistName != "" {
+		s.attachPlaylistCollection(playlistName, rows)
+	}
 	j.mu.Lock()
 	j.Added, j.Updated, j.Skipped = added, updated, skipped
 	j.AddedTokens = addedTokens
-	j.Total, j.Done = 1, 1
+	j.Total, j.Done = len(rows), len(rows)
 	j.mu.Unlock()
 	j.logf("完成: 新增 %d，更新 %d，跳过 %d", added, updated, skipped)
-	s.writeScrapeDiag(runID, j, []model.Row{row}, "ok", "", added, updated, skipped)
+	s.writeScrapeDiag(runID, j, rows, "ok", "", added, updated, skipped)
 	j.finish(nil)
 	if s.srcMgr != nil {
 		s.srcMgr.RecordResult(j.Source, nil)
 	}
-	s.logbuf.Add("scrape", "链接抓取完成："+row.Token)
+	s.logbuf.Add("scrape", fmt.Sprintf("链接抓取完成：%d 条", len(rows)))
+
 }
 
 // handleRefreshURL 重新解析选中条目的播放地址（签名过期时用）。

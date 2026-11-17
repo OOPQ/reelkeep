@@ -24,6 +24,7 @@ type Package struct {
 	Capabilities []string  `json:"capabilities"`
 	Defaults     Defaults  `json:"defaults"`
 	List         List      `json:"list"`
+	Playlist     *Playlist `json:"playlist,omitempty"`
 	Detail       *Detail   `json:"detail,omitempty"`
 	Download     *Download `json:"download,omitempty"`
 	Auth         *Auth     `json:"auth,omitempty"`
@@ -73,6 +74,13 @@ type List struct {
 type Detail struct {
 	URL    string           `json:"url"`
 	Always bool             `json:"always,omitempty"`
+	Fields map[string]Field `json:"fields"`
+}
+
+// Playlist 描述播放清单页；链接抓取命中 /playlist 时批量导入。
+type Playlist struct {
+	Item   string           `json:"item"`
+	Name   Field            `json:"name,omitempty"`
 	Fields map[string]Field `json:"fields"`
 }
 

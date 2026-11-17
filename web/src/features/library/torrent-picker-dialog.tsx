@@ -35,7 +35,7 @@ export function TorrentPickerDialog({ row, onClose }: { row: Row | null; onClose
       .then(r => {
         if (!alive) return
         if (!r.ok) throw new Error(r.error || '读取磁力文件失败')
-        const list = (r.files || []).filter(f => f.length > 0)
+        const list = (r.files || []).filter(f => f.length > 0 && /\.(mp4|mkv|webm|mov|m4v|avi|ts|flv|wmv)$/i.test(f.path))
         setFiles(list)
         const video = list
           .filter(f => /\.(mp4|mkv|webm|mov|m4v|avi|ts|flv|wmv)$/i.test(f.path))
@@ -55,12 +55,12 @@ export function TorrentPickerDialog({ row, onClose }: { row: Row | null; onClose
     if (!row || !selected.length) return
     setBusy(true)
     try {
-      const r = await post<{ ok: boolean; error?: string; started?: number }>('/api/download', {
-        tokens: [row.token],
-        files: selected,
+      const r = await post<{ ok: boolean; error?: string; tokens?: string[] }>('/api/torrent/add', {
+        url: row.url,
+        files: files.filter(f => selected.includes(f.index)),
       })
       if (!r.ok) throw new Error(r.error || '开始下载失败')
-      toast.success('已加入磁力下载队列', { action: { label: '查看队列', onClick: () => navigate('/queue') } })
+      toast.success(`已创建 ${selected.length} 个下载任务`, { action: { label: '查看队列', onClick: () => navigate('/queue') } })
       onClose()
     } catch (e) {
       toast.error((e as Error).message)

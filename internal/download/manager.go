@@ -46,15 +46,16 @@ type Manager struct {
 	logf     func(kind, msg string)
 	client   *http.Client
 
-	mu       sync.Mutex
-	tasks    map[string]*Task
-	active   map[string]int
-	running  int
-	paused   bool
-	settings Settings
-	ctx      context.Context
-	cancel   context.CancelFunc
-	wake     chan struct{}
+	mu        sync.Mutex
+	torrentMu sync.Mutex
+	tasks     map[string]*Task
+	active    map[string]int
+	running   int
+	paused    bool
+	settings  Settings
+	ctx       context.Context
+	cancel    context.CancelFunc
+	wake      chan struct{}
 }
 
 // Task 是内存里的任务和运行时状态。

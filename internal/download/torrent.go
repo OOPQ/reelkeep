@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -72,13 +73,27 @@ func isVideoFile(name string) bool {
 	return false
 }
 
-// runTorrent 用内置 BT 引擎下载 magnet，只下载用户勾选的文件。
+func torrentHash(magnet string) string {
+	u, err := url.Parse(magnet)
+	if err == nil {
+		for _, xt := range u.Query()["xt"] {
+			if strings.HasPrefix(strings.ToLower(xt), "urn:btih:") {
+				return strings.ToLower(strings.TrimSpace(xt[len("urn:btih:"):]))
+			}
+		}
+	}
+	return "unknown"
+}
+
+// runTorrent 用内置 BT 引擎下载 magnet，只下载当前任务勾选的文件。
 func (m *Manager) runTorrent(ctx context.Context, t *Task) error {
+	m.torrentMu.Lock()
+	defer m.torrentMu.Unlock()
 	final, _ := m.pathsFor(t)
 	if st, err := os.Stat(final); err == nil && st.Size() > 0 {
 		return nil
 	}
-	dataDir := filepath.Join(m.paths.DataDir, "torrents", t.M.Token)
+	dataDir := filepath.Join(m.paths.DataDir, "torrents", torrentHash(t.M.URL))
 	if err := os.MkdirAll(dataDir, 0o755); err != nil {
 		return err
 	}
@@ -184,7 +199,6 @@ complete:
 			return err
 		}
 	}
-	_ = os.RemoveAll(dataDir)
 	return nil
 }
 

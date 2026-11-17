@@ -5,6 +5,7 @@ import {
   Copy,
   Eye,
   Heart,
+  Image,
   Layers,
   ListChecks,
   Pencil,
@@ -28,7 +29,6 @@ import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardBody, CardFooter, CardMedia } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { IconButton } from '@/components/ui/icon-button'
@@ -44,6 +44,7 @@ type Collection = {
   id: number
   name: string
   color: string
+  coverToken?: string
   count: number
   createdAt?: string
   updatedAt?: string
@@ -73,6 +74,8 @@ export function CollectionsPage() {
   const [editName, setEditName] = React.useState('')
   const [editColor, setEditColor] = React.useState(COLORS[0])
   const [busy, setBusy] = React.useState(false)
+  const [coverOpen, setCoverOpen] = React.useState(false)
+  const [coverBusy, setCoverBusy] = React.useState(false)
   const [selected, setSelected] = React.useState<string[]>([])
   const multi = useUiStore(s => s.multi)
   const setMulti = useUiStore(s => s.setMulti)
@@ -119,16 +122,35 @@ export function CollectionsPage() {
   })
 
   const rowMap = React.useMemo(() => new Map((state?.rows || []).map(r => [r.token, r])), [state?.rows])
-  const rows = React.useMemo(() => {
+  const allRows = React.useMemo(() => {
     const tokens = itemsQuery.data?.tokens || []
-    const list = tokens.map(t => rowMap.get(t)).filter(Boolean) as Row[]
+    return tokens.map(t => rowMap.get(t)).filter(Boolean) as Row[]
+  }, [itemsQuery.data?.tokens, rowMap])
+  const rows = React.useMemo(() => {
+    const list = allRows
     const q = query.trim().toLowerCase()
     return list.filter(row => {
       if (status !== 'all' && row.status !== status) return false
       if (!q) return true
       return [row.token, row.title, row.source, row.res].join(' ').toLowerCase().includes(q)
     })
-  }, [itemsQuery.data?.tokens, rowMap, query, status])
+  }, [allRows, query, status])
+
+  const setCover = async (token: string) => {
+    if (!current) return
+    setCoverBusy(true)
+    try {
+      const r = await post<{ ok: boolean; error?: string }>('/api/collections', { action: 'cover', id: current.id, coverToken: token })
+      if (!r.ok) throw new Error(r.error || '设置封面失败')
+      toast.success(token ? '合集封面已更新' : '已恢复默认封面')
+      setCoverOpen(false)
+      invalidate()
+    } catch (e) {
+      toast.error((e as Error).message)
+    } finally {
+      setCoverBusy(false)
+    }
+  }
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ['collections'] })
@@ -273,21 +295,46 @@ export function CollectionsPage() {
         </div>
         <div className="ml-auto flex flex-wrap items-center gap-1.5">
           <Button size="sm" variant="outline" disabled={!current} onClick={openEditor}><Pencil className="size-3.5" /> 编辑合集</Button>
+          <Button size="sm" variant="outline" disabled={!current} onClick={() => setCoverOpen(true)}><Image className="size-3.5" /> 更换封面</Button>
           <Button size="sm" variant="ghost" disabled={!current} onClick={openCollectionInLibrary}><Eye className="size-3.5" /> 在台账中查看</Button>
         </div>
       </div>
 
-      <Tabs value={current ? String(current.id) : ''} onValueChange={v => setSelectedId(Number(v))}>
-        <TabsList className="max-w-full overflow-x-auto">
-          {collections.map(col => (
-            <TabsTrigger key={col.id} value={String(col.id)} className="shrink-0">
-              <span className="size-2 rounded-full" style={{ background: col.color || COLORS[0] }} />
-              {col.name}
-              <span className="rounded-full border border-[color:var(--border)] px-1.5 text-[8.5px] text-[color:var(--subtle)]">{col.count}</span>
-            </TabsTrigger>
-          ))}
-        </TabsList>
-      </Tabs>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+        {collections.map(col => {
+          const active = current?.id === col.id
+          return (
+            <button
+              key={col.id}
+              type="button"
+              onClick={() => setSelectedId(col.id)}
+              className={cn(
+                'group relative overflow-hidden rounded-[12px] border bg-[color:var(--surface)] text-left transition-all hover:-translate-y-0.5 hover:border-[color:var(--border-strong)]',
+                active ? 'border-[color:var(--primary)] ring-1 ring-[color:var(--primary)]/30' : 'border-[color:var(--border)]',
+              )}
+            >
+              <div className="aspect-[16/10] overflow-hidden bg-[#070b10]">
+                {col.coverToken ? (
+                  <CoverImage token={col.coverToken} full alt={col.name} className="h-full w-full transition-transform duration-300 group-hover:scale-[1.03]" />
+                ) : (
+                  <div className="grid h-full w-full place-items-center bg-[linear-gradient(135deg,#142433,#0a1119_55%,#1b2d40)] text-[color:var(--subtle)]">
+                    <Layers className="size-7 opacity-60" />
+                  </div>
+                )}
+              </div>
+              <div className="absolute inset-x-0 bottom-0 bg-[linear-gradient(0deg,rgba(0,0,0,.86),rgba(0,0,0,.45),transparent)] px-3 pb-2.5 pt-8">
+                <div className="flex items-center gap-1.5">
+                  <span className="size-1.5 shrink-0 rounded-full" style={{ background: col.color || COLORS[0] }} />
+                  <span className="truncate text-[11px] font-medium text-white">{col.name}</span>
+                </div>
+                <div className="mt-0.5 text-[9px] text-white/55">{col.count} 条</div>
+              </div>
+              {active ? <span className="absolute right-2 top-2 rounded-full bg-[color:var(--primary)] px-1.5 py-0.5 text-[8px] text-white">当前</span> : null}
+            </button>
+          )
+        })}
+      </div>
+
 
       <div className="flex flex-wrap items-center gap-2">
         <Input value={newName} onChange={e => setNewName(e.target.value)} placeholder="新合集名称" className="w-[170px]" onKeyDown={e => { if (e.key === 'Enter') create() }} />
@@ -336,6 +383,17 @@ export function CollectionsPage() {
         </div>
       ) : (
         <>
+        <div className="flex items-center gap-3 rounded-[12px] border border-[color:var(--border)] bg-[color:var(--surface)] p-3">
+          {current.coverToken ? (
+            <CoverImage token={current.coverToken} full alt={current.name} className="h-[58px] w-[88px] shrink-0 rounded-[8px]" />
+          ) : (
+            <div className="grid h-[58px] w-[88px] shrink-0 place-items-center rounded-[8px] bg-[color:var(--surface-2)] text-[color:var(--subtle)]"><Layers className="size-5" /></div>
+          )}
+          <div className="min-w-0">
+            <div className="truncate text-[13px] font-semibold">{current.name}</div>
+            <div className="mt-0.5 text-[10px] text-[color:var(--subtle)]">{current.count} 条 · {current.coverToken ? '自定义封面' : '默认取第一条影片封面'}</div>
+          </div>
+        </div>
         <LibraryGallery
           downloads={downloadMap}
           rows={rows}
@@ -396,6 +454,41 @@ export function CollectionsPage() {
               <span className="truncate text-[11px] text-[color:var(--muted)]">{editName || '合集名称'}</span>
               <Badge className="ml-auto" tone="default">{current?.count || 0} 条</Badge>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={coverOpen} onOpenChange={setCoverOpen}>
+        <DialogContent
+          title="更换合集封面"
+          description="从当前合集的影片中选择封面；也可以恢复默认。"
+          className="w-[min(720px,calc(100vw-40px))]"
+          footer={
+            <div className="flex w-full items-center gap-2">
+              <Button size="sm" variant="outline" onClick={() => setCover('')} disabled={coverBusy}>恢复默认</Button>
+              <span className="flex-1" />
+              <Button size="sm" variant="ghost" onClick={() => setCoverOpen(false)}>取消</Button>
+            </div>
+          }
+        >
+          <div className="grid grid-cols-3 gap-2 p-4 sm:grid-cols-4 md:grid-cols-5">
+            {allRows.map(row => (
+              <button
+                key={row.token}
+                type="button"
+                disabled={coverBusy}
+                onClick={() => setCover(row.token)}
+                className={cn(
+                  'group relative overflow-hidden rounded-[8px] border text-left transition-colors',
+                  current?.coverToken === row.token ? 'border-[color:var(--primary)]' : 'border-[color:var(--border)] hover:border-[color:var(--border-strong)]',
+                )}
+                title={rowTitle(row)}
+              >
+                <CoverImage token={row.token} full alt={rowTitle(row)} className="aspect-[3/4] w-full" />
+                <span className="line-clamp-2 block bg-[color:var(--surface-2)] px-1.5 py-1 text-[8.5px] leading-tight text-[color:var(--muted)]">{rowTitle(row)}</span>
+              </button>
+            ))}
+            {!allRows.length ? <div className="col-span-full py-8 text-center text-[11px] text-[color:var(--subtle)]">这个合集还没有影片</div> : null}
           </div>
         </DialogContent>
       </Dialog>

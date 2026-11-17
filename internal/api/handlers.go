@@ -252,11 +252,12 @@ func (s *Server) handleDeleted(w http.ResponseWriter, r *http.Request) {
 
 // CollectionView 是合集列表项。
 type CollectionView struct {
-	ID    int64  `json:"id"`
-	Name  string `json:"name"`
-	Color string `json:"color"`
-	Count int    `json:"count,omitempty"`
-	Has   bool   `json:"has,omitempty"`
+	ID         int64  `json:"id"`
+	Name       string `json:"name"`
+	Color      string `json:"color"`
+	CoverToken string `json:"coverToken,omitempty"`
+	Count      int    `json:"count,omitempty"`
+	Has        bool   `json:"has,omitempty"`
 }
 
 func (s *Server) handleCollections(w http.ResponseWriter, r *http.Request) {
@@ -274,14 +275,14 @@ func (s *Server) handleCollections(w http.ResponseWriter, r *http.Request) {
 		}
 		items := make([]CollectionView, 0, len(list))
 		for _, c := range list {
-			items = append(items, CollectionView{ID: c.ID, Name: c.Name, Color: c.Color, Has: has[c.ID]})
+			items = append(items, CollectionView{ID: c.ID, Name: c.Name, Color: c.Color, CoverToken: c.CoverToken, Has: has[c.ID]})
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"items": items})
 		return
 	}
 	items := make([]CollectionView, 0, len(list))
 	for _, c := range list {
-		items = append(items, CollectionView{ID: c.ID, Name: c.Name, Color: c.Color, Count: c.Count})
+		items = append(items, CollectionView{ID: c.ID, Name: c.Name, Color: c.Color, CoverToken: c.CoverToken, Count: c.Count})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"items": items})
 }
@@ -927,12 +928,13 @@ var palette = []string{"#4f8cff", "#f2a33c", "#3fb950", "#d2a8ff", "#f778ba", "#
 
 func (s *Server) handleCollectionsWrite(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		Action   string   `json:"action"`
-		ID       int64    `json:"id"`
-		TargetID int64    `json:"targetId"`
-		Name     string   `json:"name"`
-		Color    string   `json:"color"`
-		Tokens   []string `json:"tokens"`
+		Action     string   `json:"action"`
+		ID         int64    `json:"id"`
+		TargetID   int64    `json:"targetId"`
+		Name       string   `json:"name"`
+		Color      string   `json:"color"`
+		CoverToken string   `json:"coverToken"`
+		Tokens     []string `json:"tokens"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "invalid json"})
@@ -985,6 +987,36 @@ func (s *Server) handleCollectionsWrite(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 		if err := s.st.DeleteCollection(body.ID); err != nil {
+			bad(w, err.Error())
+			return
+		}
+		s.Bump(true)
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+	case "cover":
+		if body.ID <= 0 {
+			bad(w, "合集 id 不合法")
+			return
+		}
+		token := strings.TrimSpace(body.CoverToken)
+		if token != "" {
+			tokens, err := s.st.CollectionTokens(body.ID)
+			if err != nil {
+				bad(w, err.Error())
+				return
+			}
+			found := false
+			for _, t := range tokens {
+				if t == token {
+					found = true
+					break
+				}
+			}
+			if !found {
+				bad(w, "封面必须来自该合集中的条目")
+				return
+			}
+		}
+		if err := s.st.SetCollectionCover(body.ID, token); err != nil {
 			bad(w, err.Error())
 			return
 		}

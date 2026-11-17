@@ -97,10 +97,11 @@ type DeletedToken struct {
 
 // Collection 是合集。
 type Collection struct {
-	ID    int64  `json:"id"`
-	Name  string `json:"name"`
-	Color string `json:"color"`
-	Count int    `json:"count"`
+	ID         int64  `json:"id"`
+	Name       string `json:"name"`
+	Color      string `json:"color"`
+	CoverToken string `json:"coverToken,omitempty"`
+	Count      int    `json:"count"`
 }
 
 // DownloadTask 是一条下载任务（持久化在 download_tasks 表）。

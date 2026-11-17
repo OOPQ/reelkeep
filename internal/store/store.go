@@ -288,6 +288,11 @@ func (s *Store) ensureSchema() error {
 			return err
 		}
 	}
+	if !has["cover_token"] {
+		if _, err := s.db.Exec("ALTER TABLE collections ADD COLUMN cover_token TEXT DEFAULT ''"); err != nil {
+			return err
+		}
+	}
 	// 老库补列：download_tasks.files（磁力文件选择）
 	has = map[string]bool{}
 	rows, err = s.db.Query("PRAGMA table_info(download_tasks)")
@@ -601,6 +606,7 @@ func SaveDeletedJSON(dataDir string, m map[string]model.DeletedToken) error {
 func (s *Store) Collections() ([]model.Collection, error) {
 	rows, err := s.db.Query(`
 		SELECT c.id, COALESCE(c.name,''), COALESCE(c.color,''),
+		       COALESCE(NULLIF(c.cover_token,''), (SELECT ci.token FROM collection_items ci WHERE ci.collection_id = c.id ORDER BY ci.added_at ASC, ci.rowid ASC LIMIT 1), ''),
 		       (SELECT COUNT(*) FROM collection_items ci WHERE ci.collection_id = c.id)
 		FROM collections c ORDER BY c.id`)
 	if err != nil {
@@ -610,7 +616,7 @@ func (s *Store) Collections() ([]model.Collection, error) {
 	var out []model.Collection
 	for rows.Next() {
 		var c model.Collection
-		if err := rows.Scan(&c.ID, &c.Name, &c.Color, &c.Count); err != nil {
+		if err := rows.Scan(&c.ID, &c.Name, &c.Color, &c.CoverToken, &c.Count); err != nil {
 			return nil, err
 		}
 		out = append(out, c)
@@ -662,6 +668,13 @@ func (s *Store) CreateCollection(name, color string) (int64, error) {
 		return 0, err
 	}
 	return res.LastInsertId()
+}
+
+// SetCollectionCover 设置合集封面 token；空值恢复默认（第一条）。
+func (s *Store) SetCollectionCover(id int64, token string) error {
+	now := time.Now().Format("2006-01-02 15:04:05")
+	_, err := s.db.Exec("UPDATE collections SET cover_token = ?, updated_at = ? WHERE id = ?", strings.TrimSpace(token), now, id)
+	return err
 }
 
 // UpdateCollection 改名/改色/无操作。

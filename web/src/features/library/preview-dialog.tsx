@@ -75,6 +75,7 @@ export function PreviewDialog({ rows, token, autoplay = false, media, onClose, o
   const [playbackRate, setPlaybackRate] = React.useState(1)
   const resumeApplied = React.useRef(false)
   const lastResumeSave = React.useRef(0)
+  const saveResumeRef = React.useRef<() => void>(() => {})
   const [hoverTime, setHoverTime] = React.useState<number | null>(null)
   const [hoverPct, setHoverPct] = React.useState(0)
   const stageRef = React.useRef<HTMLDivElement>(null)
@@ -168,13 +169,15 @@ export function PreviewDialog({ rows, token, autoplay = false, media, onClose, o
     setHoverSnap(null)
     setPendingSnap(null)
     setAccelerating(false)
+    resumeApplied.current = false
+    lastResumeSave.current = 0
   }, [token, autoplay, canPlay, row?.seconds])
 
   const prev = index > 0 ? rows[index - 1] : null
   const next = index >= 0 && index < rows.length - 1 ? rows[index + 1] : null
   const keepPlaying = () => playing || isPlaying || Boolean(videoRef.current && !videoRef.current.paused)
-  const goPrev = () => { if (prev) onNavigate(prev.token, keepPlaying()) }
-  const goNext = () => { if (next) onNavigate(next.token, keepPlaying()) }
+  const goPrev = () => { if (prev) { saveResumeRef.current(); onNavigate(prev.token, keepPlaying()) } }
+  const goNext = () => { if (next) { saveResumeRef.current(); onNavigate(next.token, keepPlaying()) } }
 
   React.useEffect(() => {
     if (!row) return
@@ -182,10 +185,12 @@ export function PreviewDialog({ rows, token, autoplay = false, media, onClose, o
       if (!e.ctrlKey) return
       if (e.key === 'ArrowLeft' && prev) {
         e.preventDefault()
+        saveResumeRef.current()
         onNavigate(prev.token, keepPlaying())
       }
       if (e.key === 'ArrowRight' && next) {
         e.preventDefault()
+        saveResumeRef.current()
         onNavigate(next.token, keepPlaying())
       }
     }
@@ -479,6 +484,11 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
       }
     } catch { }
   }
+  saveResumeRef.current = saveResume
+  const closeDialog = () => {
+    saveResume()
+    onClose()
+  }
 
   const timeFromPointer = (clientX: number, el: HTMLElement) => {
     const rect = el.getBoundingClientRect()
@@ -531,7 +541,7 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
 
   return (
     <>
-<Dialog open={!!token} onOpenChange={open => { if (!open) onClose() }}>
+<Dialog open={!!token} onOpenChange={open => { if (!open) closeDialog() }}>
       <DialogContent
         onOpenAutoFocus={e => e.preventDefault()}
         onFocus={e => { if (e.target === e.currentTarget) e.currentTarget.blur() }}

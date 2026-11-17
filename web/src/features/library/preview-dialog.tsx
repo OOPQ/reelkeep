@@ -1,5 +1,4 @@
 import * as React from 'react'
-import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import {
   ChevronLeft,
@@ -841,6 +840,14 @@ onPlay={() => { setIsPlaying(true); if (videoRef.current) videoRef.current.playb
           </div>
 
         </aside>
+        <div className="pointer-events-none fixed inset-y-0 left-2 right-2 z-[75] flex items-center justify-between">
+          <IconButton label="上一项" className="pointer-events-auto size-11 border-white/20 bg-black/60 text-white backdrop-blur hover:bg-black/75" onClick={goPrev} disabled={!prev}>
+            <ChevronLeft className="size-5" />
+          </IconButton>
+          <IconButton label="下一项" className="pointer-events-auto size-11 border-white/20 bg-black/60 text-white backdrop-blur hover:bg-black/75" onClick={goNext} disabled={!next}>
+            <ChevronRight className="size-5" />
+          </IconButton>
+        </div>
       </DialogContent>
     </Dialog>
     <TimelineDialog
@@ -851,17 +858,6 @@ onPlay={() => { setIsPlaying(true); if (videoRef.current) videoRef.current.playb
       onDelete={deleteSnapshot}
       onCover={setSnapshotCover}
     />
-    {createPortal(
-      <div className="pointer-events-none fixed inset-y-0 left-2 right-2 z-[75] flex items-center justify-between">
-        <IconButton label="上一项" className="pointer-events-auto size-11 border-white/20 bg-black/60 text-white backdrop-blur hover:bg-black/75" onClick={goPrev} disabled={!prev}>
-          <ChevronLeft className="size-5" />
-        </IconButton>
-        <IconButton label="下一项" className="pointer-events-auto size-11 border-white/20 bg-black/60 text-white backdrop-blur hover:bg-black/75" onClick={goNext} disabled={!next}>
-          <ChevronRight className="size-5" />
-        </IconButton>
-      </div>,
-      document.body,
-    )}
     </>
   )
 }

@@ -2,6 +2,10 @@ package api
 
 import (
 	"context"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -11,6 +15,65 @@ import (
 )
 
 const pektinoRefreshMarker = "pektino-data-refresh-v1"
+
+// repairPektinoMedia restores file links after legacy tokens were renamed.
+// The media files still use the old native-id name; Scan cannot match them to
+// pektino@id rows, so rename them first and restore the file metadata.
+func (s *Server) repairPektinoMedia() int {
+	dir := filepath.Join(s.paths.Content, "pektino")
+	s.mu.RLock()
+	rows := append([]model.Row(nil), s.rows...)
+	s.mu.RUnlock()
+	var dirty []model.Row
+	for i := range rows {
+		r := &rows[i]
+		if !strings.EqualFold(r.Source, "pektino") || r.SourceID == "" || !strings.HasPrefix(r.Token, "pektino@") {
+			continue
+		}
+		target := filepath.Join(dir, r.Token+".mp4")
+		old := filepath.Join(dir, r.SourceID+".mp4")
+		if !fileExists(target) && fileExists(old) {
+			_ = os.Rename(old, target)
+		}
+		if !fileExists(target) && r.FilePath != "" && fileExists(r.FilePath) && filepath.Base(r.FilePath) != r.Token+".mp4" {
+			_ = os.Rename(r.FilePath, target)
+		}
+		if !fileExists(target) {
+			continue
+		}
+		st, err := os.Stat(target)
+		if err != nil {
+			continue
+		}
+		changed := r.FileName != r.Token+".mp4" || r.FilePath != target
+		r.FileName = r.Token + ".mp4"
+		r.FilePath = target
+		r.FileSize = strconv.FormatInt(st.Size(), 10)
+		r.FileDate = st.ModTime().Format("2006-01-02 15:04:05")
+		if r.Status == "new" || r.Status == "" {
+			r.Status = "done"
+		}
+		if changed || r.Status == "done" {
+			dirty = append(dirty, *r)
+		}
+	}
+	if len(dirty) == 0 {
+		return 0
+	}
+	if err := s.st.UpsertRows(dirty); err != nil {
+		s.logbuf.Add("repair", fmt.Sprintf("repair media links failed: %v", err))
+		return 0
+	}
+	for i := range dirty {
+		s.ReloadRow(dirty[i].Token)
+	}
+	return len(dirty)
+}
+
+func fileExists(p string) bool {
+	st, err := os.Stat(p)
+	return err == nil && !st.IsDir()
+}
 
 // StartLegacyPektinoRepair normalizes old pektino titles and refreshes source
 // metadata. The first run refreshes every pektino row once; later runs only

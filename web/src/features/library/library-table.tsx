@@ -221,8 +221,8 @@ export function LibraryTable({
           ) : null}
           {visible.includes('tags') ? (
             <td className="px-2 py-2.5">
-              <div className="flex max-h-[36px] flex-nowrap items-center gap-1 overflow-hidden">
-                {(row.tags || []).slice(0, 2).map(tag => (
+              <div className="flex max-h-[64px] flex-wrap content-start items-center gap-1 overflow-hidden">
+                {(row.tags || []).slice(0, 4).map(tag => (
                   <span
                     key={tag.id}
                     className="inline-flex min-w-0 max-w-[72px] shrink-0 items-center gap-1 rounded-[5px] border px-1.5 py-[2px] text-[8px] leading-none"
@@ -237,9 +237,9 @@ export function LibraryTable({
                     <span className="truncate">{tag.name}</span>
                   </span>
                 ))}
-                {(row.tags?.length || 0) > 2 ? (
+                {(row.tags?.length || 0) > 4 ? (
                   <span className="shrink-0 rounded-[5px] border border-[color:var(--border)] bg-[color:var(--surface-2)] px-1.5 py-[2px] text-[8px] leading-none text-[color:var(--subtle)]">
-                    +{(row.tags?.length || 0) - 2}
+                    +{(row.tags?.length || 0) - 4}
                   </span>
                 ) : null}
                 {!row.tags?.length ? <span className="text-[9px] text-[color:var(--subtle)]">—</span> : null}

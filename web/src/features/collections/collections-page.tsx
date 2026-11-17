@@ -1,7 +1,8 @@
 import * as React from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
+  ChevronLeft,
   Copy,
   Eye,
   Heart,
@@ -65,7 +66,6 @@ export function CollectionsPage() {
   const actions = useLibraryActions()
   const { data: state } = useAppState()
   const downloadMap = React.useMemo(() => new Map<string, DownloadItem>((state?.download?.items || []).map(item => [item.token, item])), [state?.download?.items])
-  const [selectedId, setSelectedId] = React.useState<number | null>(null)
   const [query, setQuery] = React.useState('')
   const [status, setStatus] = React.useState('all')
   const [newName, setNewName] = React.useState('')
@@ -95,16 +95,18 @@ export function CollectionsPage() {
     staleTime: 5_000,
   })
 
+  const { id: routeId } = useParams()
+  const currentId = Number(routeId) || null
   const collections = collectionsQuery.data?.items || []
-  const current = collections.find(c => c.id === selectedId) || collections[0] || null
-
-  React.useEffect(() => {
-    if (!selectedId && collections.length) setSelectedId(collections[0].id)
-  }, [collections, selectedId])
+  const current = currentId ? collections.find(c => c.id === currentId) || null : null
+  const visibleCollections = React.useMemo(() => {
+    const q = query.trim().toLowerCase()
+    return q ? collections.filter(c => c.name.toLowerCase().includes(q)) : collections
+  }, [collections, query])
 
   React.useEffect(() => {
     setSelected([])
-  }, [selectedId])
+  }, [currentId])
 
   React.useEffect(() => {
     if (!multi) setSelected([])
@@ -167,7 +169,7 @@ export function CollectionsPage() {
       const r = await post<{ ok: boolean; id?: number; error?: string }>('/api/collections', { action: 'create', name, color: newColor })
       if (!r.ok || !r.id) throw new Error(r.error || '新建失败')
       setNewName('')
-      setSelectedId(r.id)
+      navigate(`/collections/${r.id}`)
       toast.success('合集已创建')
       invalidate()
     } catch (e) {
@@ -217,7 +219,7 @@ export function CollectionsPage() {
       if (!r.ok) throw new Error(r.error || '删除失败')
       toast.success('合集已删除')
       setEditorOpen(false)
-      setSelectedId(null)
+      navigate('/collections')
       invalidate()
     } catch (e) {
       toast.error((e as Error).message)
@@ -294,20 +296,22 @@ export function CollectionsPage() {
           </div>
         </div>
         <div className="ml-auto flex flex-wrap items-center gap-1.5">
+          {currentId ? <Button size="sm" variant="ghost" onClick={() => navigate('/collections')}><ChevronLeft className="size-3.5" /> 返回合集</Button> : null}
           <Button size="sm" variant="outline" disabled={!current} onClick={openEditor}><Pencil className="size-3.5" /> 编辑合集</Button>
           <Button size="sm" variant="outline" disabled={!current} onClick={() => setCoverOpen(true)}><Image className="size-3.5" /> 更换封面</Button>
           <Button size="sm" variant="ghost" disabled={!current} onClick={openCollectionInLibrary}><Eye className="size-3.5" /> 在台账中查看</Button>
         </div>
       </div>
 
+      {!currentId ? (
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-        {collections.map(col => {
+        {visibleCollections.map(col => {
           const active = current?.id === col.id
           return (
             <button
               key={col.id}
               type="button"
-              onClick={() => setSelectedId(col.id)}
+              onClick={() => navigate(`/collections/${col.id}`)}
               className={cn(
                 'group relative overflow-hidden rounded-[12px] border bg-[color:var(--surface)] text-left transition-all hover:-translate-y-0.5 hover:border-[color:var(--border-strong)]',
                 active ? 'border-[color:var(--primary)] ring-1 ring-[color:var(--primary)]/30' : 'border-[color:var(--border)]',
@@ -335,6 +339,8 @@ export function CollectionsPage() {
         })}
       </div>
 
+      ) : null}
+
 
       <div className="flex flex-wrap items-center gap-2">
         <Input value={newName} onChange={e => setNewName(e.target.value)} placeholder="新合集名称" className="w-[170px]" onKeyDown={e => { if (e.key === 'Enter') create() }} />
@@ -360,6 +366,7 @@ export function CollectionsPage() {
         <Button size="sm" variant="ghost" onClick={() => { setQuery(''); setStatus('all') }} disabled={!query && status === 'all'}><RotateCcw className="size-3.5" /> 重置</Button>
       </div>
 
+
       {current ? (
         <div className="flex items-center justify-between gap-2 text-[10px] text-[color:var(--subtle)]">
           <span><b className="text-[color:var(--foreground)]">{rows.length}</b> 条 · {current.name}</span>
@@ -373,15 +380,15 @@ export function CollectionsPage() {
         </div>
       ) : null}
 
-      {!current ? (
+      {currentId && !current ? (
         <div className="grid min-h-[280px] place-items-center rounded-[var(--radius-card)] border border-[color:var(--border)] bg-[color:var(--surface)]">
           <div className="text-center">
             <Layers className="mx-auto size-6 text-[color:var(--subtle)]" />
-            <div className="mt-2 text-[12px] font-medium">还没有合集</div>
-            <div className="mt-1 text-[10px] text-[color:var(--subtle)]">先在上方创建，再从台账加入条目。</div>
+            <div className="mt-2 text-[12px] font-medium">合集不存在</div>
+            <Button className="mt-3" size="sm" variant="outline" onClick={() => navigate('/collections')}>返回合集</Button>
           </div>
         </div>
-      ) : (
+      ) : current ? (
         <>
         <div className="flex items-center gap-3 rounded-[12px] border border-[color:var(--border)] bg-[color:var(--surface)] p-3">
           {current.coverToken ? (
@@ -414,7 +421,7 @@ export function CollectionsPage() {
           </div>
         ) : null}
         </>
-      )}
+      ) : null}
 
       <Dialog open={editorOpen} onOpenChange={setEditorOpen}>
         <DialogContent

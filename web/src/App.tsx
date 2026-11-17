@@ -39,6 +39,7 @@ export default function App() {
               <Route index element={<LibraryPage />} />
               <Route path="queue" element={<QueuePage />} />
               <Route path="collections" element={<CollectionsPage />} />
+              <Route path="collections/:id" element={<CollectionsPage />} />
               <Route path="tags" element={<TagsPage />} />
               <Route path="bin" element={<BinPage />} />
               <Route path="sources" element={<SourcesPage />} />

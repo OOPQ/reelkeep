@@ -57,7 +57,7 @@ const PAGE_META: Record<string, { kicker: string; title: string }> = {
 
 function usePageMeta() {
   const { pathname } = useLocation()
-  return PAGE_META[pathname] || { kicker: 'PEKTINO', title: '媒体库' }
+  return PAGE_META[pathname] || (pathname.startsWith('/collections/') ? PAGE_META['/collections'] : { kicker: 'PEKTINO', title: '媒体库' })
 }
 
 function Brand({

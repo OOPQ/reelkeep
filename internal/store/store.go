@@ -243,6 +243,16 @@ func (s *Store) ensureSchema() error {
 			return fmt.Errorf("建全文索引失败: %w", err)
 		}
 	}
+	// 旧的网页分类统一归入“其他”。
+	if _, err := s.db.Exec("UPDATE items SET source = 'other' WHERE source = 'web'"); err != nil {
+		return err
+	}
+	if _, err := s.db.Exec("UPDATE download_tasks SET source = 'other' WHERE source = 'web'"); err != nil {
+		return err
+	}
+	if _, err := s.db.Exec("UPDATE deleted_tokens SET source = 'other' WHERE source = 'web'"); err != nil {
+		return err
+	}
 	// 老库补列：collections.color
 	has := map[string]bool{}
 	rows, err := s.db.Query("PRAGMA table_info(collections)")

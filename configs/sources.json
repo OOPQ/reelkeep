@@ -383,8 +383,24 @@
     "key": "web",
     "name": "网页",
     "file": "web.ps1",
-    "enabled": true,
+    "enabled": false,
     "order": 80,
+    "capabilities": [
+      "scrape",
+      "download"
+    ],
+    "siteUrl": "",
+    "pageSize": 1,
+    "supportsPages": false,
+    "incremental": false,
+    "ranks": []
+  },
+  {
+    "key": "other",
+    "name": "其他",
+    "file": "web.ps1",
+    "enabled": true,
+    "order": 90,
     "capabilities": [
       "scrape",
       "download"

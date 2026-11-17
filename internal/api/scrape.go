@@ -65,8 +65,8 @@ func (s *Server) pickLinkSource(raw string) (string, source.Source, bool) {
 			return candidates[0].key, candidates[0].src, true
 		}
 	}
-	src, ok := s.reg.Get("web")
-	return "web", src, ok
+	src, ok := s.reg.Get("other")
+	return "other", src, ok
 }
 
 // scrapeJob 是一次抓取任务（同一时间只允许一个）。
@@ -392,6 +392,13 @@ func (s *Server) runScrapeURL(ctx context.Context, j *scrapeJob, us source.URLSc
 		}
 		s.logbuf.Add("scrape", "链接抓取失败："+err.Error())
 		return
+	}
+	if j.Source == "other" {
+		row.Source = "other"
+		row.Site = "other"
+		if strings.HasPrefix(row.Token, "web@") {
+			row.Token = "other@" + strings.TrimPrefix(row.Token, "web@")
+		}
 	}
 	added, updated, skipped, addedTokens, mergeErr := s.applyScrape([]model.Row{row}, skipDeleted)
 	if mergeErr != nil {

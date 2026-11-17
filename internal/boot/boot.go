@@ -109,6 +109,7 @@ func Start(ctx context.Context, opt Options) (*Instance, error) {
 	}
 	// 通用「链接抓取」源（原生实现）
 	reg.Register("web", websource.New)
+	reg.Register("other", websource.New)
 	websource.Configure(settings.Proxy)
 	mgr := rule.NewManager(config.ImportedSourcesDir(), reg)
 	mgr.SetProxy(settings.Proxy)

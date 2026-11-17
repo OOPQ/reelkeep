@@ -1,0 +1,126 @@
+{
+  "schema": 1,
+  "id": "hanime1",
+  "name": "Hanime1",
+  "version": "1.0.0",
+  "author": "reelkeep",
+  "description": "Hanime1 静态 HTML 源，列表与详情直接提供 mp4 地址。",
+  "baseUrl": "https://hanime1.me",
+  "hosts": [
+    "vdownload.hembed.com",
+    "vdownload-8.hembed.com",
+    "hembed.com"
+  ],
+  "capabilities": [
+    "scrape",
+    "detail",
+    "cover",
+    "download"
+  ],
+  "defaults": {
+    "timeoutSec": 30
+  },
+  "list": {
+    "url": "/search?page={page}",
+    "pageSize": 20,
+    "ranks": [
+      {
+        "key": "latest",
+        "label": "最新上市",
+        "group": "榜单",
+        "path": "/search?sort=%E6%9C%80%E6%96%B0%E4%B8%8A%E5%B8%82&page={page}"
+      },
+      {
+        "key": "new",
+        "label": "最新上传",
+        "group": "榜单",
+        "path": "/search?sort=%E6%9C%80%E6%96%B0%E4%B8%8A%E5%82%B3&page={page}"
+      },
+      {
+        "key": "today",
+        "label": "本日排行",
+        "group": "榜单",
+        "path": "/search?sort=%E6%9C%AC%E6%97%A5%E6%8E%92%E8%A1%8C&page={page}"
+      },
+      {
+        "key": "watching",
+        "label": "他们正在看",
+        "group": "榜单",
+        "path": "/search?sort=%E4%BB%96%E5%80%91%E5%9C%A8%E7%9C%8B&page={page}"
+      }
+    ],
+    "item": "a.video-link[href*=\"/watch?v=\"]",
+    "fields": {
+      "id": {
+        "selector": "a",
+        "attr": "href",
+        "regex": "[?&]v=(\\d+)"
+      },
+      "pageUrl": {
+        "selector": "a",
+        "attr": "href",
+        "absolute": true
+      },
+      "title": {
+        "selector": ".title",
+        "text": true
+      },
+      "cover": {
+        "selector": "img.main-thumb",
+        "attr": "src",
+        "absolute": true
+      },
+      "duration": {
+        "selector": ".duration",
+        "text": true
+      },
+      "views": {
+        "selector": ".stats-container .stat-item:last-child",
+        "text": true,
+        "regex": "([0-9,]+)"
+      }
+    }
+  },
+  "detail": {
+    "url": "/watch?v={id}",
+    "always": true,
+    "fields": {
+      "title": {
+        "selector": "#shareBtn-title",
+        "text": true
+      },
+      "cover": {
+        "selector": "meta[property='og:image']",
+        "attr": "content",
+        "absolute": true
+      },
+      "duration": {
+        "selector": "meta[property='og:video:duration']",
+        "attr": "content"
+      },
+      "playable": {
+        "selector": "video source[size='1080']",
+        "attr": "src",
+        "absolute": true
+      },
+      "views": {
+        "selector": "meta[property='og:description']",
+        "attr": "content",
+        "regex": "([0-9,]+)"
+      }
+    }
+  },
+  "download": {
+    "kind": "http",
+    "url": "{playable}",
+    "headers": {
+      "Referer": "{baseUrl}/"
+    },
+    "onStatus": {
+      "410": {
+        "action": "refreshDetail",
+        "retryOnce": true
+      }
+    }
+  }
+}

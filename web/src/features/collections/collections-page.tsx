@@ -134,6 +134,7 @@ export function CollectionsPage() {
     qc.invalidateQueries({ queryKey: ['collections'] })
     qc.invalidateQueries({ queryKey: ['collection-items'] })
     qc.invalidateQueries({ queryKey: ['state'] })
+    qc.invalidateQueries({ queryKey: ['library-rows'] })
   }
 
   const create = async () => {

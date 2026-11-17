@@ -149,7 +149,8 @@ export function PreviewDialog({ rows, token, autoplay = false, media, onClose, o
     if (!row?.token || recordedPlay.current === row.token) return
     recordedPlay.current = row.token
     void post<{ ok: boolean }>('/api/play', { token: row.token, countOnly: true })
-      .then(r => { if (r.ok) qc.invalidateQueries({ queryKey: ['state'] }) })
+      .then(r => { if (r.ok) qc.invalidateQueries({ queryKey: ['state'] })
+    qc.invalidateQueries({ queryKey: ['library-rows'] }) })
       .catch(() => {})
   }, [row?.token, qc])
 
@@ -261,7 +262,8 @@ export function PreviewDialog({ rows, token, autoplay = false, media, onClose, o
         const value = Number(e.key)
         blurActive()
         void post<{ ok: boolean; error?: string }>('/api/rate', { tokens: [token], value }).then(r => {
-          if (r.ok) { toast.success(`已评分 ${value} 星`); qc.invalidateQueries({ queryKey: ['state'] }) }
+          if (r.ok) { toast.success(`已评分 ${value} 星`); qc.invalidateQueries({ queryKey: ['state'] })
+    qc.invalidateQueries({ queryKey: ['library-rows'] }) }
           else toast.error(r.error || '评分失败')
         })
         return
@@ -271,7 +273,8 @@ export function PreviewDialog({ rows, token, autoplay = false, media, onClose, o
         e.stopImmediatePropagation()
         blurActive()
         void post<{ ok: boolean; error?: string }>('/api/rate', { tokens: [token], value: 0 }).then(r => {
-          if (r.ok) { toast.success('已清除评分'); qc.invalidateQueries({ queryKey: ['state'] }) }
+          if (r.ok) { toast.success('已清除评分'); qc.invalidateQueries({ queryKey: ['state'] })
+    qc.invalidateQueries({ queryKey: ['library-rows'] }) }
           else toast.error(r.error || '评分失败')
         })
         return
@@ -380,6 +383,7 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
       if (!r.ok) throw new Error(r.error || '评分失败')
       toast.success(value ? `已评分 ${value} 星` : '已清除评分')
       qc.invalidateQueries({ queryKey: ['state'] })
+    qc.invalidateQueries({ queryKey: ['library-rows'] })
     } catch (e) {
       toast.error((e as Error).message)
     }
@@ -395,6 +399,7 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
       if (!r.ok) throw new Error(r.error || '开始下载失败')
       toast.success('已加入下载队列', { action: { label: '查看队列', onClick: () => navigate('/queue') } })
       qc.invalidateQueries({ queryKey: ['state'] })
+    qc.invalidateQueries({ queryKey: ['library-rows'] })
     } catch (e) {
       toast.error((e as Error).message)
     } finally {
@@ -411,6 +416,7 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
     if (r.ok) {
       qc.invalidateQueries({ queryKey: ['collections'] })
       qc.invalidateQueries({ queryKey: ['state'] })
+    qc.invalidateQueries({ queryKey: ['library-rows'] })
     }
   }
 
@@ -425,6 +431,7 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
       toast.success(col.has ? `已移出「${col.name}」` : `已加入「${col.name}」`)
       qc.invalidateQueries({ queryKey: ['tags'] })
       qc.invalidateQueries({ queryKey: ['state'] })
+    qc.invalidateQueries({ queryKey: ['library-rows'] })
     } catch (e) {
       toast.error((e as Error).message)
     }

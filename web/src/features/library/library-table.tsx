@@ -221,18 +221,27 @@ export function LibraryTable({
           ) : null}
           {visible.includes('tags') ? (
             <td className="px-2 py-2.5">
-              <div className="flex max-h-[42px] flex-wrap gap-1 overflow-hidden">
-                {(row.tags || []).slice(0, 3).map(tag => (
+              <div className="flex max-h-[36px] flex-nowrap items-center gap-1 overflow-hidden">
+                {(row.tags || []).slice(0, 2).map(tag => (
                   <span
                     key={tag.id}
-                    className="max-w-[88px] truncate rounded-full px-1.5 py-0.5 text-[8.5px]"
-                    style={{ background: `color-mix(in srgb, ${tag.color || 'var(--primary)'} 16%, transparent)`, color: tag.color || 'var(--primary-2)' }}
+                    className="inline-flex min-w-0 max-w-[72px] shrink-0 items-center gap-1 rounded-[5px] border px-1.5 py-[2px] text-[8px] leading-none"
+                    style={{
+                      borderColor: `color-mix(in srgb, ${tag.color || 'var(--primary)'} 32%, transparent)`,
+                      background: `color-mix(in srgb, ${tag.color || 'var(--primary)'} 11%, transparent)`,
+                      color: tag.color || 'var(--primary-2)',
+                    }}
                     title={tag.name}
                   >
-                    {tag.name}
+                    <span className="size-1 shrink-0 rounded-full bg-current opacity-75" />
+                    <span className="truncate">{tag.name}</span>
                   </span>
                 ))}
-                {(row.tags?.length || 0) > 3 ? <span className="text-[8.5px] text-[color:var(--subtle)]">+{(row.tags?.length || 0) - 3}</span> : null}
+                {(row.tags?.length || 0) > 2 ? (
+                  <span className="shrink-0 rounded-[5px] border border-[color:var(--border)] bg-[color:var(--surface-2)] px-1.5 py-[2px] text-[8px] leading-none text-[color:var(--subtle)]">
+                    +{(row.tags?.length || 0) - 2}
+                  </span>
+                ) : null}
                 {!row.tags?.length ? <span className="text-[9px] text-[color:var(--subtle)]">—</span> : null}
               </div>
             </td>

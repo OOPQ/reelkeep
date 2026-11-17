@@ -43,6 +43,7 @@ export function CollectionPicker({
   const after = () => {
     qc.invalidateQueries({ queryKey: ['collections'] })
     qc.invalidateQueries({ queryKey: ['state'] })
+    qc.invalidateQueries({ queryKey: ['library-rows'] })
     onOpenChange(false)
   }
 

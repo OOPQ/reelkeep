@@ -136,6 +136,7 @@ export function TagsPage() {
     qc.invalidateQueries({ queryKey: ['tags'] })
     qc.invalidateQueries({ queryKey: ['tag-items'] })
     qc.invalidateQueries({ queryKey: ['state'] })
+    qc.invalidateQueries({ queryKey: ['library-rows'] })
   }
 
   const create = async () => {

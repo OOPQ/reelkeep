@@ -43,6 +43,7 @@ export function TagPicker({
   const after = () => {
     qc.invalidateQueries({ queryKey: ['tags'] })
     qc.invalidateQueries({ queryKey: ['state'] })
+    qc.invalidateQueries({ queryKey: ['library-rows'] })
     onOpenChange(false)
   }
 

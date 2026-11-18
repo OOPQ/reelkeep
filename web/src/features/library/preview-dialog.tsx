@@ -769,16 +769,6 @@ onPlay={e => {
           ) : null}
 
           <div className="pointer-events-none absolute inset-0 z-20 grid place-items-center">
-            {!playing && canPlay ? (
-              <Button
-                size="md"
-                variant="outline"
-                className="pointer-events-auto border-white/20 bg-black/55 text-white backdrop-blur hover:bg-black/70"
-                onClick={() => { userPaused.current = false; setVideoError(false); setVideoReady(false); setPlaying(true) }}
-              >
-                <Play className="size-4 fill-current" /> 播放
-              </Button>
-            ) : null}
             {playing && !videoReady && !videoError ? (
               <span className="rounded-full border border-white/15 bg-black/55 px-3 py-1 text-[10px] text-white/80 backdrop-blur">加载视频…</span>
             ) : null}

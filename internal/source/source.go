@@ -67,6 +67,10 @@ type ScrapeRequest struct {
 	URL         string
 	HD          bool
 	Progress    func(phase string, done, total int)
+	// KnownTokens 里的 token 视为「最近抓过」，跳过详情页，只保留列表字段。
+	KnownTokens map[string]bool
+	// DetailWorkers 覆盖源包里的详情并发数（0 = 用源包默认）。
+	DetailWorkers int
 }
 
 // DownloadSpec 是解析后的可下载地址。

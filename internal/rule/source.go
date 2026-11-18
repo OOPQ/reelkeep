@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/PuerkitoBio/goquery"
@@ -85,6 +86,16 @@ func (s *RuleSource) Scrape(ctx context.Context, req source.ScrapeRequest, emit 
 	emitted := 0
 	seen := map[string]bool{}
 	var firstErr error
+	detailWorkers := s.pkg.Defaults.DetailWorkers
+	if req.DetailWorkers > 0 {
+		detailWorkers = req.DetailWorkers
+	}
+	if detailWorkers <= 0 {
+		detailWorkers = 4
+	}
+	if detailWorkers > 16 {
+		detailWorkers = 16
+	}
 	for idx := 0; idx < len(pages); idx++ {
 		page := pages[idx]
 		listURL := s.pkg.ListURL(rank, page)
@@ -96,33 +107,96 @@ func (s *RuleSource) Scrape(ctx context.Context, req source.ScrapeRequest, emit 
 		if err != nil {
 			return err
 		}
-		pageNew := 0
-		for i := range rows {
-			if limit > 0 && emitted >= limit {
-				return nil
-			}
-			r := rows[i]
-			if s.pkg.Detail != nil && (s.pkg.Detail.Always || r.URL == "") {
-				d, derr := s.detailFor(ctx, r.SourceID, r.PageURL)
-				if derr != nil {
-					if firstErr == nil {
-						firstErr = derr
-					}
-					if r.URL == "" {
-						continue // 没有播放地址的条目不入库（与旧版一致）
-					}
-				} else {
-					mergeRow(&r, d)
-				}
-			}
-			if r.URL == "" {
-				continue
+		// 先按 token 去重、决定哪些条目需要详情，再并发抓详情，最后按列表顺序 emit。
+		type candidate struct {
+			row  model.Row
+			need bool
+		}
+		cands := make([]candidate, 0, len(rows))
+		for _, r := range rows {
+			if limit > 0 && emitted+len(cands) >= limit {
+				break
 			}
 			key := strings.ToLower(r.Token)
 			if seen[key] {
 				continue // 列表页里同一个条目可能出现多次（导航/推荐位）
 			}
+			need := s.pkg.Detail != nil && (s.pkg.Detail.Always || r.URL == "")
+			if need && req.KnownTokens != nil && req.KnownTokens[key] {
+				need = false // 增量：最近抓过的条目不再打详情
+			}
+			if !need && r.URL == "" {
+				continue
+			}
 			seen[key] = true
+			cands = append(cands, candidate{row: r, need: need})
+		}
+
+		results := make([]model.Row, len(cands))
+		errs := make([]error, len(cands))
+		for i := range cands {
+			results[i] = cands[i].row
+		}
+		workers := detailWorkers
+		if workers > len(cands) {
+			workers = len(cands)
+		}
+		if workers > 1 {
+			sem := make(chan struct{}, workers)
+			var wg sync.WaitGroup
+			for i := range cands {
+				if !cands[i].need {
+					continue
+				}
+				wg.Add(1)
+				sem <- struct{}{}
+				go func(i int) {
+					defer wg.Done()
+					defer func() { <-sem }()
+					d, derr := s.detailFor(ctx, cands[i].row.SourceID, cands[i].row.PageURL)
+					if derr != nil {
+						errs[i] = derr
+						return
+					}
+					r := cands[i].row
+					mergeRow(&r, d)
+					results[i] = r
+				}(i)
+			}
+			wg.Wait()
+		} else {
+			for i := range cands {
+				if !cands[i].need {
+					continue
+				}
+				d, derr := s.detailFor(ctx, cands[i].row.SourceID, cands[i].row.PageURL)
+				if derr != nil {
+					errs[i] = derr
+					continue
+				}
+				r := cands[i].row
+				mergeRow(&r, d)
+				results[i] = r
+			}
+		}
+
+		pageNew := 0
+		for i := range cands {
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			if errs[i] != nil {
+				if firstErr == nil {
+					firstErr = errs[i]
+				}
+				if results[i].URL == "" {
+					continue // 没有播放地址的条目不入库（与旧版一致）
+				}
+			}
+			r := results[i]
+			if r.URL == "" {
+				continue
+			}
 			if err := emit(r); err != nil {
 				return err
 			}

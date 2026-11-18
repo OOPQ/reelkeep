@@ -62,6 +62,10 @@ type Defaults struct {
 	Render string `json:"render,omitempty"`
 	// TLSProfile: 留空用 Go 默认 TLS；chrome/firefox/safari 用对应指纹发请求。
 	TLSProfile string `json:"tlsProfile,omitempty"`
+	// DetailWorkers: 详情页并发数（默认 4，上限 16）。
+	DetailWorkers int `json:"detailWorkers,omitempty"`
+	// RateLimitMs: 同一域名两次请求的最小间隔（默认 200ms，最小 20ms）。
+	RateLimitMs int `json:"rateLimitMs,omitempty"`
 }
 
 // List 描述列表页（HTML 或 JSON API）。

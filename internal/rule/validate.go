@@ -71,6 +71,12 @@ func (p *Package) Validate() []error {
 	default:
 		add("defaults.tlsProfile", "只支持 chrome / firefox / safari")
 	}
+	if p.Defaults.DetailWorkers < 0 || p.Defaults.DetailWorkers > 16 {
+		add("defaults.detailWorkers", "必须在 0–16 之间（0 表示用默认 4）")
+	}
+	if p.Defaults.RateLimitMs != 0 && (p.Defaults.RateLimitMs < 20 || p.Defaults.RateLimitMs > 5000) {
+		add("defaults.rateLimitMs", "必须在 20–5000 毫秒之间（缺省 200）")
+	}
 	caps := map[string]bool{}
 	for i, c := range p.Capabilities {
 		switch c {

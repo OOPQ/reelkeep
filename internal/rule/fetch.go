@@ -65,7 +65,7 @@ func NewHTTPFetcher(p *Package, proxyFn func() string) (*HTTPFetcher, error) {
 	f := &HTTPFetcher{
 		allowed: allowed, ua: p.Defaults.UserAgent, maxBytes: p.Defaults.MaxBytes,
 		auth: p.Auth, baseHost: strings.ToLower(u.Hostname()),
-		limiter: newHostLimiter(200 * time.Millisecond),
+		limiter: newHostLimiter(rateLimit(p)),
 		render:  strings.ToLower(strings.TrimSpace(p.Defaults.Render)),
 		tlsProfile: strings.ToLower(strings.TrimSpace(p.Defaults.TLSProfile)),
 		proxyFn: proxyFn,
@@ -233,6 +233,21 @@ func (f *HTTPFetcher) Get(ctx context.Context, rawURL string, headers map[string
 		return b, nil
 	}
 	return nil, lastErr
+}
+
+// rateLimit 取源包声明的同域最小请求间隔（默认 200ms，最低 20ms）。
+func rateLimit(p *Package) time.Duration {
+	ms := p.Defaults.RateLimitMs
+	if ms <= 0 {
+		ms = 200
+	}
+	if ms < 20 {
+		ms = 20
+	}
+	if ms > 5000 {
+		ms = 5000
+	}
+	return time.Duration(ms) * time.Millisecond
 }
 
 // retryDelay 优先用 Retry-After，其次 1s/2s/3s 退避；最多等 20 秒。

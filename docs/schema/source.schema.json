@@ -87,6 +87,20 @@
           "type": "string",
           "enum": ["chrome", "firefox", "safari"],
           "description": "用对应浏览器的 TLS 指纹发请求，绕开按指纹拦截的站点"
+        },
+        "detailWorkers": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 16,
+          "default": 4,
+          "description": "详情页并发数；0 表示用默认 4"
+        },
+        "rateLimitMs": {
+          "type": "integer",
+          "minimum": 20,
+          "maximum": 5000,
+          "default": 200,
+          "description": "同一域名两次请求的最小间隔；调低可提速，但更容易触发站点限流"
         }
       }
     },

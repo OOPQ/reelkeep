@@ -245,6 +245,7 @@ func (s *Server) handleScrape(w http.ResponseWriter, r *http.Request) {
 		Pages       []int  `json:"pages"`
 		Limit       int    `json:"limit"`
 		SkipDeleted *bool  `json:"skipDeleted"`
+		Incremental *bool  `json:"incremental"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "invalid json"})
@@ -338,6 +339,10 @@ func (s *Server) handleScrape(w http.ResponseWriter, r *http.Request) {
 	if body.SkipDeleted != nil {
 		skipDeleted = *body.SkipDeleted
 	}
+	incremental := true
+	if body.Incremental != nil {
+		incremental = *body.Incremental
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	j := &scrapeJob{
@@ -354,7 +359,7 @@ func (s *Server) handleScrape(w http.ResponseWriter, r *http.Request) {
 	s.job = j
 	s.jobMu.Unlock()
 
-	go s.runScrape(ctx, j, src, skipDeleted)
+	go s.runScrape(ctx, j, src, skipDeleted, incremental)
 	pageLabel := fmt.Sprintf("%d 页", len(pages))
 	if len(pages) == 0 {
 		pageLabel = "自动翻页"
@@ -363,16 +368,33 @@ func (s *Server) handleScrape(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "job": j.info()})
 }
 
-func (s *Server) runScrape(ctx context.Context, j *scrapeJob, src source.Source, skipDeleted bool) {
+func (s *Server) runScrape(ctx context.Context, j *scrapeJob, src source.Source, skipDeleted, incremental bool) {
 	runID := time.Now().Format("20060102-150405") + "-" + sanitizeName(j.Source) + "-" + sanitizeName(j.Rank)
 	j.logf("run=%s source=%s rank=%s pages=%v limit=%d", runID, j.Source, j.Rank, j.Pages, j.Limit)
 
+	// 增量：最近 3 天抓过的条目不再请求详情页，只更新列表字段。
+	var known map[string]bool
+	if incremental {
+		cutoff := time.Now().AddDate(0, 0, -3).Format("2006-01-02 15:04:05")
+		s.mu.RLock()
+		known = make(map[string]bool, len(s.rows))
+		for i := range s.rows {
+			if s.rows[i].LastSeen >= cutoff {
+				known[strings.ToLower(s.rows[i].Token)] = true
+			}
+		}
+		s.mu.RUnlock()
+		j.logf("增量：%d 条最近抓过，跳过详情", len(known))
+	}
+
 	var rows []model.Row
 	err := src.Scrape(ctx, source.ScrapeRequest{
-		Rank:     j.Rank,
-		Pages:    j.Pages,
-		Limit:    j.Limit,
-		PageSize: 50,
+		Rank:        j.Rank,
+		Pages:       j.Pages,
+		Limit:       j.Limit,
+		PageSize:    50,
+		Incremental: incremental,
+		KnownTokens: known,
 		Progress: func(phase string, done, total int) {
 			j.setPhase(phase)
 			j.progress(done, total)

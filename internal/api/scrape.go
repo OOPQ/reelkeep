@@ -442,6 +442,19 @@ func (s *Server) runScrape(ctx context.Context, j *scrapeJob, src source.Source,
 	s.logbuf.Add("scrape", fmt.Sprintf("%s 抓取完成：新增 %d，更新 %d", j.Source, added, updated))
 }
 
+// usePlaylistScraper 判断链接抓取是否该走「播放清单」解析：
+// 规则源只有在源包里写了 playlist 段才算支持（否则按单条链接处理）。
+func usePlaylistScraper(us source.URLScraper) bool {
+	ps, ok := us.(source.PlaylistScraper)
+	if !ok {
+		return false
+	}
+	if sup, ok := ps.(source.PlaylistSupporter); ok {
+		return sup.SupportsPlaylist()
+	}
+	return true
+}
+
 // runScrapeURL 处理「链接抓取」：只产出一条记录。
 func (s *Server) runScrapeURL(ctx context.Context, j *scrapeJob, us source.URLScraper, skipDeleted bool) {
 	runID := time.Now().Format("20060102-150405") + "-" + sanitizeName(j.Source) + "-url"
@@ -450,8 +463,9 @@ func (s *Server) runScrapeURL(ctx context.Context, j *scrapeJob, us source.URLSc
 	var rows []model.Row
 	playlistName := ""
 	var err error
-	if ps, ok := us.(source.PlaylistScraper); ok {
-		rows, playlistName, err = ps.ScrapePlaylist(ctx, j.TargetURL)
+	// 只有源包真的声明了 playlist 段才走清单抓取，否则按单条链接处理。
+	if usePlaylistScraper(us) {
+		rows, playlistName, err = us.(source.PlaylistScraper).ScrapePlaylist(ctx, j.TargetURL)
 	} else {
 		var row model.Row
 		row, err = us.ScrapeURL(ctx, j.TargetURL)

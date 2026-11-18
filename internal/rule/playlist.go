@@ -10,6 +10,9 @@ import (
 	"github.com/OOPQ/reelkeep/internal/model"
 )
 
+// SupportsPlaylist 报告源包是否声明了 playlist 段。
+func (s *RuleSource) SupportsPlaylist() bool { return s.pkg.Playlist != nil }
+
 // ScrapePlaylist 解析播放清单页，逐条补齐详情并返回清单名。
 func (s *RuleSource) ScrapePlaylist(ctx context.Context, rawURL string) ([]model.Row, string, error) {
 	if s.pkg.Playlist == nil {

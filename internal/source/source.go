@@ -124,6 +124,12 @@ type PlaylistScraper interface {
 	ScrapePlaylist(ctx context.Context, rawURL string) (rows []model.Row, name string, err error)
 }
 
+// PlaylistSupporter 由「声明式实现」提供：只有源包真的写了 playlist 段才算支持，
+// 否则走普通的单条链接抓取。
+type PlaylistSupporter interface {
+	SupportsPlaylist() bool
+}
+
 // Registry 保存构造函数、动态导入的源和已启用的清单。
 type Registry struct {
 	mu        sync.RWMutex

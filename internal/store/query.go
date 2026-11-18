@@ -44,7 +44,7 @@ func (q RowQuery) where() (string, []any) {
 	}
 	if len(q.Tags) > 0 {
 		ph := strings.TrimRight(strings.Repeat("?,", len(q.Tags)), ",")
-		parts = append(parts, "token IN (SELECT token FROM item_tags WHERE tag_id IN ("+ph+") GROUP BY token HAVING COUNT(DISTINCT tag_id) = ?)")
+		parts = append(parts, "token IN (SELECT i.token FROM item_tags it JOIN items i ON i.uid = it.item_uid OR i.token = it.token WHERE it.tag_id IN ("+ph+") GROUP BY i.token HAVING COUNT(DISTINCT it.tag_id) = ?)")
 		for _, id := range q.Tags {
 			args = append(args, id)
 		}

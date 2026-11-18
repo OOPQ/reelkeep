@@ -88,6 +88,7 @@ func quotedCoalesce() []string {
 
 const schema = `CREATE TABLE IF NOT EXISTS items (
   token      TEXT PRIMARY KEY,
+  uid        TEXT DEFAULT '',
   status     TEXT DEFAULT 'new',
   fav        TEXT DEFAULT '',
   rank       TEXT DEFAULT '',
@@ -157,6 +158,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_tags_name ON tags(name COLLATE NOCASE);
 CREATE TABLE IF NOT EXISTS item_tags (
   tag_id   INTEGER NOT NULL,
   token    TEXT NOT NULL,
+  item_uid TEXT DEFAULT '',
   added_at TEXT DEFAULT '',
   PRIMARY KEY (tag_id, token)
 );
@@ -164,6 +166,7 @@ CREATE INDEX IF NOT EXISTS idx_item_tags_token ON item_tags(token);
 CREATE TABLE IF NOT EXISTS collection_items (
   collection_id INTEGER NOT NULL,
   token         TEXT NOT NULL,
+  item_uid      TEXT DEFAULT '',
   added_at      TEXT DEFAULT '',
   PRIMARY KEY (collection_id, token)
 );
@@ -177,6 +180,7 @@ CREATE TABLE IF NOT EXISTS audit_log (
 );
 CREATE TABLE IF NOT EXISTS download_tasks (
   token          TEXT PRIMARY KEY,
+  item_uid       TEXT DEFAULT '',
   source         TEXT DEFAULT '',
   source_id      TEXT DEFAULT '',
   url            TEXT DEFAULT '',
@@ -322,7 +326,13 @@ func (s *Store) ensureSchema() error {
 		}
 	}
 	// 合并旧版无前缀 token 与新版 source@id token，修复历史脏数据。
+	if err := s.ensureUIDColumns(); err != nil {
+		return err
+	}
 	if err := s.dedupeItems(); err != nil {
+		return err
+	}
+	if err := s.backfillUIDs(); err != nil {
 		return err
 	}
 	return nil
@@ -355,9 +365,11 @@ func (s *Store) TagsByToken(tokens []string) (map[string][]model.TagRef, error) 
 			args[i] = t
 		}
 		placeholders := strings.TrimRight(strings.Repeat("?,", len(part)), ",")
-		rows, err := s.db.Query(`SELECT ci.token, c.id, c.name, COALESCE(c.color,'')
-			FROM item_tags ci JOIN tags c ON c.id = ci.tag_id
-			WHERE ci.token IN (`+placeholders+`) ORDER BY c.name`, args...)
+		rows, err := s.db.Query(`SELECT i.token, c.id, c.name, COALESCE(c.color,'')
+			FROM item_tags ci
+			JOIN items i ON i.uid = ci.item_uid OR i.token = ci.token
+			JOIN tags c ON c.id = ci.tag_id
+			WHERE i.token IN (`+placeholders+`) ORDER BY c.name`, args...)
 		if err != nil {
 			return nil, err
 		}
@@ -380,8 +392,8 @@ func (s *Store) MergeCollection(source, target int64) error {
 		return err
 	}
 	defer tx.Rollback()
-	if _, err := tx.Exec(`INSERT OR IGNORE INTO collection_items(collection_id, token, added_at)
-		SELECT ?, token, added_at FROM collection_items WHERE collection_id = ?`, target, source); err != nil {
+	if _, err := tx.Exec(`INSERT OR IGNORE INTO collection_items(collection_id, token, item_uid, added_at)
+		SELECT ?, token, item_uid, added_at FROM collection_items WHERE collection_id = ?`, target, source); err != nil {
 		return err
 	}
 	if _, err := tx.Exec("DELETE FROM collection_items WHERE collection_id = ?", source); err != nil {
@@ -447,6 +459,10 @@ func (s *Store) UpsertRows(list []model.Row) error {
 	for i := range list {
 		if _, err := stmt.Exec(list[i].Values()...); err != nil {
 			return fmt.Errorf("写入 %s: %w", list[i].Token, err)
+		}
+		uid := model.MediaUID(list[i].Source, list[i].SourceID, list[i].Token)
+		if _, err := tx.Exec("UPDATE items SET uid = ? WHERE token = ?", uid, list[i].Token); err != nil {
+			return err
 		}
 	}
 	return tx.Commit()
@@ -626,7 +642,7 @@ func SaveDeletedJSON(dataDir string, m map[string]model.DeletedToken) error {
 func (s *Store) Collections() ([]model.Collection, error) {
 	rows, err := s.db.Query(`
 		SELECT c.id, COALESCE(c.name,''), COALESCE(c.color,''),
-		       COALESCE(NULLIF(c.cover_token,''), (SELECT ci.token FROM collection_items ci WHERE ci.collection_id = c.id ORDER BY ci.added_at ASC, ci.rowid ASC LIMIT 1), ''),
+		       COALESCE(NULLIF(c.cover_token,''), (SELECT COALESCE(NULLIF((SELECT token FROM items WHERE uid = ci.item_uid), ''), ci.token) FROM collection_items ci WHERE ci.collection_id = c.id ORDER BY ci.added_at ASC, ci.rowid ASC LIMIT 1), ''),
 		       (SELECT COUNT(*) FROM collection_items ci WHERE ci.collection_id = c.id),
 		       COALESCE(c.created_at,''), COALESCE(c.updated_at,'')
 		FROM collections c ORDER BY c.id`)
@@ -647,7 +663,7 @@ func (s *Store) Collections() ([]model.Collection, error) {
 
 // CollectionsForToken 返回某条目所属的合集 id 集合。
 func (s *Store) CollectionsForToken(token string) (map[int64]bool, error) {
-	rows, err := s.db.Query("SELECT collection_id FROM collection_items WHERE token = ?", token)
+	rows, err := s.db.Query("SELECT collection_id FROM collection_items WHERE token = ? OR item_uid = (SELECT uid FROM items WHERE token = ?)", token, token)
 	if err != nil {
 		return nil, err
 	}
@@ -664,7 +680,8 @@ func (s *Store) CollectionsForToken(token string) (map[int64]bool, error) {
 
 // CollectionTokens 返回合集内 token（按加入时间倒序）。
 func (s *Store) CollectionTokens(id int64) ([]string, error) {
-	rows, err := s.db.Query("SELECT token FROM collection_items WHERE collection_id = ? ORDER BY added_at DESC", id)
+	rows, err := s.db.Query(`SELECT COALESCE(NULLIF((SELECT token FROM items WHERE uid = ci.item_uid), ''), ci.token)
+		FROM collection_items ci WHERE ci.collection_id = ? ORDER BY ci.added_at DESC, ci.rowid DESC`, id)
 	if err != nil {
 		return nil, err
 	}
@@ -733,8 +750,9 @@ func (s *Store) AddToCollection(id int64, tokens []string) error {
 	defer tx.Rollback()
 	for _, t := range tokens {
 		if _, err := tx.Exec(
-			"INSERT INTO collection_items (collection_id, token, added_at) VALUES (?,?,?) "+
-				"ON CONFLICT(collection_id, token) DO NOTHING", id, t, now); err != nil {
+			"INSERT INTO collection_items (collection_id, token, item_uid, added_at) "+
+				"VALUES (?,?,COALESCE((SELECT uid FROM items WHERE token = ?),''),?) "+
+				"ON CONFLICT DO NOTHING", id, t, t, now); err != nil {
 			return err
 		}
 	}
@@ -752,7 +770,7 @@ func (s *Store) RemoveFromCollection(id int64, tokens []string) error {
 	}
 	defer tx.Rollback()
 	for _, t := range tokens {
-		if _, err := tx.Exec("DELETE FROM collection_items WHERE collection_id = ? AND token = ?", id, t); err != nil {
+		if _, err := tx.Exec("DELETE FROM collection_items WHERE collection_id = ? AND (token = ? OR item_uid = (SELECT uid FROM items WHERE token = ?))", id, t, t); err != nil {
 			return err
 		}
 	}

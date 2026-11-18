@@ -29,7 +29,7 @@ func (s *Store) Tags() ([]model.Collection, error) {
 
 // TagsForToken 返回某条数据所属标签 id 集合。
 func (s *Store) TagsForToken(token string) (map[int64]bool, error) {
-	rows, err := s.db.Query("SELECT tag_id FROM item_tags WHERE token = ?", token)
+	rows, err := s.db.Query("SELECT tag_id FROM item_tags WHERE token = ? OR item_uid = (SELECT uid FROM items WHERE token = ?)", token, token)
 	if err != nil {
 		return nil, err
 	}
@@ -46,7 +46,8 @@ func (s *Store) TagsForToken(token string) (map[int64]bool, error) {
 
 // TagTokens 返回标签内的 token。
 func (s *Store) TagTokens(id int64) ([]string, error) {
-	rows, err := s.db.Query("SELECT token FROM item_tags WHERE tag_id = ? ORDER BY added_at DESC", id)
+	rows, err := s.db.Query(`SELECT COALESCE(NULLIF((SELECT token FROM items WHERE uid = it.item_uid), ''), it.token)
+		FROM item_tags it WHERE it.tag_id = ? ORDER BY it.added_at DESC, it.rowid DESC`, id)
 	if err != nil {
 		return nil, err
 	}
@@ -109,7 +110,7 @@ func (s *Store) AddToTag(id int64, tokens []string) error {
 	}
 	defer tx.Rollback()
 	for _, t := range tokens {
-		if _, err := tx.Exec("INSERT INTO item_tags (tag_id, token, added_at) VALUES (?,?,?) ON CONFLICT(tag_id, token) DO NOTHING", id, t, now); err != nil {
+		if _, err := tx.Exec("INSERT INTO item_tags (tag_id, token, item_uid, added_at) VALUES (?,?,COALESCE((SELECT uid FROM items WHERE token = ?),''),?) ON CONFLICT DO NOTHING", id, t, t, now); err != nil {
 			return err
 		}
 	}
@@ -123,7 +124,7 @@ func (s *Store) RemoveFromTag(id int64, tokens []string) error {
 	}
 	defer tx.Rollback()
 	for _, t := range tokens {
-		if _, err := tx.Exec("DELETE FROM item_tags WHERE tag_id = ? AND token = ?", id, t); err != nil {
+		if _, err := tx.Exec("DELETE FROM item_tags WHERE tag_id = ? AND (token = ? OR item_uid = (SELECT uid FROM items WHERE token = ?))", id, t, t); err != nil {
 			return err
 		}
 	}
@@ -137,7 +138,7 @@ func (s *Store) MergeTag(source, target int64) error {
 	}
 	defer tx.Rollback()
 	if _, err := tx.Exec(`INSERT OR IGNORE INTO item_tags(tag_id, token, added_at)
-		SELECT ?, token, added_at FROM item_tags WHERE tag_id = ?`, target, source); err != nil {
+		SELECT ?, token, item_uid, added_at FROM item_tags WHERE tag_id = ?`, target, source); err != nil {
 		return err
 	}
 	if _, err := tx.Exec("DELETE FROM item_tags WHERE tag_id = ?", source); err != nil {

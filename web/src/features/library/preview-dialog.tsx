@@ -690,29 +690,28 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
         <div
           ref={stageRef}
           data-preview-stage
-          title={canPlay ? '点击画面播放（空格也可）' : downloadable ? '点击画面下载' : ''}
+          title={canPlay ? '点击画面播放/暂停（空格也可）' : downloadable ? '点击画面下载' : ''}
           className={cn(
             'group relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-[#05080c]',
             (canPlay || downloadable) && 'cursor-pointer',
           )}
           onClick={e => {
             const t = e.target as HTMLElement
-            // 控制条、按钮、输入框上的点击不触发播放。
+            // 控制条、按钮、输入框上的点击不触发播放/暂停。
             if (t.closest('button, a, input, select, textarea')) return
             if (!canPlay) {
               if (downloadable) void download()
               return
             }
-            userPaused.current = false
-            setVideoError(false)
-            const v = videoRef.current
-            if (v) {
-              void v.play().catch(() => {})
+            if (!videoRef.current) {
+              userPaused.current = false
+              setVideoError(false)
+              setVideoReady(false)
               setPlaying(true)
               return
             }
-            setVideoReady(false)
-            setPlaying(true)
+            // 已在播放就暂停，暂停/未开始就恢复播放。
+            togglePlay()
           }}
         >
           <div className="pointer-events-none absolute inset-0 z-0">

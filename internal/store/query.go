@@ -135,6 +135,25 @@ func (q RowQuery) order() string {
 	}
 }
 
+// QueryTokens 返回筛选后的全部 token（按当前排序），用于预览翻页等只需要 id 的场景。
+func (s *Store) QueryTokens(q RowQuery) ([]string, error) {
+	const maxTokens = 50000
+	where, args := q.where()
+	rows, err := s.db.Query("SELECT token FROM items WHERE "+where+" ORDER BY "+q.order()+" LIMIT ?", append(args, maxTokens)...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make([]string, 0, 256)
+	for rows.Next() {
+		var t string
+		if err := rows.Scan(&t); err == nil && t != "" {
+			out = append(out, t)
+		}
+	}
+	return out, rows.Err()
+}
+
 // QueryRows 返回筛选后的当前页和总数。
 func (s *Store) QueryRows(q RowQuery) ([]model.Row, int, error) {
 	limit := q.Limit

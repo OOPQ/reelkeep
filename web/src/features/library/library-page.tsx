@@ -47,7 +47,7 @@ import { StatCard } from '@/components/stat-card'
 import { LibraryTable } from './library-table'
 import { LibraryGallery } from './library-gallery'
 import { filterRows, sortRows, type LibraryFilters, type SortDir, type SortKey } from './library-filters'
-import { useLibraryRows } from './use-library-rows'
+import { useLibraryRows, useRowTokens } from './use-library-rows'
 import { SelectionBar } from './selection-bar'
 import { CollectionPicker } from './collection-picker'
 import { TagPicker } from './tag-picker'
@@ -220,9 +220,32 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
   const displayTotal = serverMode ? (serverQuery.data?.total || 0) : sorted.length
   const displayPages = serverMode ? Math.max(1, Math.ceil(displayTotal / per)) : pages
   const displayPage = Math.min(page, displayPages)
+  // 预览的上下翻页要在「整个筛选结果」里走，不能只走当前页。
+  const rowTokensQuery = useRowTokens({
+    q: deferredQuery,
+    status,
+    source,
+    flag,
+    res,
+    minDur,
+    sort: sortKey,
+    dir: sortDir,
+    tags: tagIds.join(','),
+  }, serverMode)
+  const listPreviewRef = React.useRef(false)
+  const setPreviewOrder = useUiStore(s => s.setPreviewOrder)
   const openPreviewList = React.useCallback((token: string, autoplay = false) => {
-    openPreview(token, autoplay, displayRows.map(r => r.token))
-  }, [openPreview, displayRows])
+    listPreviewRef.current = true
+    const full = rowTokensQuery.data?.tokens
+    openPreview(token, autoplay, full && full.length ? full : displayRows.map(r => r.token))
+  }, [openPreview, displayRows, rowTokensQuery.data])
+
+  // token 列表晚到时补上，预览里的上一项/下一项立刻变成全量范围。
+  React.useEffect(() => {
+    if (!listPreviewRef.current || !previewToken) return
+    const full = rowTokensQuery.data?.tokens
+    if (full && full.length) setPreviewOrder(full)
+  }, [rowTokensQuery.data, previewToken, setPreviewOrder])
 
   React.useEffect(() => { setPage(1) }, [deferredQuery, status, source, flag, res, minDur, per, sortKey, sortDir, tagIds, collectionId, batchMode])
   React.useEffect(() => { if (page > displayPages) setPage(displayPages) }, [page, displayPages])
@@ -416,6 +439,7 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
   const gachaBusy = React.useRef(false)
   const gacha = async () => {
     if (gachaBusy.current) return
+    listPreviewRef.current = false // 抽卡自己带全量播放池，别被列表 token 覆盖
     let all: Row[]
     if (serverMode) {
       gachaBusy.current = true

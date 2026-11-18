@@ -63,6 +63,7 @@ type UiState = {
   clearSelected: () => void
   openPreview: (token: string, autoplay?: boolean, order?: string[]) => void
   navigatePreview: (token: string, autoplay?: boolean) => void
+  setPreviewOrder: (order: string[]) => void
   closePreview: () => void
 }
 
@@ -109,6 +110,7 @@ export const useUiStore = create<UiState>()(
       clearSelected: () => set({ selected: [] }),
       openPreview: (token, autoplay = false, order) => set({ previewToken: token, previewAutoplay: autoplay, previewOrder: order || [] }),
       navigatePreview: (token, autoplay = false) => set({ previewToken: token, previewAutoplay: autoplay }),
+      setPreviewOrder: order => set({ previewOrder: order }),
       closePreview: () => set({ previewToken: null, previewAutoplay: false, previewOrder: [] }),
     }),
     {

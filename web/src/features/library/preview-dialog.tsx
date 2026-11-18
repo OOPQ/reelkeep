@@ -51,6 +51,8 @@ export function PreviewDialog({ rows, token, autoplay = false, media, onClose, o
   const index = React.useMemo(() => rows.findIndex(r => r.token === token), [rows, token])
   const row = index >= 0 ? rows[index] : null
   const [playing, setPlaying] = React.useState(false)
+  // 用户主动暂停后，忽略迟到的 play 事件（play() 是异步的，暂停得早会“复活”出声）。
+  const userPaused = React.useRef(false)
   const [videoReady, setVideoReady] = React.useState(false)
   const [videoError, setVideoError] = React.useState(false)
   const [copied, setCopied] = React.useState(false)
@@ -84,6 +86,13 @@ export function PreviewDialog({ rows, token, autoplay = false, media, onClose, o
   const videoRef = React.useRef<HTMLVideoElement>(null)
   const qc = useQueryClient()
   const navigate = useNavigate()
+  React.useEffect(() => {
+    // 切条目 / 关闭浮窗时确保停止播放，避免声音残留。
+    return () => {
+      const v = videoRef.current
+      if (v && !v.paused) v.pause()
+    }
+  }, [token])
   const snapshotsQuery = useQuery<{ items: Snapshot[] }>({
     queryKey: ['snapshots', token],
     queryFn: async () => {
@@ -158,6 +167,7 @@ export function PreviewDialog({ rows, token, autoplay = false, media, onClose, o
 
   React.useEffect(() => {
     setPlaying(Boolean(autoplay && canPlay))
+    userPaused.current = false
     setVideoReady(false)
     setVideoError(false)
     setCopied(false)
@@ -298,8 +308,17 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
       setAccelerating(false)
       blurActive()
       if (held < 300) {
-        if (v.paused) { void v.play().catch(() => {}); setPlaying(true) }
-        else { v.pause() }
+        // 用「用户是否暂停过」判断，而不是 v.paused：
+        // 刚打开浮窗时视频还没开始播（v.paused=true），按空格应该是暂停而不是重新开播。
+        if (userPaused.current) {
+          userPaused.current = false
+          void v.play().catch(() => {})
+          setPlaying(true)
+        } else {
+          userPaused.current = true
+          v.pause()
+          setIsPlaying(false)
+        }
       }
     }
     window.addEventListener('keydown', onKeyDown, true)
@@ -487,8 +506,15 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
   const togglePlay = () => {
     const v = videoRef.current
     if (!v) return
-    if (v.paused) { void v.play().catch(() => {}); setPlaying(true) }
-    else v.pause()
+    if (userPaused.current) {
+      userPaused.current = false
+      void v.play().catch(() => {})
+      setPlaying(true)
+    } else {
+      userPaused.current = true
+      v.pause()
+      setIsPlaying(false)
+    }
   }
 
   const setRate = (rate: number) => {
@@ -646,7 +672,16 @@ onLoadedMetadata={e => { const d = e.currentTarget.duration || Number(row.second
               onDurationChange={e => setDuration(e.currentTarget.duration || Number(row.seconds) || 0)}
               onPlaying={() => { setVideoReady(true); setIsPlaying(true) }}
 onPause={() => { setIsPlaying(false); saveResume() }}
-onPlay={() => { setIsPlaying(true); if (videoRef.current) videoRef.current.playbackRate = playbackRate; recordPlay() }}
+onPlay={e => {
+                if (userPaused.current) {
+                  e.currentTarget.pause()
+                  setIsPlaying(false)
+                  return
+                }
+                setIsPlaying(true)
+                if (videoRef.current) videoRef.current.playbackRate = playbackRate
+                recordPlay()
+              }}
               onVolumeChange={e => { setIsMuted(e.currentTarget.muted); setVolume(e.currentTarget.volume) }}
               onCanPlay={() => setVideoReady(true)}
               onError={() => { setVideoError(true); setPlaying(false); setIsPlaying(false); toast.error('视频加载失败：文件可能已被移动，或编码浏览器不支持') }}

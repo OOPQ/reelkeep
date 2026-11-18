@@ -704,11 +704,11 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
               setPlaying(true)
             }}
           >
-            <CoverImage token={row.token} full fit="contain" alt={rowTitle(row)} className={cn('h-full w-full transition-opacity', videoReady ? 'opacity-0' : 'opacity-100')} />
+            <CoverImage token={row.token} full fit="contain" alt={rowTitle(row)} className={cn('h-full w-full', videoReady ? 'opacity-0' : 'opacity-100')} />
           </button>
 
           {!playing || !isPlaying ? (
-            <div className="pointer-events-none absolute inset-0 z-20 grid place-items-center opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+            <div className="pointer-events-none absolute inset-0 z-20 grid place-items-center opacity-0 group-hover:opacity-100">
               {canPlay ? (
                 <button
                   type="button"
@@ -764,10 +764,7 @@ onPlay={e => {
               onVolumeChange={e => { setIsMuted(e.currentTarget.muted); setVolume(e.currentTarget.volume) }}
               onCanPlay={() => setVideoReady(true)}
               onError={() => { setVideoError(true); setPlaying(false); setIsPlaying(false); toast.error('视频加载失败：文件可能已被移动，或编码浏览器不支持') }}
-              className={cn(
-                'absolute inset-0 z-10 h-full w-full object-contain outline-none transition-opacity duration-200',
-                videoReady ? 'opacity-100' : 'opacity-0',
-              )}
+              className="absolute inset-0 z-10 h-full w-full object-contain outline-none"
             />
           ) : null}
 

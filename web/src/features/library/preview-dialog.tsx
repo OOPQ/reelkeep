@@ -687,66 +687,46 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
           </div>
         }
       >
-        <div ref={stageRef} data-preview-stage className="group relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-[#05080c]">
-          <button
-            type="button"
-            className="absolute inset-0 z-0 cursor-pointer"
-            aria-label={canPlay ? '点击播放' : downloadable ? '点击下载' : '封面'}
-            title={canPlay ? '点击播放（空格也可）' : downloadable ? '点击下载' : ''}
-            onClick={() => {
-              if (!canPlay) {
-                if (downloadable) void download()
-                return
-              }
-              // 和悬浮图标同一套动作：暂停/未开始就恢复播放，已经在播则不动。
-              userPaused.current = false
-              setVideoError(false)
-              const v = videoRef.current
-              if (v) {
-                void v.play().catch(() => {})
-                setPlaying(true)
-                return
-              }
-              setVideoReady(false)
+        <div
+          ref={stageRef}
+          data-preview-stage
+          title={canPlay ? '点击画面播放（空格也可）' : downloadable ? '点击画面下载' : ''}
+          className={cn(
+            'group relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-[#05080c]',
+            (canPlay || downloadable) && 'cursor-pointer',
+          )}
+          onClick={e => {
+            const t = e.target as HTMLElement
+            // 控制条、按钮、输入框上的点击不触发播放。
+            if (t.closest('button, a, input, select, textarea')) return
+            if (!canPlay) {
+              if (downloadable) void download()
+              return
+            }
+            userPaused.current = false
+            setVideoError(false)
+            const v = videoRef.current
+            if (v) {
+              void v.play().catch(() => {})
               setPlaying(true)
-            }}
-          >
+              return
+            }
+            setVideoReady(false)
+            setPlaying(true)
+          }}
+        >
+          <div className="pointer-events-none absolute inset-0 z-0">
             <CoverImage token={row.token} full fit="contain" alt={rowTitle(row)} className={cn('h-full w-full', videoReady ? 'opacity-0' : 'opacity-100')} />
-          </button>
+          </div>
 
           {(!playing || !isPlaying) && (canPlay || downloadable) ? (
             <div className="pointer-events-none absolute inset-0 z-20 grid place-items-center opacity-0 group-hover:opacity-100">
               <div className="absolute inset-0 bg-black/20" />
               <div className="relative flex flex-col items-center gap-1.5">
                 {canPlay ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      userPaused.current = false
-                      setVideoError(false)
-                      const v = videoRef.current
-                      if (v) {
-                        void v.play().catch(() => {})
-                        setPlaying(true)
-                        return
-                      }
-                      setVideoReady(false)
-                      setPlaying(true)
-                    }}
-                    className="pointer-events-auto text-white/95 drop-shadow-[0_2px_16px_rgba(0,0,0,0.65)] transition-transform duration-150 hover:scale-110 hover:text-white"
-                    aria-label="播放"
-                  >
-                    <Play className="size-14 fill-current md:size-16" />
-                  </button>
+                  <Play className="size-14 fill-current text-white/95 drop-shadow-[0_2px_16px_rgba(0,0,0,0.65)] transition-transform duration-150 group-hover:scale-105 md:size-16" />
                 ) : (
-                  <button
-                    type="button"
-                    onClick={() => void download()}
-                    className="pointer-events-auto text-white/95 drop-shadow-[0_2px_16px_rgba(0,0,0,0.65)] transition-transform duration-150 hover:scale-110 hover:text-white"
-                    aria-label="下载"
-                  >
-                    <Download className="size-14 md:size-16" />
-                  </button>
+                  <Download className="size-14 text-white/95 drop-shadow-[0_2px_16px_rgba(0,0,0,0.65)] transition-transform duration-150 group-hover:scale-105 md:size-16" />
                 )}
                 <span className="text-[10.5px] font-medium tracking-wide text-white/85 drop-shadow-[0_1px_8px_rgba(0,0,0,0.8)]">
                   {canPlay ? '播放' : '下载'}

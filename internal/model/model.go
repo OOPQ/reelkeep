@@ -127,6 +127,7 @@ type Collection struct {
 // DownloadTask 是一条下载任务（持久化在 download_tasks 表）。
 type DownloadTask struct {
 	Token        string `json:"token"`
+	UID          string `json:"uid,omitempty"`
 	Source       string `json:"source"`
 	SourceID     string `json:"sourceId"`
 	URL          string `json:"url"`

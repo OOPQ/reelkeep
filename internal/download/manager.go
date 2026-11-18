@@ -160,14 +160,16 @@ func (m *Manager) Start(ctx context.Context) error {
 			t.State = "failed"
 			t.Error = "token/来源名含非法路径字符"
 			_ = m.st.SaveTask(t)
-			m.tasks[t.Token] = &Task{M: t}
+			t.UID = taskUID(t)
+			m.tasks[t.UID] = &Task{M: t}
 			continue
 		}
 		if t.State == "downloading" {
 			t.State = "queued" // 进程重启，进行中的任务回到队列
 			_ = m.st.SaveTask(t)
 		}
-		m.tasks[t.Token] = &Task{M: t}
+		t.UID = taskUID(t)
+		m.tasks[t.UID] = &Task{M: t}
 	}
 	m.ctx, m.cancel = context.WithCancel(ctx)
 	m.mu.Unlock()
@@ -401,15 +403,16 @@ func (m *Manager) Enqueue(t model.DownloadTask) (bool, error) {
 	if t.AddedAt == "" {
 		t.AddedAt = now()
 	}
+	t.UID = taskUID(t)
 	m.mu.Lock()
-	if old, ok := m.tasks[t.Token]; ok {
+	if old, ok := m.tasks[t.UID]; ok {
 		switch old.M.State {
 		case "queued", "downloading", "paused":
 			m.mu.Unlock()
 			return false, nil // 已经在队列里
 		}
 	}
-	m.tasks[t.Token] = &Task{M: t}
+	m.tasks[t.UID] = &Task{M: t}
 	err := m.st.SaveTask(t)
 	m.mu.Unlock()
 	if err != nil {
@@ -552,7 +555,7 @@ func (m *Manager) Cancel(tokens []string) int {
 			m.st.UpdateJobState(id, "cancelled")
 			m.setJobFilesState(id, "cancelled")
 		}
-		delete(m.tasks, t.M.Token)
+		delete(m.tasks, taskKey(t))
 		_ = m.st.DeleteTask(t.M.Token)
 	}
 	m.mu.Unlock()
@@ -773,6 +776,20 @@ func tokenSet(tokens []string) map[string]bool {
 func (m *Manager) finalPath(t *Task) string {
 	final, _ := m.pathsFor(t)
 	return final
+}
+
+func taskUID(t model.DownloadTask) string {
+	if t.UID != "" {
+		return t.UID
+	}
+	return model.MediaUID(t.Source, t.SourceID, t.Token)
+}
+
+func taskKey(t *Task) string {
+	if t.M.UID != "" {
+		return t.M.UID
+	}
+	return model.MediaUID(t.M.Source, t.M.SourceID, t.M.Token)
 }
 
 func (m *Manager) pathsFor(t *Task) (final, part string) {

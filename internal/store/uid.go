@@ -68,6 +68,7 @@ func (s *Store) backfillUIDs() error {
 		"UPDATE item_tags SET item_uid = COALESCE((SELECT uid FROM items WHERE items.token = item_tags.token), '') WHERE item_uid = ''",
 		"UPDATE download_tasks SET item_uid = COALESCE((SELECT uid FROM items WHERE items.token = download_tasks.token), '') WHERE item_uid = ''",
 		"CREATE UNIQUE INDEX IF NOT EXISTS idx_items_uid ON items(uid) WHERE uid <> ''",
+		"CREATE UNIQUE INDEX IF NOT EXISTS idx_download_tasks_uid ON download_tasks(item_uid) WHERE item_uid <> ''",
 		"CREATE UNIQUE INDEX IF NOT EXISTS idx_collection_items_uid ON collection_items(collection_id, item_uid) WHERE item_uid <> ''",
 		"CREATE UNIQUE INDEX IF NOT EXISTS idx_item_tags_uid ON item_tags(tag_id, item_uid) WHERE item_uid <> ''",
 	} {

@@ -10,7 +10,7 @@ import (
 // LoadTasks 读取全部下载任务（按加入时间）。
 func (s *Store) LoadTasks() ([]model.DownloadTask, error) {
 	rows, err := s.db.Query(`
-		SELECT COALESCE(token,''), COALESCE(source,''), COALESCE(source_id,''),
+		SELECT COALESCE(token,''), COALESCE(item_uid,''), COALESCE(source,''), COALESCE(source_id,''),
 		       COALESCE(url,''), COALESCE(mode,'http'), COALESCE(files,'[]'), COALESCE(name,''), COALESCE(headers,''),
 		       COALESCE(use_auth,0), COALESCE(refresh_on_410,0), COALESCE(state,'queued'),
 		       COALESCE(bytes,0), COALESCE(total,0), COALESCE(error,''),
@@ -26,7 +26,7 @@ func (s *Store) LoadTasks() ([]model.DownloadTask, error) {
 		var t model.DownloadTask
 		var useAuth, refresh, history int
 		var files string
-		if err := rows.Scan(&t.Token, &t.Source, &t.SourceID, &t.URL, &t.Mode, &files, &t.Name, &t.Headers,
+		if err := rows.Scan(&t.Token, &t.UID, &t.Source, &t.SourceID, &t.URL, &t.Mode, &files, &t.Name, &t.Headers,
 			&useAuth, &refresh, &t.State, &t.Bytes, &t.Total, &t.Error,
 			&t.AddedAt, &t.StartedAt, &t.FinishedAt, &history); err != nil {
 			return nil, err
@@ -48,17 +48,17 @@ func (s *Store) SaveTask(t model.DownloadTask) error {
 	}
 	_, err := s.db.Exec(`
 		INSERT INTO download_tasks
-		  (token, source, source_id, url, mode, files, name, headers, use_auth, refresh_on_410, state,
+		  (token, item_uid, source, source_id, url, mode, files, name, headers, use_auth, refresh_on_410, state,
 		   bytes, total, error, added_at, started_at, finished_at, history)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 		ON CONFLICT(token) DO UPDATE SET
-		  source=excluded.source, source_id=excluded.source_id, url=excluded.url,
+		  item_uid=excluded.item_uid, source=excluded.source, source_id=excluded.source_id, url=excluded.url,
 		  mode=excluded.mode, files=excluded.files, name=excluded.name, headers=excluded.headers, use_auth=excluded.use_auth,
 		  refresh_on_410=excluded.refresh_on_410, state=excluded.state,
 		  bytes=excluded.bytes, total=excluded.total, error=excluded.error,
 		  started_at=excluded.started_at, finished_at=excluded.finished_at,
 		  history=excluded.history`,
-		t.Token, t.Source, t.SourceID, t.URL, t.Mode, string(files), t.Name, t.Headers,
+		t.Token, t.UID, t.Source, t.SourceID, t.URL, t.Mode, string(files), t.Name, t.Headers,
 		boolInt(t.UseAuth), boolInt(t.RefreshOn410), t.State,
 		t.Bytes, t.Total, t.Error, t.AddedAt, t.StartedAt, t.FinishedAt, boolInt(t.History))
 	return err

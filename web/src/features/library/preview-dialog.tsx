@@ -242,7 +242,7 @@ export function PreviewDialog({ rows, token, autoplay = false, media, onClose, o
         spaceAt = performance.now()
         const v = videoRef.current
         if (!v) {
-          if (canPlay) setPlaying(true)
+          if (canPlay) { userPaused.current = false; setPlaying(true) }
           return
         }
         if (!v.paused) {
@@ -496,9 +496,10 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
     const v = videoRef.current
     if (v) {
       try { v.currentTime = next } catch (e) {}
-      if (v.paused) { void v.play().catch(() => {}); setPlaying(true) }
+      // 拖动进度条不改变播放状态：暂停时定位后仍保持暂停，避免和空格/按钮的暂停状态打架。
     } else {
       setSeek(next)
+      userPaused.current = false
       setPlaying(true)
     }
   }
@@ -651,6 +652,7 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
               if (playing) return
               setVideoError(false)
               setVideoReady(false)
+              userPaused.current = false
               setPlaying(true)
             }}
           >
@@ -698,7 +700,7 @@ onPlay={e => {
                 size="md"
                 variant="outline"
                 className="pointer-events-auto border-white/20 bg-black/55 text-white backdrop-blur hover:bg-black/70"
-                onClick={() => { setVideoError(false); setVideoReady(false); setPlaying(true) }}
+                onClick={() => { userPaused.current = false; setVideoError(false); setVideoReady(false); setPlaying(true) }}
               >
                 <Play className="size-4 fill-current" /> 播放
               </Button>
@@ -933,7 +935,7 @@ onPlay={e => {
       open={timelineOpen}
       onOpenChange={setTimelineOpen}
       snapshots={snapshots}
-      onSeek={time => { setSeek(time); setPlaying(true); setTimelineOpen(false) }}
+      onSeek={time => { userPaused.current = false; setSeek(time); setPlaying(true); setTimelineOpen(false) }}
       onDelete={deleteSnapshot}
       onCover={setSnapshotCover}
     />

@@ -82,7 +82,7 @@ export function PreviewDialog({ rows, token, autoplay = false, media, onClose, o
   const stageRef = React.useRef<HTMLDivElement>(null)
   const longPressRate = useUiStore(s => s.longPressRate)
   const bumpCoverRev = useUiStore(s => s.bumpCoverRev)
-  const closePreview = useUiStore(s => s.closePreview)
+  const setPreviewOrder = useUiStore(s => s.setPreviewOrder)
   const videoRef = React.useRef<HTMLVideoElement>(null)
   const qc = useQueryClient()
   const navigate = useNavigate()
@@ -435,9 +435,18 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
       const r = await post<{ ok: boolean; error?: string }>('/api/mark', { tokens: [row.token], status: 'recycled' })
       if (!r.ok) throw new Error(r.error || '删除失败')
       toast.success('已移入回收站', { id: tid })
-      closePreview()
       qc.invalidateQueries({ queryKey: ['state'] })
       qc.invalidateQueries({ queryKey: ['library-rows'] })
+      // 删完不直接关窗：优先跳下一项，没有下一项就跳上一项，都没有才关闭。
+      const at = rows.findIndex(r => r.token === row.token)
+      const rest = rows.filter(r => r.token !== row.token).map(r => r.token)
+      if (rest.length === 0) {
+        onClose()
+        return
+      }
+      const nextToken = rest[Math.min(at < 0 ? 0 : at, rest.length - 1)]
+      setPreviewOrder(rest)
+      onNavigate(nextToken, autoplay)
     } catch (e) {
       toast.error((e as Error).message, { id: tid })
     }

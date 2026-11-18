@@ -12,9 +12,9 @@
                     {
                         "id":  "hsex",
                         "name":  "Hsex",
-                        "version":  "1.0.2",
+                        "version":  "1.0.3",
                         "file":  "hsex.json",
-                        "sha256":  "a95ee7d2fa3ba9c90e20939489cb1a1ca7f6570338b04fc9d8d8ee6101673046",
+                        "sha256":  "bbc639e921a15a81a1f7073e3f9408ae6e936f76f5693a3d9e3183cc1f7bc8a5",
                         "description":  "hsex.icu 视频列表：最新/New、最热、周榜/Weekly、月榜/Monthly、5分钟/5min+、10分钟/+；播放地址为多码率 HLS，需要 ffmpeg；默认跟随系统代理。"
                     },
                     {

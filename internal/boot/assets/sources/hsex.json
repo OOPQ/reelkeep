@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "hsex",
   "name": "Hsex",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "author": "reelkeep",
   "description": "hsex.icu 视频列表：最新/New、最热、周榜/Weekly、月榜/Monthly、5分钟/5min+、10分钟/+；播放地址为多码率 HLS，需要 ffmpeg；默认跟随系统代理。",
   "baseUrl": "https://hsex.icu",

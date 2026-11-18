@@ -374,9 +374,7 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
         toast.error('暂不支持磁力链接')
         return
       }
-      if (await confirmAction({ title: '开始下载', description: `把「${row.title?.trim() || row.token}」加入下载队列？`, confirmText: '开始下载' })) {
-        await actions.download([row.token])
-      }
+      await actions.download([row.token])
     },
     fav: row => actions.fav([row.token], row.fav !== '1'),
     collection: row => setPickerTokens([row.token]),
@@ -394,9 +392,7 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
   }
 
   const bulkDownload = async () => {
-    if (await confirmAction({ title: '批量下载', description: `把已选 ${selected.length} 条加入下载队列？`, confirmText: '开始下载' })) {
-      await actions.download(selected)
-    }
+    await actions.download(selected)
   }
   const bulkRecycle = async () => {
     if (await confirmAction({ title: '移入回收站', description: `把已选 ${selected.length} 条移入回收站？可在回收站恢复。`, confirmText: '移入回收站', danger: true })) {

@@ -393,7 +393,6 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
   const download = async () => {
     unlockAudio()
     if (downloading) return
-    if (!(await confirmAction({ title: '开始下载', description: `把「${rowTitle(row)}」加入下载队列？`, confirmText: '开始下载' }))) return
     setDownloading(true)
     try {
       const r = await post<{ ok: boolean; error?: string }>('/api/download', { tokens: [row.token], status: 'new' })
@@ -639,9 +638,6 @@ onPlay={() => { setIsPlaying(true); if (videoRef.current) videoRef.current.playb
           ) : null}
 
           <div className="pointer-events-none absolute inset-0 z-20 grid place-items-center">
-            {!canPlay ? (
-              <span className="rounded-full border border-white/15 bg-black/55 px-3 py-1 text-[10px] text-white/80 backdrop-blur">未下载 · 先点「下载」再播放</span>
-            ) : null}
             {!playing && canPlay ? (
               <Button
                 size="md"

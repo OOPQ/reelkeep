@@ -41,17 +41,23 @@ func TestScrapeViaResolve(t *testing.T) {
 	p.normalize()
 	f := &fakePostFetcher{body: []byte(`{"data":{"url_cd":"abc","thumbnail":"https://pbs.twimg.com/t.jpg","url":"https://video.twimg.com/v.mp4"}}`)}
 	rs := New(p, f)
-	row, err := rs.ScrapeURL(context.Background(), "https://x.com/u/status/12345?a=1")
-	if err != nil {
-		t.Fatal(err)
+	// /status/<id> 和 /status/<id>/video/1 都要能识别成同一个条目。
+	for _, rawURL := range []string{
+		"https://x.com/u/status/12345?a=1",
+		"https://x.com/u/status/12345/video/1",
+	} {
+		row, err := rs.ScrapeURL(context.Background(), rawURL)
+		if err != nil {
+			t.Fatalf("%s: %v", rawURL, err)
+		}
+		if row.Token != "xvideo@12345" || row.Title != "abc" || row.CoverURL == "" || row.URL == "" {
+			t.Fatalf("%s 解析结果不对: %+v", rawURL, row)
+		}
+		if row.PageURL == "" {
+			t.Fatalf("%s 缺少 pageUrl", rawURL)
+		}
 	}
-	if row.Token != "xvideo@12345" || row.Title != "abc" || row.CoverURL == "" || row.URL == "" {
-		t.Fatalf("解析结果不对: %+v", row)
-	}
-	if row.PageURL == "" {
-		t.Fatalf("缺少 pageUrl")
-	}
-	if f.got != `{"url":"https://x.com/u/status/12345?a=1"}` {
+	if f.got != `{"url":"https://x.com/u/status/12345/video/1"}` {
 		t.Fatalf("POST body 不对: %s", f.got)
 	}
 }

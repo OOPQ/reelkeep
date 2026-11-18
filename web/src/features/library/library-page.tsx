@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import {
   Archive,
@@ -110,6 +110,27 @@ export function LibraryPage() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const batchMode = searchParams.get('batch') === '1'
+  const qc = useQueryClient()
+  const [batchTokens, setBatchTokens] = React.useState<string[]>(() => {
+    try { return (JSON.parse(sessionStorage.getItem('pektino.batchTokens') || '[]') as string[]).filter(Boolean) } catch { return [] }
+  })
+  const batchSyncRef = React.useRef('')
+  // 本批视图要跟着「新的一批」一起更新：任务一结束就换成本次的 token 并立刻拉一次最新状态。
+  React.useEffect(() => {
+    if (!batchMode) return
+    const p = data?.job?.progress
+    const fromJob = (p?.addedTokens || []).filter(Boolean)
+    let stored: string[] = []
+    try { stored = (JSON.parse(sessionStorage.getItem('pektino.batchTokens') || '[]') as string[]).filter(Boolean) } catch { }
+    const next = fromJob.length ? fromJob : stored
+    if (!next.length) return
+    const key = `${p?.finishedAt || 0}:${next.join(',')}`
+    if (key === batchSyncRef.current) return
+    batchSyncRef.current = key
+    setBatchTokens(next)
+    try { sessionStorage.setItem('pektino.batchTokens', JSON.stringify(next)) } catch { }
+    void qc.invalidateQueries({ queryKey: ['state'] })
+  }, [batchMode, data?.job?.progress?.finishedAt, data?.job?.progress?.addedTokens, qc])
 
   const view = useUiStore(s => s.view)
   const setView = useUiStore(s => s.setView)
@@ -190,13 +211,7 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
     if (serverMode) return []
     return filterRows(baseRows, filters).filter(row => tagIds.every(id => (row.tags || []).some(t => t.id === id)))
   }, [baseRows, deferredQuery, status, source, flag, res, minDur, serverMode, tagIds])
-  const batchSet = React.useMemo(() => {
-    if (!batchMode) return null
-    let tokens: string[] = []
-    try { tokens = JSON.parse(sessionStorage.getItem('pektino.batchTokens') || '[]') } catch { }
-    if (!tokens.length) tokens = (data?.job?.progress?.addedTokens || []).filter(Boolean)
-    return new Set(tokens)
-  }, [batchMode, data?.job?.progress?.addedTokens])
+  const batchSet = React.useMemo(() => batchMode ? new Set(batchTokens) : null, [batchMode, batchTokens])
   const batchRows = React.useMemo(() => serverMode ? [] : (batchSet ? filtered.filter(row => batchSet.has(row.token)) : filtered), [filtered, batchSet, serverMode])
   const sorted = React.useMemo(() => serverMode ? [] : sortRows(batchRows, sortKey, sortDir), [batchRows, sortKey, sortDir, serverMode])
   const pages = per > 0 ? Math.max(1, Math.ceil(sorted.length / per)) : 1

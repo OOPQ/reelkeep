@@ -599,7 +599,11 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
             className="absolute inset-0 z-0 cursor-pointer"
             aria-label="点击封面播放"
             onClick={() => {
-              if (!canPlay || playing) return
+              if (!canPlay) {
+                toast.info('这个条目还没下载，先点「下载」再播放')
+                return
+              }
+              if (playing) return
               setVideoError(false)
               setVideoReady(false)
               setPlaying(true)
@@ -635,6 +639,9 @@ onPlay={() => { setIsPlaying(true); if (videoRef.current) videoRef.current.playb
           ) : null}
 
           <div className="pointer-events-none absolute inset-0 z-20 grid place-items-center">
+            {!canPlay ? (
+              <span className="rounded-full border border-white/15 bg-black/55 px-3 py-1 text-[10px] text-white/80 backdrop-blur">未下载 · 先点「下载」再播放</span>
+            ) : null}
             {!playing && canPlay ? (
               <Button
                 size="md"

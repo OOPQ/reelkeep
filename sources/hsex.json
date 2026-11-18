@@ -90,8 +90,8 @@
         "attr": "content"
       },
       "cover": {
-        "selector": "meta[property='og:image']",
-        "attr": "content"
+        "raw": true,
+        "regex": "poster=\"(https?://[^\"]+)\""
       },
       "duration": {
         "selector": "meta[property='video:duration']",

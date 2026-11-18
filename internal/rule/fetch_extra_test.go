@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -24,8 +25,11 @@ func TestProfileByName(t *testing.T) {
 }
 
 // TestRenderBrowser 用本机 Chrome/Edge 无头渲染一个本地页面。
-// 没有浏览器时跳过（CI/服务器环境）。
+// 默认跳过：无头浏览器在 CI/容器里依赖沙箱与显示环境，设 REELKEEP_BROWSER_TEST=1 才跑。
 func TestRenderBrowser(t *testing.T) {
+	if os.Getenv("REELKEEP_BROWSER_TEST") != "1" {
+		t.Skip("设 REELKEEP_BROWSER_TEST=1 才跑浏览器渲染测试")
+	}
 	if findBrowser() == "" {
 		t.Skip("本机没有 Chrome/Edge")
 	}

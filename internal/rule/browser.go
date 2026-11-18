@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 )
@@ -81,20 +82,33 @@ func (f *HTTPFetcher) getRendered(ctx context.Context, u *url.URL, headers map[s
 	if ua != "" {
 		args = append(args, "--user-agent="+ua)
 	}
+	if os.Getenv("REELKEEP_BROWSER_NO_SANDBOX") == "1" || (runtime.GOOS == "linux" && os.Geteuid() == 0) {
+		args = append(args, "--no-sandbox")
+	}
 	args = append(args, "--dump-dom", u.String())
 
 	var out, errBuf bytes.Buffer
-	cmd := exec.CommandContext(cctx, bin, args...)
-	cmd.Stdout = &out
-	cmd.Stderr = &errBuf
-	if err := cmd.Run(); err != nil {
-		msg := strings.TrimSpace(errBuf.String())
-		if msg != "" {
-			return nil, fmt.Errorf("浏览器渲染失败: %v（%s）", err, firstLine(msg))
+	run := func(extra []string) ([]byte, string, error) {
+		out.Reset()
+		errBuf.Reset()
+		full := append(append([]string{}, args...), extra...)
+		cmd := exec.CommandContext(cctx, bin, full...)
+		cmd.Stdout = &out
+		cmd.Stderr = &errBuf
+		err := cmd.Run()
+		return out.Bytes(), strings.TrimSpace(errBuf.String()), err
+	}
+	b, stderr, err := run(nil)
+	if err != nil && strings.Contains(strings.ToLower(stderr), "sandbox") {
+		// 容器 / CI 里没有可用的内核沙箱，退一步再试一次。
+		b, stderr, err = run([]string{"--no-sandbox"})
+	}
+	if err != nil {
+		if stderr != "" {
+			return nil, fmt.Errorf("浏览器渲染失败: %v（%s）", err, firstLine(stderr))
 		}
 		return nil, fmt.Errorf("浏览器渲染失败: %v", err)
 	}
-	b := out.Bytes()
 	if len(b) == 0 {
 		return nil, errors.New("浏览器没有返回内容")
 	}

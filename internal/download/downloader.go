@@ -95,7 +95,16 @@ func (m *Manager) runHTTP(ctx context.Context, t *Task) error {
 			return errors.New("retry attempts exhausted")
 		case code == http.StatusForbidden:
 			_ = resp.Body.Close()
-			return errors.New("HTTP 403：源站拒绝（可能需要登录或 Referer）")
+			// 403 有时是签名过期：源支持刷新时先重取一次地址再试。
+			if t.M.RefreshOn410 && !refreshed {
+				refreshed = true
+				if err := m.refresh(ctx, t); err == nil {
+					_ = os.Remove(part)
+					offset = 0
+					continue
+				}
+			}
+			return errors.New("HTTP 403：源站拒绝（链接可能已过期或下架，或需要 Referer/登录）")
 		case code >= 500:
 			_ = resp.Body.Close()
 			if attempt < attempts-1 {

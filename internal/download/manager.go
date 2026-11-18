@@ -779,7 +779,7 @@ func (m *Manager) pathsFor(t *Task) (final, part string) {
 	dir := filepath.Join(m.paths.Content, sourceKey(t.M.Source))
 	name := strings.TrimSpace(t.M.Name)
 	if name == "" {
-		name = t.M.Token + ".mp4"
+		name = model.MediaUID(t.M.Source, t.M.SourceID, t.M.Token) + ".mp4"
 	}
 	name = safeMediaName(name)
 	final = filepath.Join(dir, name)

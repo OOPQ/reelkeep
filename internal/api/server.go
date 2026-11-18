@@ -220,8 +220,8 @@ func (s *Server) Boot() error {
 	s.rowsRev++
 	s.mu.Unlock()
 
-	if n := s.repairPektinoMedia(); n > 0 {
-		s.logbuf.Add("repair", "restored pektino media links: "+itoa(n))
+	if n := s.migrateMediaFiles(); n > 0 {
+		s.logbuf.Add("repair", "migrated media files to stable ids: "+itoa(n))
 	}
 	if _, err := s.Scan(false); err != nil {
 		return err

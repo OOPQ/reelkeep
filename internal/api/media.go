@@ -75,5 +75,10 @@ func resolveFileIn(rows []model.Row, idx scan.Index, contentDir, token string) (
 	if e, ok := idx.Files[strings.ToLower(token)]; ok {
 		return e.File, true
 	}
+	if row, ok := findRow(rows, token); ok {
+		if e, ok := idx.Files[strings.ToLower(model.MediaUID(row.Source, row.SourceID, row.Token))]; ok {
+			return e.File, true
+		}
+	}
 	return "", false
 }

@@ -109,12 +109,18 @@ func (idx Index) Apply(rows []model.Row, keepStatus bool) (dirty []model.Row, fo
 	if !idx.Exists {
 		return nil, 0, nil
 	}
-	ledger := make(map[string]bool, len(rows))
+	ledger := make(map[string]bool, len(rows)*2)
 	for i := range rows {
 		r := &rows[i]
-		key := strings.ToLower(r.Token)
-		ledger[key] = true
-		f, ok := idx.Files[key]
+		tokenKey := strings.ToLower(r.Token)
+		uidKey := strings.ToLower(model.MediaUID(r.Source, r.SourceID, r.Token))
+		ledger[tokenKey] = true
+		ledger[uidKey] = true
+		var f Entry
+		var ok bool
+		if f, ok = idx.Files[uidKey]; !ok {
+			f, ok = idx.Files[tokenKey]
+		}
 		if !ok {
 			if r.FileName != "" {
 				r.FileName, r.FilePath, r.FileSize, r.FileDate = "", "", "", ""

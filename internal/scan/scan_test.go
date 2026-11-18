@@ -96,3 +96,14 @@ func TestApplyKeepsStatusWhenDirMissing(t *testing.T) {
 		t.Fatalf("目录不可达时不应清状态：%+v", rows[0])
 	}
 }
+
+func TestApplyStableMediaUID(t *testing.T) {
+	dir := t.TempDir()
+	uid := model.MediaUID("demo", "42", "demo@42")
+	mustWrite(t, filepath.Join(dir, uid+".mp4"))
+	rows := []model.Row{{Token: "demo@42", Source: "demo", SourceID: "42", Status: "new"}}
+	dirty, found, _ := Build(dir).Apply(rows, false)
+	if found != 1 || len(dirty) != 1 || rows[0].Status != "done" || rows[0].FileName != uid+".mp4" {
+		t.Fatalf("stable media uid not matched: found=%d dirty=%d row=%+v", found, len(dirty), rows[0])
+	}
+}

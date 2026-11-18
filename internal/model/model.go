@@ -1,5 +1,11 @@
 package model
 
+import (
+	"crypto/sha256"
+	"encoding/hex"
+	"strings"
+)
+
 // Row 是台账的一行。字段顺序与 data.db 的 items 表、ledger.csv 表头完全一致，
 // 34 列一个不多一个不少 —— 这是旧版（PowerShell）和前端共同依赖的硬契约。
 type Row struct {
@@ -48,6 +54,18 @@ type TagRef struct {
 }
 
 // Columns 是 items 表的列名，顺序与 Row 字段一致。
+// MediaUID returns a stable media identity independent of the mutable token.
+// It is used for media filenames and survives source-token migrations.
+func MediaUID(source, sourceID, token string) string {
+	// Rows without a native id keep the legacy token-based filename.
+	if strings.TrimSpace(sourceID) == "" {
+		return strings.TrimSpace(token)
+	}
+	key := strings.ToLower(strings.TrimSpace(source)) + "\x00" + strings.TrimSpace(sourceID)
+	sum := sha256.Sum256([]byte(key))
+	return hex.EncodeToString(sum[:8])
+}
+
 var Columns = []string{
 	"token", "status", "fav", "rank", "page",
 	"duration", "seconds", "res", "views", "likes",

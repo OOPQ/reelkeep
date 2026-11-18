@@ -164,6 +164,11 @@ func (s *Server) handleSourceInstall(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleSourceStats 返回各源进程内的请求计数（2xx/拦截/挑战/失败）。
+func (s *Server) handleSourceStats(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "items": rule.StatsSnapshot()})
+}
+
 // fetchLimited 只允许 http(s)，限制响应大小。
 func fetchLimited(ctx context.Context, rawURL string, limit int64) ([]byte, error) {
 	u, err := url.Parse(rawURL)

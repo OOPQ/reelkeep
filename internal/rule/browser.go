@@ -1,7 +1,6 @@
 package rule
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -11,7 +10,12 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
+
+	"github.com/go-rod/rod"
+	"github.com/go-rod/rod/lib/launcher"
+	"github.com/go-rod/rod/lib/proto"
 )
 
 // findBrowser 找本机可用的 Chrome/Edge（可用 REELKEEP_BROWSER 覆盖）。
@@ -36,7 +40,6 @@ func findBrowser() string {
 			return p
 		}
 	}
-	// 非 Windows 或装在 PATH 里的情况
 	for _, name := range []string{"chrome", "google-chrome", "chromium", "msedge"} {
 		if p, err := exec.LookPath(name); err == nil {
 			return p
@@ -45,82 +48,154 @@ func findBrowser() string {
 	return ""
 }
 
-// getRendered 用无头浏览器渲染页面后取 DOM（适合纯 JS 站点 / 挑战页）。
-// 注意：浏览器模式不发送源包的自定义头与登录 Cookie。
-func (f *HTTPFetcher) getRendered(ctx context.Context, u *url.URL, headers map[string]string) ([]byte, error) {
-	bin := findBrowser()
-	if bin == "" {
-		return nil, errors.New("没有找到 Chrome/Edge，浏览器模式不可用（可设置 REELKEEP_BROWSER）")
+// browserProfileDir 是某个源的持久化浏览器目录：登录态和挑战 Cookie 会留在里面。
+func browserProfileDir(sourceID string) string {
+	if custom := strings.TrimSpace(os.Getenv("REELKEEP_BROWSER_DIR")); custom != "" {
+		dir := filepath.Join(custom, sourceID)
+		_ = os.MkdirAll(dir, 0o755)
+		return dir
 	}
-	dir, err := os.MkdirTemp("", "reelkeep-render-")
+	base, err := os.UserCacheDir()
+	if err != nil || base == "" {
+		base = os.TempDir()
+	}
+	id := strings.Map(func(r rune) rune {
+		if r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '-' || r == '_' {
+			return r
+		}
+		return '-'
+	}, sourceID)
+	if id == "" {
+		id = "default"
+	}
+	dir := filepath.Join(base, "Reelkeep", "browser", id)
+	_ = os.MkdirAll(dir, 0o755)
+	return dir
+}
+
+// browserState 是每个源共享的一个浏览器实例（带持久 profile）。
+type browserState struct {
+	once sync.Once
+
+	browser *rod.Browser
+	cleanup func()
+	err     error
+}
+
+// ensureBrowser 启动（或复用）本源的浏览器；失败会缓存错误，避免反复重试。
+func (f *HTTPFetcher) ensureBrowser() (*rod.Browser, error) {
+	f.bs.once.Do(func() {
+		l := launcher.New().
+			Headless(true).
+			Leakless(true).
+			UserDataDir(browserProfileDir(f.pkgID())).
+			Set("disable-blink-features", "AutomationControlled").
+			Set("disable-dev-shm-usage").
+			Set("no-first-run").
+			Set("no-default-browser-check").
+			Set("disable-extensions").
+			Set("disable-background-networking")
+		if p := findBrowser(); p != "" {
+			l = l.Bin(p)
+		}
+		if runtime.GOOS == "linux" && os.Geteuid() == 0 {
+			l = l.NoSandbox(true)
+		}
+		controlURL, err := l.Launch()
+		if err != nil {
+			f.bs.err = fmt.Errorf("启动浏览器失败: %w", err)
+			return
+		}
+		b := rod.New().ControlURL(controlURL)
+		if err := b.Connect(); err != nil {
+			_ = b.Close()
+			l.Kill()
+			f.bs.err = fmt.Errorf("连接浏览器失败: %w", err)
+			return
+		}
+		f.bs.browser = b
+		f.bs.cleanup = func() { l.Kill() }
+	})
+	return f.bs.browser, f.bs.err
+}
+
+// CloseBrowser 关闭本源浏览器（进程退出或测试用）。
+func (f *HTTPFetcher) CloseBrowser() {
+	if f == nil || f.bs == nil {
+		return
+	}
+	if f.bs.browser != nil {
+		_ = f.bs.browser.Close()
+	}
+	if f.bs.cleanup != nil {
+		f.bs.cleanup()
+	}
+}
+
+// getRendered 用真实浏览器渲染页面后取 DOM：
+// 持久 profile 保留登录/挑战 Cookie，拦截图片/字体/媒体请求以提速。
+func (f *HTTPFetcher) getRendered(ctx context.Context, u *url.URL, headers map[string]string) ([]byte, error) {
+	b, err := f.ensureBrowser()
 	if err != nil {
 		return nil, err
 	}
-	defer os.RemoveAll(dir)
-
 	timeout := f.timeout
 	if timeout < 30*time.Second {
 		timeout = 30 * time.Second
 	}
-	cctx, cancel := context.WithTimeout(ctx, timeout)
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
+
+	page, err := b.Page(proto.TargetCreateTarget{URL: "about:blank"})
+	if err != nil {
+		return nil, fmt.Errorf("打开页面失败: %w", err)
+	}
+	defer func() { _ = page.Close() }()
+	page = page.Context(ctx)
 
 	ua := f.ua
 	if v := strings.TrimSpace(headers["User-Agent"]); v != "" {
 		ua = v
 	}
-	args := []string{
-		"--headless=new",
-		"--disable-gpu",
-		"--no-first-run",
-		"--no-default-browser-check",
-		"--disable-extensions",
-		"--disable-background-networking",
-		"--virtual-time-budget=8000",
-		"--user-data-dir=" + dir,
-	}
 	if ua != "" {
-		args = append(args, "--user-agent="+ua)
+		_ = page.SetUserAgent(&proto.NetworkSetUserAgentOverride{UserAgent: ua})
 	}
-	if os.Getenv("REELKEEP_BROWSER_NO_SANDBOX") == "1" || (runtime.GOOS == "linux" && os.Geteuid() == 0) {
-		args = append(args, "--no-sandbox")
-	}
-	args = append(args, "--dump-dom", u.String())
 
-	var out, errBuf bytes.Buffer
-	run := func(extra []string) ([]byte, string, error) {
-		out.Reset()
-		errBuf.Reset()
-		full := append(append([]string{}, args...), extra...)
-		cmd := exec.CommandContext(cctx, bin, full...)
-		cmd.Stdout = &out
-		cmd.Stderr = &errBuf
-		err := cmd.Run()
-		return out.Bytes(), strings.TrimSpace(errBuf.String()), err
-	}
-	b, stderr, err := run(nil)
-	if err != nil && strings.Contains(strings.ToLower(stderr), "sandbox") {
-		// 容器 / CI 里没有可用的内核沙箱，退一步再试一次。
-		b, stderr, err = run([]string{"--no-sandbox"})
-	}
-	if err != nil {
-		if stderr != "" {
-			return nil, fmt.Errorf("浏览器渲染失败: %v（%s）", err, firstLine(stderr))
+	// 只放行文档/脚本/接口请求，图片、字体、媒体、样式都拦掉。
+	router := page.HijackRequests()
+	if err := router.Add("*", "", func(h *rod.Hijack) {
+		switch h.Request.Type() {
+		case proto.NetworkResourceTypeImage, proto.NetworkResourceTypeFont,
+			proto.NetworkResourceTypeMedia, proto.NetworkResourceTypeStylesheet:
+			_ = h.Response.Fail(proto.NetworkErrorReasonBlockedByClient)
+			return
 		}
-		return nil, fmt.Errorf("浏览器渲染失败: %v", err)
+		h.ContinueRequest(&proto.FetchContinueRequest{})
+	}); err != nil {
+		return nil, fmt.Errorf("初始化请求拦截失败: %w", err)
 	}
-	if len(b) == 0 {
+	go router.Run()
+	defer func() { router.Stop() }()
+
+	if err := page.Navigate(u.String()); err != nil {
+		return nil, fmt.Errorf("打开 %s 失败: %w", u.String(), err)
+	}
+	if err := page.WaitLoad(); err != nil {
+		return nil, fmt.Errorf("等待加载失败: %w", err)
+	}
+	// 给前端渲染/跳转留一点时间；超时不算失败。
+	_ = page.WaitStable(500 * time.Millisecond)
+
+	html, err := page.HTML()
+	if err != nil {
+		return nil, fmt.Errorf("读取页面失败: %w", err)
+	}
+	bts := []byte(html)
+	if int64(len(bts)) > f.maxBytes {
+		bts = bts[:f.maxBytes]
+	}
+	if len(bts) == 0 {
 		return nil, errors.New("浏览器没有返回内容")
 	}
-	if int64(len(b)) > f.maxBytes {
-		b = b[:f.maxBytes]
-	}
-	return b, nil
-}
-
-func firstLine(s string) string {
-	if i := strings.IndexByte(s, '\n'); i > 0 {
-		return s[:i]
-	}
-	return s
+	return bts, nil
 }

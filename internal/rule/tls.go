@@ -101,8 +101,12 @@ func (f *HTTPFetcher) getTLS(ctx context.Context, u *url.URL, headers map[string
 		if resp.StatusCode >= 400 {
 			snippet, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
 			_ = resp.Body.Close()
+			if looksLikeChallenge(resp.StatusCode, snippet) {
+				return f.browserFallback(ctx, u, headers)
+			}
 			lastErr = fmt.Errorf("HTTP %d %s", resp.StatusCode, strings.TrimSpace(string(snippet)))
 			if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode == http.StatusServiceUnavailable {
+				f.limiter.Penalize()
 				continue
 			}
 			return nil, lastErr
@@ -113,6 +117,10 @@ func (f *HTTPFetcher) getTLS(ctx context.Context, u *url.URL, headers map[string
 			lastErr = rerr
 			continue
 		}
+		if looksLikeChallenge(resp.StatusCode, b) {
+			return f.browserFallback(ctx, u, headers)
+		}
+		f.limiter.Reward()
 		return b, nil
 	}
 	return nil, lastErr

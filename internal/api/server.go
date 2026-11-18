@@ -616,6 +616,7 @@ func (s *Server) Handler() http.Handler {
 
 	// 源管理与抓取
 	mux.HandleFunc("GET /api/sources", s.handleSources)
+	mux.HandleFunc("GET /api/sources/stats", s.handleSourceStats)
 	mux.HandleFunc("GET /api/sources/index", s.handleSourceIndex)
 	mux.HandleFunc("POST /api/sources/install", s.handleSourceInstall)
 	mux.HandleFunc("GET /api/sources/package", s.handleSourcePackage)

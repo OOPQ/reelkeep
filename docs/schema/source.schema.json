@@ -81,7 +81,7 @@
           "type": "string",
           "enum": ["http", "browser"],
           "default": "http",
-          "description": "browser 表示用本机 Chrome/Edge 无头渲染后再取 DOM（不发送自定义头和 Cookie）"
+          "description": "browser 表示用本机 Chrome/Edge 无头渲染（持久会话，保留 Cookie；拦截图片/字体/媒体以提速）"
         },
         "tlsProfile": {
           "type": "string",

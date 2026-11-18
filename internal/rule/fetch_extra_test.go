@@ -33,6 +33,7 @@ func TestRenderBrowser(t *testing.T) {
 	if findBrowser() == "" {
 		t.Skip("本机没有 Chrome/Edge")
 	}
+	t.Setenv("REELKEEP_BROWSER_DIR", t.TempDir())
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		fmt.Fprint(w, `<html><body><div id="app"></div>

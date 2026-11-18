@@ -114,6 +114,18 @@ export function SourcesPage() {
   const items = query.data?.items || []
   const refresh = () => query.refetch()
 
+  type Stat = { ok: number; blocked: number; challenge: number; failed: number }
+  const statsQuery = useQuery<{ ok: boolean; items: Record<string, Stat> }>({
+    queryKey: ['source-stats'],
+    queryFn: async () => {
+      const res = await fetch('/api/sources/stats', { cache: 'no-store' })
+      if (!res.ok) throw new Error('读取统计失败')
+      return res.json()
+    },
+    refetchInterval: 15_000,
+  })
+  const stats = statsQuery.data?.items || {}
+
   // 在线索引：列出可安装/可更新的源包
   type IndexItem = {
     id: string
@@ -628,6 +640,15 @@ export function SourcesPage() {
                 </div>
                 {item.lastError ? (
                   <div className="mt-1.5 line-clamp-2 text-[9.5px] text-[color:var(--danger)]">{item.lastError}</div>
+                ) : null}
+                {stats[item.id] ? (
+                  <div className="mt-1 text-[9px] tabular-nums text-[color:var(--subtle)]">
+                    请求 {stats[item.id].ok + stats[item.id].blocked + stats[item.id].challenge + stats[item.id].failed}
+                    {' · '}2xx {stats[item.id].ok}
+                    {' · '}拦截 {stats[item.id].blocked}
+                    {' · '}挑战 {stats[item.id].challenge}
+                    {stats[item.id].failed ? ` · 失败 ${stats[item.id].failed}` : ''}
+                  </div>
                 ) : null}
               </div>
 

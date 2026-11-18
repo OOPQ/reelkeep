@@ -20,6 +20,32 @@ import (
 
 const defaultUA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Safari/537.36"
 
+// ErrChallenge 表示被反爬挑战页拦截（需要浏览器/登录）。
+var ErrChallenge = errors.New("被反爬挑战页拦截")
+
+var challengeMarkers = []string{
+	"just a moment", "cf-challenge", "cf_chl_", "checking your browser",
+	"verify you are human", "attention required", "ddos protection",
+	"人机验证", "安全验证", "请完成验证", "正在验证您",
+}
+
+// looksLikeChallenge 判断响应是不是挑战/拦截页。
+func looksLikeChallenge(status int, body []byte) bool {
+	lb := strings.ToLower(string(body))
+	for _, m := range challengeMarkers {
+		if strings.Contains(lb, m) {
+			return true
+		}
+	}
+	// 403/429/503 且响应很短：基本是拦截页，而不是正常内容
+	if status == 403 || status == 429 || status == 503 || status == 302 {
+		if len(bytes.TrimSpace(body)) < 512 {
+			return true
+		}
+	}
+	return false
+}
+
 // Fetcher 是源包唯一允许的网络入口。
 type Fetcher interface {
 	Get(ctx context.Context, rawURL string, headers map[string]string) ([]byte, error)
@@ -45,6 +71,17 @@ type HTTPFetcher struct {
 	tlsMu     sync.Mutex
 	tlsClient any // *tlsclient client，按 profile+代理 缓存
 	tlsKey    string
+
+	sourceID string
+	bs       *browserState
+}
+
+// pkgID 返回源 id（浏览器 profile 目录用）。
+func (f *HTTPFetcher) pkgID() string {
+	if f.sourceID != "" {
+		return f.sourceID
+	}
+	return "default"
 }
 
 // SetCookieProvider 注入登录 Cookie 提供者（来自加密凭据存储）。
@@ -68,7 +105,9 @@ func NewHTTPFetcher(p *Package, proxyFn func() string) (*HTTPFetcher, error) {
 		limiter: newHostLimiter(rateLimit(p)),
 		render:  strings.ToLower(strings.TrimSpace(p.Defaults.Render)),
 		tlsProfile: strings.ToLower(strings.TrimSpace(p.Defaults.TLSProfile)),
-		proxyFn: proxyFn,
+		proxyFn:    proxyFn,
+		sourceID:   p.ID,
+		bs:         &browserState{},
 	}
 	if f.ua == "" {
 		f.ua = defaultUA
@@ -155,7 +194,8 @@ func (f *HTTPFetcher) checkURL(u *url.URL) error {
 }
 
 // Get 抓取一个页面/接口。
-func (f *HTTPFetcher) Get(ctx context.Context, rawURL string, headers map[string]string) ([]byte, error) {
+func (f *HTTPFetcher) Get(ctx context.Context, rawURL string, headers map[string]string) (out []byte, err error) {
+	defer func() { f.recordRequest(err) }()
 	u, err := url.Parse(rawURL)
 	if err != nil {
 		return nil, err
@@ -203,8 +243,17 @@ func (f *HTTPFetcher) Get(ctx context.Context, rawURL string, headers map[string
 		if resp.StatusCode >= 400 {
 			snippet, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
 			_ = resp.Body.Close()
+			// 挑战/拦截页：能开浏览器就用浏览器兜底，否则明确报错。
+			if looksLikeChallenge(resp.StatusCode, snippet) {
+				if b, berr := f.browserFallback(ctx, u, headers); berr == nil {
+					return b, nil
+				} else {
+					return nil, berr
+				}
+			}
 			// Cloudflare / 站点限流：429、503 退避后重试，避免把整轮榜单测试判死
 			if (resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode == http.StatusServiceUnavailable) && attempt < 3 {
+				f.limiter.Penalize()
 				delay := retryDelay(resp, attempt)
 				select {
 				case <-ctx.Done():
@@ -230,9 +279,29 @@ func (f *HTTPFetcher) Get(ctx context.Context, rawURL string, headers map[string
 			time.Sleep(250 * time.Millisecond)
 			continue
 		}
+		// 200 也可能是挑战页（"Just a moment..."），识别到就走浏览器兜底。
+		if looksLikeChallenge(resp.StatusCode, b) {
+			return f.browserFallback(ctx, u, headers)
+		}
+		f.limiter.Reward()
 		return b, nil
 	}
 	return nil, lastErr
+}
+
+// browserFallback 用真实浏览器再过一次；失败时返回带 ErrChallenge 的错误。
+func (f *HTTPFetcher) browserFallback(ctx context.Context, u *url.URL, headers map[string]string) ([]byte, error) {
+	if f.render == "browser" {
+		return nil, fmt.Errorf("%w: %s（浏览器渲染后仍是挑战页）", ErrChallenge, u.String())
+	}
+	b, err := f.getRendered(ctx, u, headers)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %s（浏览器兜底失败: %v）", ErrChallenge, u.String(), err)
+	}
+	if looksLikeChallenge(http.StatusOK, b) {
+		return nil, fmt.Errorf("%w: %s（浏览器渲染后仍是挑战页）", ErrChallenge, u.String())
+	}
+	return b, nil
 }
 
 // rateLimit 取源包声明的同域最小请求间隔（默认 200ms，最低 20ms）。
@@ -266,15 +335,58 @@ func retryDelay(resp *http.Response, attempt int) time.Duration {
 	return time.Duration(attempt+1) * time.Second
 }
 
-// hostLimiter 给同一 host 的请求加最小间隔，降低触发 Cloudflare 限流的概率。
+// hostLimiter 给同一 host 的请求加最小间隔；遇到 429/503 会自适应放慢，成功后慢慢恢复。
 type hostLimiter struct {
 	mu       sync.Mutex
 	next     map[string]time.Time
+	base     time.Duration
 	interval time.Duration
 }
 
 func newHostLimiter(interval time.Duration) *hostLimiter {
-	return &hostLimiter{next: map[string]time.Time{}, interval: interval}
+	return &hostLimiter{next: map[string]time.Time{}, base: interval, interval: interval}
+}
+
+// Penalize 遇到限流时把间隔翻倍（上限 2s）。
+func (l *hostLimiter) Penalize() {
+	if l == nil {
+		return
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.interval <= 0 {
+		return
+	}
+	l.interval *= 2
+	if l.interval > 2*time.Second {
+		l.interval = 2 * time.Second
+	}
+}
+
+// Reward 成功一次就把间隔慢慢降回基础值。
+func (l *hostLimiter) Reward() {
+	if l == nil {
+		return
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.interval <= l.base {
+		return
+	}
+	l.interval = l.interval * 9 / 10
+	if l.interval < l.base {
+		l.interval = l.base
+	}
+}
+
+// Interval 返回当前的同域间隔（观测用）。
+func (l *hostLimiter) Interval() time.Duration {
+	if l == nil {
+		return 0
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.interval
 }
 
 func (l *hostLimiter) Wait(ctx context.Context, host string) error {

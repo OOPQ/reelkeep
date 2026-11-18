@@ -378,9 +378,59 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
     }
   }
 
-  const gacha = () => {
-    const poolSource = serverMode ? displayRows : (sorted.length ? sorted : displayRows)
-    const all = poolSource.filter(r => r.file_name)
+  // 抽卡要从「整个筛选结果里可播放的条目」抽，而不是当前这一页。
+  // 服务端分页时按 200 条一页把全部结果拉回来。
+  const fetchPlayablePool = React.useCallback(async (): Promise<Row[]> => {
+    const out: Row[] = []
+    const limit = 200
+    let offset = 0
+    let total = Infinity
+    while (offset < total) {
+      const qs = new URLSearchParams({
+        q: deferredQuery,
+        status,
+        source,
+        flag,
+        res,
+        minDur: String(minDur || 0),
+        sort: sortKey,
+        dir: sortDir,
+        offset: String(offset),
+        limit: String(limit),
+        tags: tagIds.join(','),
+      })
+      const resp = await fetch(`/api/rows?${qs.toString()}`, { cache: 'no-store' })
+      if (!resp.ok) throw new Error('读取媒体库失败')
+      const data = await resp.json() as { rows?: Row[]; total?: number }
+      const rows = data.rows || []
+      total = Number(data.total) || 0
+      for (const r of rows) {
+        if (r.file_name) out.push(r)
+      }
+      if (!rows.length) break
+      offset += rows.length
+    }
+    return out
+  }, [deferredQuery, status, source, flag, res, minDur, sortKey, sortDir, tagIds])
+
+  const gachaBusy = React.useRef(false)
+  const gacha = async () => {
+    if (gachaBusy.current) return
+    let all: Row[]
+    if (serverMode) {
+      gachaBusy.current = true
+      try {
+        all = await fetchPlayablePool()
+      } catch (e) {
+        toast.error((e as Error).message)
+        return
+      } finally {
+        gachaBusy.current = false
+      }
+    } else {
+      const poolSource = sorted.length ? sorted : displayRows
+      all = poolSource.filter(r => r.file_name)
+    }
     if (!all.length) { toast.error('当前筛选结果里没有可播放的本地条目'); return }
     const pool = previewToken ? all.filter(r => r.token !== previewToken) : all
     const list = pool.length ? pool : all
@@ -408,7 +458,7 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
       const dialogs = document.querySelectorAll('[role="dialog"]').length
       if (previewToken ? dialogs > 1 : dialogs > 0) return
       e.preventDefault()
-      gacha()
+      void gacha()
       const active = document.activeElement as HTMLElement | null
       if (active && active !== document.body) active.blur()
     }
@@ -641,7 +691,7 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
         <Button size="sm" variant={multi ? 'outline' : 'ghost'} onClick={() => setMulti(!multi)}>
           <ListChecks className="size-3.5" /> 多选
         </Button>
-        <Button size="sm" variant="ghost" onClick={gacha} title="随机播放一部本地视频（快捷键 R）">
+        <Button size="sm" variant="ghost" onClick={() => void gacha()} title="随机播放一部本地视频（快捷键 R）">
           <Sparkles className="size-3.5" /> 抽一卡
         </Button>
         <Button size="sm" variant="ghost" onClick={() => { setStatus('all'); setFlag('towatch') }}>

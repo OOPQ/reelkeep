@@ -6,7 +6,7 @@
                         "name":  "Hanime1",
                         "version":  "1.0.2",
                         "file":  "hanime1.json",
-                        "sha256":  "f569207926dc558d20fcb7462f4153def61cc42d3cf33460c85499a10d83740b",
+                        "sha256":  "c537ccfac05d47e05f023f4dd42a5bf23add02b6ae2d55133c4cc575edb1041e",
                         "description":  "Hanime1 静态 HTML 源，列表与详情直接提供 mp4 地址。"
                     },
                     {
@@ -14,7 +14,7 @@
                         "name":  "Hsex",
                         "version":  "1.0.2",
                         "file":  "hsex.json",
-                        "sha256":  "091803b44efdd3b7f1a39c5a4a1547b712f79b881203e4b73005eb819e1fdd6b",
+                        "sha256":  "d487c4a084d0990b8dba27bc799d0819c33b9f13b2c4b4465f382b8b58bca702",
                         "description":  "hsex.icu 视频列表：最新/New、最热、周榜/Weekly、月榜/Monthly、5分钟/5min+、10分钟/+；播放地址为多码率 HLS，需要 ffmpeg；默认跟随系统代理。"
                     },
                     {

@@ -8,7 +8,6 @@ on:
 
 permissions:
   contents: read
-  statuses: write
 
 env:
   CGO_ENABLED: "0"
@@ -42,20 +41,7 @@ jobs:
           pnpm build
 
       - name: Go test
-        run: |
-          set +e
-          go test ./internal/... ./cmd/... 2>&1 | tee /tmp/test.log
-          code=${PIPESTATUS[0]}
-          if [ "$code" -ne 0 ]; then
-            msg=$(grep -E '^(--- )?FAIL' /tmp/test.log | head -3 | tr '\n' ' ' | cut -c1-120)
-            [ -z "$msg" ] && msg=$(tail -5 /tmp/test.log | tr '\n' ' ' | cut -c1-120)
-            jq -n --arg d "$msg" '{state:"failure",context:"ci-debug",description:$d}' \
-              | curl -s -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-                  -H "Accept: application/vnd.github+json" \
-                  "https://api.github.com/repos/${{ github.repository }}/statuses/${{ github.sha }}" \
-                  -d @- > /dev/null
-          fi
-          exit "$code"
+        run: go test ./internal/... ./cmd/...
 
       - name: Go vet
         run: go vet ./internal/... ./cmd/...

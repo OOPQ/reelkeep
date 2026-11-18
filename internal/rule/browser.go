@@ -2,8 +2,11 @@ package rule
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
@@ -141,6 +144,100 @@ func (f *HTTPFetcher) CloseBrowser() {
 	if f.bs.cleanup != nil {
 		f.bs.cleanup()
 	}
+}
+
+// Post 对第三方解析接口发 POST：优先借用真实浏览器的 TLS/指纹/Cloudflare 状态，
+// 没有浏览器时退回普通 HTTP POST。
+func (f *HTTPFetcher) Post(ctx context.Context, rawURL string, headers map[string]string, body string) ([]byte, error) {
+	if findBrowser() != "" || strings.TrimSpace(os.Getenv("REELKEEP_BROWSER_CDP")) != "" {
+		if b, err := f.postViaBrowser(ctx, rawURL, headers, body); err == nil {
+			return b, nil
+		} else if findBrowser() == "" {
+			return nil, err
+		}
+	}
+	return f.postHTTP(ctx, rawURL, headers, body)
+}
+
+// postViaBrowser 先打开接口所在站点（带上已有 Cookie/挑战状态），再用页面内的
+// fetch 发同源 POST，最后把响应体取回来。
+func (f *HTTPFetcher) postViaBrowser(ctx context.Context, rawURL string, headers map[string]string, body string) ([]byte, error) {
+	u, err := url.Parse(rawURL)
+	if err != nil || u.Host == "" {
+		return nil, fmt.Errorf("解析接口地址不合法: %s", rawURL)
+	}
+	b, err := f.ensureBrowser()
+	if err != nil {
+		return nil, err
+	}
+	timeout := f.timeout
+	if timeout < 40*time.Second {
+		timeout = 40 * time.Second
+	}
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	origin := u.Scheme + "://" + u.Host + "/"
+	page, err := b.Page(proto.TargetCreateTarget{URL: origin})
+	if err != nil {
+		return nil, fmt.Errorf("打开解析站失败: %w", err)
+	}
+	defer func() { _ = page.Close() }()
+	page = page.Context(ctx)
+	_ = page.WaitLoad()
+	_ = page.WaitStable(300 * time.Millisecond)
+
+	res, err := page.Eval(`async (url, body, hdr) => {
+		const r = await fetch(url, { method: 'POST', headers: hdr, body });
+		const t = await r.text();
+		return JSON.stringify({ status: r.status, text: t });
+	}`, rawURL, body, headers)
+	if err != nil {
+		return nil, fmt.Errorf("解析接口请求失败: %w", err)
+	}
+	var out struct {
+		Status int    `json:"status"`
+		Text   string `json:"text"`
+	}
+	if err := json.Unmarshal([]byte(res.Value.Str()), &out); err != nil {
+		return nil, fmt.Errorf("解析接口返回异常: %w", err)
+	}
+	if out.Status >= 400 {
+		return nil, fmt.Errorf("解析接口 HTTP %d: %s", out.Status, strings.TrimSpace(out.Text))
+	}
+	return []byte(out.Text), nil
+}
+
+// postHTTP 是浏览器不可用时的兜底。
+func (f *HTTPFetcher) postHTTP(ctx context.Context, rawURL string, headers map[string]string, body string) ([]byte, error) {
+	u, err := url.Parse(rawURL)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") {
+		return nil, fmt.Errorf("解析接口地址不合法: %s", rawURL)
+	}
+	if err := f.checkURL(u); err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), strings.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("User-Agent", f.ua)
+	req.Header.Set("Accept", "application/json")
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
+	resp, err := f.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	b, err := io.ReadAll(io.LimitReader(resp.Body, f.maxBytes))
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode >= 400 {
+		return nil, fmt.Errorf("解析接口 HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(b)))
+	}
+	return b, nil
 }
 
 // getRendered 用真实浏览器渲染页面后取 DOM：

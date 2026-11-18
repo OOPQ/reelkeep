@@ -44,6 +44,19 @@
     "defaults": { "$ref": "#/$defs/defaults" },
     "list": { "$ref": "#/$defs/list" },
     "detail": { "$ref": "#/$defs/detail" },
+    "resolve": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["url", "fields"],
+      "description": "Hand a link to a third-party resolver API (POST supported); fields use jsonPath over its JSON response (title/cover/playable).",
+      "properties": {
+        "url": { "type": "string", "minLength": 1 },
+        "method": { "enum": ["GET", "POST"] },
+        "headers": { "type": "object", "additionalProperties": { "type": "string" } },
+        "body": { "type": "string" },
+        "fields": { "$ref": "#/$defs/fields" }
+      }
+    },
     "playlist": {
       "type": "object",
       "additionalProperties": false,

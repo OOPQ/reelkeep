@@ -28,10 +28,21 @@ type Package struct {
 	List         List      `json:"list"`
 	Playlist     *Playlist `json:"playlist,omitempty"`
 	Detail       *Detail   `json:"detail,omitempty"`
+	Resolve      *Resolve  `json:"resolve,omitempty"`
 	Download     *Download `json:"download,omitempty"`
 	Auth         *Auth     `json:"auth,omitempty"`
 
 	path string
+}
+
+// Resolve 声明「把链接交给第三方解析接口」的抓取方式（支持 POST），
+// 返回的 JSON 用 fields 里的 jsonPath 取值（字段名同列表：title/cover/playable）。
+type Resolve struct {
+	URL     string            `json:"url"`
+	Method  string            `json:"method,omitempty"`
+	Headers map[string]string `json:"headers,omitempty"`
+	Body    string            `json:"body,omitempty"`
+	Fields  map[string]Field  `json:"fields"`
 }
 
 // Auth 声明源需要登录（目前只支持 Cookie）。

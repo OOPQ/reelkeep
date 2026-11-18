@@ -423,8 +423,8 @@ func (s *RuleSource) ScrapeURL(ctx context.Context, rawURL string) (model.Row, e
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
 		return model.Row{}, fmt.Errorf("链接不合法: %s", rawURL)
 	}
-	if s.pkg.Detail == nil {
-		return model.Row{}, fmt.Errorf("源 %s 不支持链接抓取（没有 detail 段）", s.pkg.ID)
+	if s.pkg.Detail == nil && s.pkg.Resolve == nil {
+		return model.Row{}, fmt.Errorf("源 %s 不支持链接抓取（没有 detail/resolve 段）", s.pkg.ID)
 	}
 	idField, ok := s.pkg.List.Fields["id"]
 	if !ok || idField.Regex == "" {
@@ -437,6 +437,9 @@ func (s *RuleSource) ScrapeURL(ctx context.Context, rawURL string) (model.Row, e
 	m := re.FindStringSubmatch(rawURL)
 	if len(m) < 2 {
 		return model.Row{}, fmt.Errorf("这个链接不符合源 %s 的格式", s.pkg.ID)
+	}
+	if s.pkg.Resolve != nil {
+		return s.scrapeViaResolve(ctx, u, m[1])
 	}
 	row, err := s.detailFor(ctx, m[1], rawURL)
 	if err != nil {

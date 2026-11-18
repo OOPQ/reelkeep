@@ -127,6 +127,23 @@ func (p *Package) Validate() []error {
 		add("list.fields.id", "必须提取 id（原生 id，用作 token 后缀）")
 	}
 
+	// resolve：把链接交给第三方解析接口（支持 POST）
+	if p.Resolve != nil {
+		if strings.TrimSpace(p.Resolve.URL) == "" {
+			add("resolve.url", "不能为空")
+		}
+		if m := strings.ToUpper(strings.TrimSpace(p.Resolve.Method)); m != "" && m != "POST" && m != "GET" {
+			add("resolve.method", "只支持 GET 或 POST")
+		}
+		if len(p.Resolve.Fields) == 0 {
+			add("resolve.fields", "至少声明一个字段")
+		}
+		if _, ok := p.Resolve.Fields["playable"]; !ok {
+			add("resolve.fields.playable", "必须提供播放地址字段")
+		}
+		errs = append(errs, validateFields("resolve.fields", p.Resolve.Fields, "json")...)
+	}
+
 	// detail
 	if p.Detail != nil {
 		if strings.TrimSpace(p.Detail.URL) == "" {

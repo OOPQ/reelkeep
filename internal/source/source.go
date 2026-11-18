@@ -130,6 +130,11 @@ type PlaylistSupporter interface {
 	SupportsPlaylist() bool
 }
 
+// PostFetcher 是可选能力：对第三方解析接口发 POST，返回响应体。
+type PostFetcher interface {
+	Post(ctx context.Context, rawURL string, headers map[string]string, body string) ([]byte, error)
+}
+
 // Registry 保存构造函数、动态导入的源和已启用的清单。
 type Registry struct {
 	mu        sync.RWMutex

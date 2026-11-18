@@ -40,6 +40,14 @@
                         "file":  "qise-video.json",
                         "sha256":  "ad03b41ae0454c530dd9d24a45b1fd42b7a97df13759b394bd7ca8f9012c9386",
                         "description":  "qise100 /video 单视频分类（旧版）。列表卡片指向 viewhd，详情从 embed 页取 m3u8；登录 Cookie 可提高清晰度。"
+                    },
+                    {
+                        "id":  "xvideo",
+                        "name":  "X (Twitter)",
+                        "version":  "1.0.0",
+                        "file":  "x.json",
+                        "sha256":  "19a0ebd45c12ac2ec29adcd2a3aec8c87bf2a6bd38263a943214728191c42444",
+                        "description":  "把 X/Twitter 视频链接交给 pektino 解析，取回可直接下载的 mp4/HLS 地址"
                     }
                 ]
 }

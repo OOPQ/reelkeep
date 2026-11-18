@@ -139,6 +139,7 @@ qise 这类站点，高清/会员内容需要登录态。Reelkeep **不代填账
 
 - 源包可选 `defaults.tlsProfile`（`chrome` / `firefox` / `safari`）：按浏览器指纹发 TLS 请求；
 - 源包可选 `defaults.render: browser`：用本机 Chrome/Edge 无头渲染后再解析（持久会话，Cookie 会写回该源凭据）；
+- 源包可选 `resolve` 段：把链接交给第三方解析接口（支持 POST），从返回 JSON 里取直链；X/Twitter 源就是这么接 pektino 的；
 - 遇到挑战页（`Just a moment`、`cf-challenge`、人机验证等）会自动切浏览器兜底，仍失败则在抓取任务里明确报“被反爬挑战页拦截”；
 - 同域请求遇 429/503 会自动放慢（间隔翻倍，上限 2s），成功后再逐步恢复；
 - 环境变量：

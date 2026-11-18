@@ -41,7 +41,18 @@ codesign --verify --deep --strict "$APP"
 
 OUT_DMG="$ROOT/dist/Reelkeep-$VERSION-macos-$ARCH.dmg"
 rm -f "$OUT_DMG"
-hdiutil create -volname "Reelkeep" -srcfolder "$APP" -ov -format UDZO "$OUT_DMG" >/dev/null
+# hdiutil 在 CI 上偶发 "Resource busy"/"Invalid argument"，重试几次。
+for attempt in 1 2 3; do
+  if hdiutil create -volname "Reelkeep" -srcfolder "$APP" -ov -format UDZO "$OUT_DMG" >/dev/null; then
+    break
+  fi
+  echo "hdiutil create failed (attempt $attempt)，重试" >&2
+  rm -f "$OUT_DMG"
+  if [ "$attempt" = 3 ]; then
+    exit 1
+  fi
+  sleep 3
+done
 
 tar -czf "$ROOT/dist/Reelkeep-$VERSION-macos-$ARCH.app.tar.gz" -C "$ROOT/dist" Reelkeep.app
 echo "built $OUT_DMG"

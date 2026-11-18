@@ -8,7 +8,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { IconButton } from '@/components/ui/icon-button'
 import { RatingInput } from '@/components/rating-input'
 import { CoverImage } from '@/components/cover-image'
-import { downloadButtonLabel, isDownloadBusy } from './download-status'
+import { downloadButtonLabel, isDownloadBusy, DownloadProgress } from './download-status'
 import { RowContextMenu, type RowMenuActions } from './row-context-menu'
 
 type Props = {
@@ -62,6 +62,12 @@ export function LibraryGallery({ rows, downloads, selected, onToggle, onOpen, on
                 <span className="absolute bottom-2 left-2 z-10 rounded-md border border-white/15 bg-black/55 px-2 py-0.5 text-[12px] font-semibold text-white/90 backdrop-blur">
                   {row.duration || '—'}
                 </span>
+
+                {dl && ['queued', 'downloading', 'paused'].includes(dl.state) ? (
+                  <div className="absolute inset-x-2 bottom-2 z-10 rounded-md border border-white/15 bg-black/60 px-2 py-1 backdrop-blur">
+                    <DownloadProgress item={dl} />
+                  </div>
+                ) : null}
               </CardMedia>
 
               <CardBody className="pb-2">

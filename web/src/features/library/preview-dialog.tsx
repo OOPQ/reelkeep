@@ -32,7 +32,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogClose, DialogContent } from '@/components/ui/dialog'
 import { IconButton } from '@/components/ui/icon-button'
 import { RatingInput } from '@/components/rating-input'
-import { downloadButtonLabel, isDownloadBusy } from './download-status'
+import { downloadButtonLabel, isDownloadBusy, DownloadProgress } from './download-status'
 import { StatusBadge } from '@/components/status-badge'
 import { CoverImage } from '@/components/cover-image'
 
@@ -671,9 +671,15 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
                 画中画
               </Button>
               {!row.file_name ? (
-                <Button size="sm" variant="outline" onClick={download} disabled={downloading || (!!downloadItem && isDownloadBusy(row, downloadItem))} title={downloadItem?.error || downloadButtonLabel(row, downloadItem)}>
-                  <Download className="size-3.5" /> {downloading ? '提交中…' : downloadButtonLabel(row, downloadItem)}
-                </Button>
+                downloadItem && isDownloadBusy(row, downloadItem) ? (
+                  <div className="w-28 rounded-md border border-white/15 bg-white/5 px-2 py-1">
+                    <DownloadProgress item={downloadItem} />
+                  </div>
+                ) : (
+                  <Button size="sm" variant="outline" onClick={download} disabled={downloading} title={downloadItem?.error || downloadButtonLabel(row, downloadItem)}>
+                    <Download className="size-3.5" /> {downloading ? '提交中…' : downloadButtonLabel(row, downloadItem)}
+                  </Button>
+                )
               ) : null}
               <Button size="sm" variant="outline" onClick={() => void remove()} title="移入回收站">
                 <Trash2 className="size-3.5" /> 删除

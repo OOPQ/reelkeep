@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { downloadButtonLabel, isDownloadBusy } from './download-status'
+import { downloadButtonLabel, downloadPercent, isDownloadBusy } from './download-status'
 import type { DownloadItem, Row } from '@/types'
 
 const row = { token: 'x', status: 'new' } as Row
@@ -12,6 +12,11 @@ describe('download button state', () => {
     expect(downloadButtonLabel(row, item({ state: 'paused' }))).toBe('已暂停')
     expect(downloadButtonLabel(row, item({ state: 'dead' }))).toBe('源失效')
     expect(downloadButtonLabel(row, item({ state: 'cancelled' }))).toBe('已取消')
+  })
+
+  it('falls back to total when expected is missing', () => {
+    expect(downloadPercent(item({ state: 'downloading', bytes: 25, total: 100 }))).toBe(25)
+    expect(downloadPercent(item({ state: 'downloading', bytes: 25 }))).toBe(0)
   })
 
   it('does not show an active state for a completed row', () => {

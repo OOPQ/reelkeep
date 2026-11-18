@@ -397,6 +397,21 @@ func (s *RuleSource) detailFor(ctx context.Context, id, pageURL string) (model.R
 	if err != nil {
 		return model.Row{}, err
 	}
+	// 有些站点（年龄确认、纯前端渲染）直连拿到的 HTML 里没有播放地址；
+	// 用真实浏览器再过一次，能拿到确认后的 DOM。
+	if strings.TrimSpace(fields["playable"]) == "" && s.http != nil && s.pkg.Defaults.Render != "browser" && findBrowser() != "" {
+		if b, rerr := s.http.Render(ctx, detailURL, s.headers(nil)); rerr == nil {
+			if doc2, perr := parseHTML(b); perr == nil {
+				if f2, ferr := extractDetailFields(doc2, s.pkg.Detail.Fields, pageRef); ferr == nil {
+					for k, v := range f2 {
+						if strings.TrimSpace(fields[k]) == "" {
+							fields[k] = v
+						}
+					}
+				}
+			}
+		}
+	}
 	if fields["pageUrl"] == "" && fields["page_url"] == "" {
 		fields["pageUrl"] = detailURL
 	}

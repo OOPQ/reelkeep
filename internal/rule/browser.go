@@ -240,6 +240,18 @@ func (f *HTTPFetcher) postHTTP(ctx context.Context, rawURL string, headers map[s
 	return b, nil
 }
 
+// Render 用浏览器渲染页面并返回 DOM（详情页 JSON-LD 缺失时的回退）。
+func (f *HTTPFetcher) Render(ctx context.Context, rawURL string, headers map[string]string) ([]byte, error) {
+	u, err := url.Parse(rawURL)
+	if err != nil || u.Host == "" {
+		return nil, fmt.Errorf("地址不合法: %s", rawURL)
+	}
+	if err := f.checkURL(u); err != nil {
+		return nil, err
+	}
+	return f.getRendered(ctx, u, headers)
+}
+
 // getRendered 用真实浏览器渲染页面后取 DOM：
 // 持久 profile 保留登录/挑战 Cookie，拦截图片/字体/媒体请求以提速。
 func (f *HTTPFetcher) getRendered(ctx context.Context, u *url.URL, headers map[string]string) ([]byte, error) {

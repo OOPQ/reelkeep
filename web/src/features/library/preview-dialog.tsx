@@ -691,16 +691,23 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
           <button
             type="button"
             className="absolute inset-0 z-0 cursor-pointer"
-            aria-label="点击封面播放"
+            aria-label={canPlay ? '点击播放' : downloadable ? '点击下载' : '封面'}
+            title={canPlay ? '点击播放（空格也可）' : downloadable ? '点击下载' : ''}
             onClick={() => {
               if (!canPlay) {
                 if (downloadable) void download()
                 return
               }
-              if (playing) return
-              setVideoError(false)
-              setVideoReady(false)
+              // 和悬浮图标同一套动作：暂停/未开始就恢复播放，已经在播则不动。
               userPaused.current = false
+              setVideoError(false)
+              const v = videoRef.current
+              if (v) {
+                void v.play().catch(() => {})
+                setPlaying(true)
+                return
+              }
+              setVideoReady(false)
               setPlaying(true)
             }}
           >

@@ -713,9 +713,15 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
                 <button
                   type="button"
                   onClick={() => {
-                    setVideoError(false)
-                    setVideoReady(false)
                     userPaused.current = false
+                    setVideoError(false)
+                    const v = videoRef.current
+                    if (v) {
+                      void v.play().catch(() => {})
+                      setPlaying(true)
+                      return
+                    }
+                    setVideoReady(false)
                     setPlaying(true)
                   }}
                   className="pointer-events-auto grid size-16 place-items-center rounded-full border border-white/25 bg-black/45 text-white/90 shadow-xl backdrop-blur-md transition hover:scale-110 hover:bg-black/65 md:size-20"

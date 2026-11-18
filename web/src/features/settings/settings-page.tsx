@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   AlertTriangle,
   Database,
@@ -28,6 +28,7 @@ import { Select } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { ApiError } from '@/components/api-error'
 
 export function SettingsPage() {
@@ -51,6 +52,26 @@ export function SettingsPage() {
   const [desktop, setDesktop] = React.useState(false)
   const [platform, setPlatform] = React.useState('')
   const [applying, setApplying] = React.useState(false)
+  const [invalidOpen, setInvalidOpen] = React.useState(false)
+  type InvalidFile = { token: string; title: string; path: string; reason: string }
+  const invalidQuery = useQuery<{ ok: boolean; count: number; items: InvalidFile[] }>({
+    queryKey: ['invalid-files'],
+    queryFn: async () => {
+      const res = await fetch('/api/invalid-files', { cache: 'no-store' })
+      if (!res.ok) throw new Error('读取无效文件失败')
+      return res.json()
+    },
+    staleTime: 30_000,
+  })
+  const invalidItems = invalidQuery.data?.items || []
+  const revealInvalid = async (token: string) => {
+    try {
+      const r = await post<{ ok: boolean; error?: string }>('/api/reveal', { token })
+      if (!r.ok) throw new Error(r.error || '打开失败')
+    } catch (e) {
+      toast.error((e as Error).message)
+    }
+  }
 
   React.useEffect(() => {
     fetch('/api/desktop', { cache: 'no-store' })
@@ -294,6 +315,19 @@ export function SettingsPage() {
       </Card>
 
       <Card className="p-4">
+        <SectionTitle icon={Database} title="数据体检" sub="找出数据库里指向丢失/空文件的条目" />
+        <div className="mt-3 divide-y divide-[color:var(--border)]">
+          <ActionRow
+            title="无效视频文件"
+            desc={invalidQuery.isLoading ? '正在统计…' : `共 ${invalidQuery.data?.count ?? 0} 个，点击查看列表`}
+            onClick={() => setInvalidOpen(true)}
+            icon={AlertTriangle}
+            actionLabel="查看"
+          />
+        </div>
+      </Card>
+
+      <Card className="p-4">
         <SectionTitle icon={Database} title="运行指标" sub="后端单线程，慢请求会影响所有页面" />
         <div className="mt-3 grid grid-cols-2 gap-2">
           <MiniStat label="请求总数" value={formatCount(metrics?.total || 0)} />
@@ -381,6 +415,29 @@ export function SettingsPage() {
           </div>
         ) : null}
       </Card>
+
+      <Dialog open={invalidOpen} onOpenChange={setInvalidOpen}>
+        <DialogContent
+          title="无效视频文件"
+          description="这些条目的本地文件已丢失、为空或路径异常；可打开所在位置排查。"
+          className="w-[min(780px,calc(100vw-40px))]"
+        >
+          <div className="max-h-[60vh] overflow-auto p-3">
+            {invalidItems.length ? invalidItems.map(it => (
+              <div key={it.token} className="flex items-center gap-3 border-b border-[color:var(--border)] py-2 text-[10px] last:border-b-0">
+                <div className="min-w-0 flex-1">
+                  <div className="truncate font-medium">{it.title || it.token}</div>
+                  <div className="truncate text-[9px] text-[color:var(--subtle)]" title={it.path}>{it.path}</div>
+                </div>
+                <Badge tone="bad">{it.reason}</Badge>
+                <Button size="sm" variant="outline" onClick={() => void revealInvalid(it.token)}>打开位置</Button>
+              </div>
+            )) : (
+              <div className="p-6 text-center text-[10px] text-[color:var(--subtle)]">没有无效文件</div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -424,7 +481,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   )
 }
 
-function ActionRow({ title, desc, onClick, busy, icon: Icon, danger }: { title: string; desc: string; onClick: () => void; busy?: boolean; icon: React.ComponentType<{ className?: string }>; danger?: boolean }) {
+function ActionRow({ title, desc, onClick, busy, icon: Icon, danger, actionLabel = '执行' }: { title: string; desc: string; onClick: () => void; busy?: boolean; icon: React.ComponentType<{ className?: string }>; danger?: boolean; actionLabel?: string }) {
   return (
     <div className="flex items-center gap-3 py-2.5">
       <Icon className={cn('size-3.5 shrink-0', danger ? 'text-[color:var(--danger)]' : 'text-[color:var(--subtle)]')} />
@@ -432,7 +489,7 @@ function ActionRow({ title, desc, onClick, busy, icon: Icon, danger }: { title: 
         <div className="text-[11px] font-medium">{title}</div>
         <div className="text-[9.5px] text-[color:var(--subtle)]">{desc}</div>
       </div>
-      <Button size="sm" variant={danger ? 'danger' : 'outline'} onClick={onClick} disabled={busy}>{busy ? '处理中…' : '执行'}</Button>
+      <Button size="sm" variant={danger ? 'danger' : 'outline'} onClick={onClick} disabled={busy}>{busy ? '处理中…' : actionLabel}</Button>
     </div>
   )
 }

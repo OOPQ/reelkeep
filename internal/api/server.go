@@ -564,6 +564,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/state", s.handleState)
 	mux.HandleFunc("GET /api/rows", s.handleRows)
 	mux.HandleFunc("GET /api/rows/tokens", s.handleRowTokens)
+	mux.HandleFunc("GET /api/invalid-files", s.handleInvalidFiles)
 	mux.HandleFunc("POST /api/history/clear", s.handleHistoryClear)
 	mux.HandleFunc("POST /api/cache/clear", s.handleCacheClear)
 	mux.HandleFunc("GET /api/update", s.handleUpdate)

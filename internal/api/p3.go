@@ -778,6 +778,22 @@ func (s *Server) handleReveal(w http.ResponseWriter, r *http.Request) {
 	file, ok := resolveFileIn(s.rows, s.index, s.paths.Content, body.Token)
 	s.mu.RUnlock()
 	if !ok {
+		// 文件已经丢失（无效条目）：退而打开它所在的目录，方便用户排查。
+		if row, found := s.rowByToken(body.Token); found {
+			p := strings.TrimSpace(row.FilePath)
+			if p == "" && strings.TrimSpace(row.FileName) != "" {
+				p = filepath.Join(s.paths.Content, row.FileName)
+			}
+			if p != "" {
+				dir := filepath.Dir(p)
+				if inside(s.paths.Content, dir) {
+					if err := openPath(dir); err == nil {
+						writeJSON(w, http.StatusOK, map[string]any{"ok": true, "path": dir})
+						return
+					}
+				}
+			}
+		}
 		bad(w, "本地还没有这个文件（先下载）")
 		return
 	}

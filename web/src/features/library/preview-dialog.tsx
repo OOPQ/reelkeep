@@ -194,6 +194,8 @@ export function PreviewDialog({ rows, token, autoplay = false, media, onClose, o
     staleTime: 3_000,
   })
   const canPlay = Boolean(row?.file_name && media?.base && media?.key)
+  // 未下载但有下载地址时才给下载入口；下载中的状态交给按钮自己显示。
+  const downloadable = Boolean(!row?.file_name && row?.url && !downloading && !(downloadItem && isDownloadBusy(row, downloadItem)))
   const recordedPlay = React.useRef<string | null>(null)
   React.useEffect(() => {
     if (!token) recordedPlay.current = null
@@ -685,14 +687,14 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
           </div>
         }
       >
-        <div ref={stageRef} data-preview-stage className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-[#05080c]">
+        <div ref={stageRef} data-preview-stage className="group relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-[#05080c]">
           <button
             type="button"
             className="absolute inset-0 z-0 cursor-pointer"
             aria-label="点击封面播放"
             onClick={() => {
               if (!canPlay) {
-                toast.info('这个条目还没下载，先点「下载」再播放')
+                if (downloadable) void download()
                 return
               }
               if (playing) return
@@ -704,6 +706,35 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
           >
             <CoverImage token={row.token} full fit="contain" alt={rowTitle(row)} className={cn('h-full w-full transition-opacity', videoReady ? 'opacity-0' : 'opacity-100')} />
           </button>
+
+          {!playing || !isPlaying ? (
+            <div className="pointer-events-none absolute inset-0 z-20 grid place-items-center opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+              {canPlay ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setVideoError(false)
+                    setVideoReady(false)
+                    userPaused.current = false
+                    setPlaying(true)
+                  }}
+                  className="pointer-events-auto grid size-16 place-items-center rounded-full border border-white/25 bg-black/45 text-white/90 shadow-xl backdrop-blur-md transition hover:scale-110 hover:bg-black/65 md:size-20"
+                  aria-label="播放"
+                >
+                  <Play className="size-7 fill-current md:size-9" />
+                </button>
+              ) : downloadable ? (
+                <button
+                  type="button"
+                  onClick={() => void download()}
+                  className="pointer-events-auto grid size-16 place-items-center rounded-full border border-white/25 bg-black/45 text-white/90 shadow-xl backdrop-blur-md transition hover:scale-110 hover:bg-black/65 md:size-20"
+                  aria-label="下载"
+                >
+                  <Download className="size-7 md:size-9" />
+                </button>
+              ) : null}
+            </div>
+          ) : null}
 
           {playing && !videoError ? (
             <video

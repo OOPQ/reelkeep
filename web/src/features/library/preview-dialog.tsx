@@ -479,6 +479,16 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
     }
   }
 
+  const revealFile = async () => {
+    if (!row?.file_name) return
+    try {
+      const r = await post<{ ok: boolean; error?: string }>('/api/reveal', { token: row.token })
+      if (!r.ok) throw new Error(r.error || '打开失败')
+    } catch (e) {
+      toast.error((e as Error).message)
+    }
+  }
+
   const toggleCollection = async (col: { id: number; name: string; has: boolean }) => {
     const r = await post<{ ok: boolean; error?: string }>('/api/collections', {
       action: col.has ? 'remove' : 'add',
@@ -928,6 +938,19 @@ onPlay={e => {
           </div>
 
           <div className="mt-4 space-y-2 border-t border-[color:var(--border)] pt-3 text-[10px]">
+            {row.file_path ? (
+              <div className="flex items-start justify-between gap-3">
+                <span className="shrink-0 text-[color:var(--subtle)]">文件路径</span>
+                <button
+                  type="button"
+                  onClick={() => void revealFile()}
+                  title="打开所在文件夹"
+                  className="min-w-0 truncate text-right text-[color:var(--primary-2)] hover:underline"
+                >
+                  {row.file_path}
+                </button>
+              </div>
+            ) : null}
             <div className="flex justify-between gap-3">
               <span className="text-[color:var(--subtle)]">入库</span>
               <span className="text-right text-[color:var(--muted)]">{formatDate(row.first_seen)}</span>

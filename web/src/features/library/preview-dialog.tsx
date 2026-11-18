@@ -86,6 +86,48 @@ export function PreviewDialog({ rows, token, autoplay = false, media, onClose, o
   const videoRef = React.useRef<HTMLVideoElement>(null)
   const qc = useQueryClient()
   const navigate = useNavigate()
+
+  const undoRemove = async (tokenToRestore: string) => {
+    try {
+      const r = await post<{ ok: boolean; error?: string }>('/api/restore', { tokens: [tokenToRestore] })
+      if (!r.ok) throw new Error(r.error || '恢复失败')
+      toast.success('已恢复')
+      qc.invalidateQueries({ queryKey: ['state'] })
+      qc.invalidateQueries({ queryKey: ['library-rows'] })
+    } catch (e) {
+      toast.error((e as Error).message)
+    }
+  }
+
+  const remove = async () => {
+    if (!row) return
+    const tid = toast.loading('正在删除…')
+    try {
+      const r = await post<{ ok: boolean; error?: string }>('/api/mark', { tokens: [row.token], status: 'recycled' })
+      if (!r.ok) throw new Error(r.error || '删除失败')
+      const deleted = row.token
+      toast.success('已移入回收站', {
+        id: tid,
+        duration: 8000,
+        action: { label: '撤销', onClick: () => { void undoRemove(deleted) } },
+      })
+      qc.invalidateQueries({ queryKey: ['state'] })
+      qc.invalidateQueries({ queryKey: ['library-rows'] })
+      // 删完不直接关窗：优先跳下一项，没有下一项就跳上一项，都没有才关闭。
+      const at = rows.findIndex(r => r.token === deleted)
+      const rest = rows.filter(r => r.token !== deleted).map(r => r.token)
+      if (rest.length === 0) {
+        onClose()
+        return
+      }
+      const nextToken = rest[Math.min(at < 0 ? 0 : at, rest.length - 1)]
+      setPreviewOrder(rest)
+      onNavigate(nextToken, autoplay)
+    } catch (e) {
+      toast.error((e as Error).message, { id: tid })
+    }
+  }
+
   React.useEffect(() => {
     // 切条目 / 关闭浮窗时确保停止播放，避免声音残留。
     return () => {
@@ -291,6 +333,15 @@ export function PreviewDialog({ rows, token, autoplay = false, media, onClose, o
         })
         return
       }
+      if (e.key === 'Delete') {
+        // 叠了时间轴等弹层时不响应，避免误删。
+        if (document.querySelectorAll('[role="dialog"]').length > 1) return
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        blurActive()
+        void remove()
+        return
+      }
       const v = videoRef.current
       if (!v) return
 if (e.key === 'm' || e.key === 'M') { v.muted = !v.muted; showVolume(v); blurActive() }
@@ -425,46 +476,6 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
       toast.error((e as Error).message)
     } finally {
       setDownloading(false)
-    }
-  }
-
-  const undoRemove = async (token: string) => {
-    try {
-      const r = await post<{ ok: boolean; error?: string }>('/api/restore', { tokens: [token] })
-      if (!r.ok) throw new Error(r.error || '恢复失败')
-      toast.success('已恢复')
-      qc.invalidateQueries({ queryKey: ['state'] })
-      qc.invalidateQueries({ queryKey: ['library-rows'] })
-    } catch (e) {
-      toast.error((e as Error).message)
-    }
-  }
-
-  const remove = async () => {
-    const tid = toast.loading('正在删除…')
-    try {
-      const r = await post<{ ok: boolean; error?: string }>('/api/mark', { tokens: [row.token], status: 'recycled' })
-      if (!r.ok) throw new Error(r.error || '删除失败')
-      const deleted = row.token
-      toast.success('已移入回收站', {
-        id: tid,
-        duration: 8000,
-        action: { label: '撤销', onClick: () => { void undoRemove(deleted) } },
-      })
-      qc.invalidateQueries({ queryKey: ['state'] })
-      qc.invalidateQueries({ queryKey: ['library-rows'] })
-      // 删完不直接关窗：优先跳下一项，没有下一项就跳上一项，都没有才关闭。
-      const at = rows.findIndex(r => r.token === deleted)
-      const rest = rows.filter(r => r.token !== deleted).map(r => r.token)
-      if (rest.length === 0) {
-        onClose()
-        return
-      }
-      const nextToken = rest[Math.min(at < 0 ? 0 : at, rest.length - 1)]
-      setPreviewOrder(rest)
-      onNavigate(nextToken, autoplay)
-    } catch (e) {
-      toast.error((e as Error).message, { id: tid })
     }
   }
 
@@ -626,7 +637,7 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
         footer={
           <div className="flex w-full items-center justify-between gap-3">
             <span className="hidden text-[9.5px] text-[color:var(--subtle)] md:inline">
-              空格 播放/暂停 · 长按 {longPressRate}× · ←→ 5s · ↑↓ 音量 · F 全屏 · M 静音
+              空格 播放/暂停 · 长按 {longPressRate}× · ←→ 5s · ↑↓ 音量 · F 全屏 · M 静音 · Del 删除
             </span>
             <div className="ml-auto flex items-center gap-1.5">
               <div className="mr-1 flex items-center gap-0.5">

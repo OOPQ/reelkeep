@@ -2,11 +2,12 @@
   "schema": 1,
   "id": "pektino",
   "name": "Pektino",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "author": "reelkeep",
   "description": "Pektino 日榜/周榜/月榜/总榜。列表页 HTML 卡片 50 条/页；详情页读 schema.org VideoObject，直接给 mp4；video.twimg.com 不带第三方 Referer。",
   "baseUrl": "https://pektino.com",
   "hosts": ["video.twimg.com", "pbs.twimg.com"],
+  "linkHosts": ["x.com", "twitter.com"],
   "capabilities": ["scrape", "detail", "cover", "download"],
   "defaults": {
     "timeoutSec": 30,
@@ -23,7 +24,7 @@
     ],
     "item": "a[href^='/zh-CN/movie/']",
     "fields": {
-      "id": { "selector": "a", "attr": "href", "regex": "/movie/([A-Za-z0-9_-]+)" },
+      "id": { "selector": "a", "attr": "href", "regex": "(?:/movie/|status/)([A-Za-z0-9_-]+)" },
       "pageUrl": { "selector": "a", "attr": "href", "absolute": true },
       "cover": { "selector": "img", "attr": "src", "absolute": true },
       "duration": { "selector": "div.absolute.bottom-2.right-2", "text": true }
@@ -39,6 +40,21 @@
       "duration": { "jsonld": "VideoObject.duration" },
       "uploaded": { "jsonld": "VideoObject.uploadDate" },
       "views": { "jsonld": "VideoObject.interactionStatistic[0].userInteractionCount" }
+    }
+  },
+  "resolve": {
+    "url": "https://pektino.com/api/media",
+    "method": "POST",
+    "onlyHosts": ["x.com", "twitter.com"],
+    "headers": {
+      "Content-Type": "application/json",
+      "Referer": "https://pektino.com/zh-CN"
+    },
+    "body": "{\"url\":\"{pageUrl}\",\"status\":\"draft\",\"saved_from_lang\":\"zh-CN\"}",
+    "fields": {
+      "title": { "jsonPath": "$.data.url_cd" },
+      "cover": { "jsonPath": "$.data.thumbnail" },
+      "playable": { "jsonPath": "$.data.url" }
     }
   },
   "download": {

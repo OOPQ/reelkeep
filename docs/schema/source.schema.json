@@ -35,6 +35,12 @@
       "items": { "type": "string", "minLength": 1 },
       "uniqueItems": true
     },
+    "linkHosts": {
+      "type": "array",
+      "description": "额外的链接归类域名：这些域名下的链接也归到这个源（例如 pektino 源同时接 X/Twitter 链接）",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    },
     "capabilities": {
       "type": "array",
       "items": { "enum": ["scrape", "detail", "cover", "download"] },

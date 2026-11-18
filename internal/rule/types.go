@@ -22,7 +22,9 @@ type Package struct {
 	BaseURL      string    `json:"baseUrl"`
 	Hosts        []string  `json:"hosts,omitempty"`
 	// LinkMatch 是链接抓取时的归类依据（对 URL 路径做正则匹配），用来区分同一站点下的多个源。
-	LinkMatch    []string  `json:"linkMatch,omitempty"`
+	LinkMatch []string `json:"linkMatch,omitempty"`
+	// LinkHosts 是额外的链接归类域名（如 pektino 源同时处理 X/Twitter 链接）。
+	LinkHosts    []string  `json:"linkHosts,omitempty"`
 	Capabilities []string  `json:"capabilities"`
 	Defaults     Defaults  `json:"defaults"`
 	List         List      `json:"list"`
@@ -42,7 +44,9 @@ type Resolve struct {
 	Method  string            `json:"method,omitempty"`
 	Headers map[string]string `json:"headers,omitempty"`
 	Body    string            `json:"body,omitempty"`
-	Fields  map[string]Field  `json:"fields"`
+	// OnlyHosts 限定哪些域名的链接才走解析接口（留空表示所有链接都走）。
+	OnlyHosts []string         `json:"onlyHosts,omitempty"`
+	Fields    map[string]Field `json:"fields"`
 }
 
 // Auth 声明源需要登录（目前只支持 Cookie）。
@@ -191,6 +195,7 @@ func (p *Package) Manifest() source.Manifest {
 		Incremental:   false,
 		Ranks:         ranks,
 		LinkMatch:     p.LinkMatch,
+		LinkHosts:     p.LinkHosts,
 	}
 }
 

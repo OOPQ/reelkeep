@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/OOPQ/reelkeep/internal/config"
 )
@@ -26,6 +27,8 @@ func seedBuiltinSources() {
 	if err != nil {
 		return
 	}
+	// 已下线的内置源：xvideo 的解析能力已并入 pektino 源，避免同一个 X 链接被两个源抢。
+	removeRetiredSource(dir, "x.json", `"id": "xvideo"`, `pektino.com/api/media`)
 	for _, e := range entries {
 		if e.IsDir() {
 			continue
@@ -40,4 +43,20 @@ func seedBuiltinSources() {
 		}
 		_ = os.WriteFile(target, b, 0o644)
 	}
+}
+
+// removeRetiredSource 删除已并入其它源的内置源文件（只认内容特征，避免误删用户自己的源）。
+func removeRetiredSource(dir, name string, markers ...string) {
+	p := filepath.Join(dir, name)
+	b, err := os.ReadFile(p)
+	if err != nil {
+		return
+	}
+	text := string(b)
+	for _, m := range markers {
+		if !strings.Contains(text, m) {
+			return
+		}
+	}
+	_ = os.Remove(p)
 }

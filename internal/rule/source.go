@@ -438,7 +438,7 @@ func (s *RuleSource) ScrapeURL(ctx context.Context, rawURL string) (model.Row, e
 	if len(m) < 2 {
 		return model.Row{}, fmt.Errorf("这个链接不符合源 %s 的格式", s.pkg.ID)
 	}
-	if s.pkg.Resolve != nil {
+	if s.pkg.Resolve != nil && s.pkg.Resolve.matchesHost(u.Hostname()) {
 		return s.scrapeViaResolve(ctx, u, m[1])
 	}
 	row, err := s.detailFor(ctx, m[1], rawURL)

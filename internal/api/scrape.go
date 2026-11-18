@@ -40,8 +40,19 @@ func (s *Server) pickLinkSource(raw string) (string, source.Source, bool) {
 			if m.Key == "web" || m.SiteURL == "" {
 				continue
 			}
-			su, err := url.Parse(m.SiteURL)
-			if err != nil || strings.TrimPrefix(strings.ToLower(su.Hostname()), "www.") != host {
+			hostOK := false
+			su, uerr := url.Parse(m.SiteURL)
+			if uerr == nil && strings.TrimPrefix(strings.ToLower(su.Hostname()), "www.") == host {
+				hostOK = true
+			} else {
+				for _, h := range m.LinkHosts {
+					if strings.TrimPrefix(strings.ToLower(strings.TrimSpace(h)), "www.") == host {
+						hostOK = true
+						break
+					}
+				}
+			}
+			if !hostOK {
 				continue
 			}
 			src, ok := s.reg.Get(m.Key)

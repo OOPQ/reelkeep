@@ -237,7 +237,10 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
   const openPreviewList = React.useCallback((token: string, autoplay = false) => {
     listPreviewRef.current = true
     const full = rowTokensQuery.data?.tokens
-    openPreview(token, autoplay, full && full.length ? full : displayRows.map(r => r.token))
+    const order = full && full.length ? [...full] : displayRows.map(r => r.token)
+    // 兜底：点进来的条目一定在翻页顺序里，避免缓存里缺了它导致预览不弹。
+    if (!order.includes(token)) order.unshift(token)
+    openPreview(token, autoplay, order)
   }, [openPreview, displayRows, rowTokensQuery.data])
 
   // token 列表晚到时补上，预览里的上一项/下一项立刻变成全量范围。

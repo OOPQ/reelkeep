@@ -11,6 +11,20 @@ import (
 	"github.com/OOPQ/reelkeep/internal/source"
 )
 
+// matchesHost 判断链接域名是否应该走解析接口（onlyHosts 为空表示都走）。
+func (r *Resolve) matchesHost(host string) bool {
+	if r == nil || len(r.OnlyHosts) == 0 {
+		return true
+	}
+	host = strings.ToLower(strings.TrimPrefix(host, "www."))
+	for _, h := range r.OnlyHosts {
+		if strings.ToLower(strings.TrimPrefix(strings.TrimSpace(h), "www.")) == host {
+			return true
+		}
+	}
+	return false
+}
+
 // scrapeViaResolve 把链接交给第三方解析接口（GET/POST），从返回 JSON 里取字段。
 // 用于「站点本身反爬、但公开的解析服务能拿到直链」的场景，比如 X/Twitter。
 func (s *RuleSource) scrapeViaResolve(ctx context.Context, u *url.URL, id string) (model.Row, error) {

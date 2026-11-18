@@ -53,6 +53,8 @@ type Manifest struct {
 	Ranks         []Rank   `json:"ranks"`
 	// LinkMatch 是链接抓取时的归类依据：正则命中则优先用这个源。
 	LinkMatch []string `json:"linkMatch,omitempty"`
+	// LinkHosts 是额外的链接归类域名（比如 pektino 源也接 X/Twitter 链接）。
+	LinkHosts []string `json:"linkHosts,omitempty"`
 }
 
 // ScrapeRequest 是一次抓取的参数（对应旧版 options）。

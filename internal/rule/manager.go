@@ -160,7 +160,53 @@ func (m *Manager) fetcher(p *Package) (Fetcher, error) {
 		return nil, err
 	}
 	f.SetCookieProvider(func() string { return m.cookie(p.ID) })
+	// 浏览器渲染拿到的 Cookie 写回凭据，后续 HTTP 请求直接复用。
+	f.SetCookieSink(func(cookie string) { m.saveBrowserCookies(p.ID, cookie) })
 	return f, nil
+}
+
+// saveBrowserCookies 合并浏览器带回来的 Cookie（同名覆盖），有变化才落盘。
+func (m *Manager) saveBrowserCookies(id, cookie string) {
+	if strings.TrimSpace(cookie) == "" {
+		return
+	}
+	cur := m.cookie(id)
+	merged := mergeCookie(cur, cookie)
+	if merged == cur {
+		return
+	}
+	_ = m.secrets.Save(strings.ToLower(id), merged)
+}
+
+// mergeCookie 合并两个 Cookie 头，保留先出现的键顺序，同名以后者为准。
+func mergeCookie(current, incoming string) string {
+	kv := map[string]string{}
+	var order []string
+	add := func(s string) {
+		for _, part := range strings.Split(s, ";") {
+			part = strings.TrimSpace(part)
+			if part == "" {
+				continue
+			}
+			i := strings.Index(part, "=")
+			if i <= 0 {
+				continue
+			}
+			k := strings.TrimSpace(part[:i])
+			v := part[i+1:]
+			if _, ok := kv[k]; !ok {
+				order = append(order, k)
+			}
+			kv[k] = v
+		}
+	}
+	add(current)
+	add(incoming)
+	parts := make([]string, 0, len(order))
+	for _, k := range order {
+		parts = append(parts, k+"="+kv[k])
+	}
+	return strings.Join(parts, "; ")
 }
 
 // cookie 读取该源保存的 Cookie（没有就是空串）。

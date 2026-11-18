@@ -1,5 +1,23 @@
 # 更新日志
 
+## 1.0.8 — 2026-11-18
+
+### 抓取速度
+- 详情页改为并发抓取（`defaults.detailWorkers`，默认 4，上限 16），输出顺序不变
+- 修复「增量」勾选不生效：最近 3 天抓过的条目跳过详情页
+- 源包可调 `defaults.rateLimitMs`（同域最小间隔，默认 200ms）
+
+### 反爬
+- 浏览器层换成 go-rod：持久 profile（保留登录/挑战 Cookie）、拦截图片/字体/媒体、等待渲染稳定
+- 识别挑战页（Just a moment / cf-challenge / 人机验证等），自动切浏览器兜底，仍失败则明确报错
+- 同域限速自适应：429/503 间隔翻倍（上限 2s），成功后逐步恢复
+- 浏览器拿到的 Cookie 自动合并回该源凭据，后续 HTTP 请求直接复用
+- 支持 `REELKEEP_BROWSER` / `REELKEEP_BROWSER_DIR` / `REELKEEP_BROWSER_CDP`（外部 CDP 浏览器）
+- 源管理页显示每个源的请求统计：2xx / 拦截 / 挑战 / 失败
+
+### 其它
+- macOS dmg 打包在 CI 上失败时自动重试
+
 ## 1.0.7 — 2026-11-18
 
 ### 源与抓取

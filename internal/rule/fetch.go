@@ -74,7 +74,12 @@ type HTTPFetcher struct {
 
 	sourceID string
 	bs       *browserState
+
+	cookieSink func(string) // 浏览器拿到的 Cookie 回灌（由 Manager 注入）
 }
+
+// SetCookieSink 注入「浏览器 Cookie 写回凭据」的回调。
+func (f *HTTPFetcher) SetCookieSink(fn func(string)) { f.cookieSink = fn }
 
 // pkgID 返回源 id（浏览器 profile 目录用）。
 func (f *HTTPFetcher) pkgID() string {
@@ -193,7 +198,17 @@ func (f *HTTPFetcher) checkURL(u *url.URL) error {
 	return nil
 }
 
-// Get 抓取一个页面/接口。
+// useCookie 判断当前 host 是否应该带上保存的 Cookie：
+// 声明了 auth 的源按 auth.domains；没有 auth 的源只带 baseUrl 主机的（挑战 Cookie 也能复用）。
+func (f *HTTPFetcher) useCookie(host string) bool {
+	if f.cookieFn == nil {
+		return false
+	}
+	if f.auth != nil {
+		return authHost(host, f.auth, f.baseHost)
+	}
+	return strings.EqualFold(host, f.baseHost)
+}
 func (f *HTTPFetcher) Get(ctx context.Context, rawURL string, headers map[string]string) (out []byte, err error) {
 	defer func() { f.recordRequest(err) }()
 	u, err := url.Parse(rawURL)
@@ -226,7 +241,7 @@ func (f *HTTPFetcher) Get(ctx context.Context, rawURL string, headers map[string
 			return nil, err
 		}
 		// 登录 Cookie：只注入到 auth.domains（缺省为 baseUrl 及其子域）
-		if f.auth != nil && f.cookieFn != nil && authHost(u.Hostname(), f.auth, f.baseHost) {
+		if f.useCookie(u.Hostname()) {
 			if c := sanitizeCookie(f.cookieFn()); c != "" && req.Header.Get("Cookie") == "" {
 				req.Header.Set("Cookie", c)
 			}

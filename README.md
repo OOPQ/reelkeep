@@ -135,6 +135,18 @@ qise 这类站点，高清/会员内容需要登录态。Reelkeep **不代填账
 - 旧版的 `qiseCookie` 配置项已移除；如果之前填过，请在「源管理 → 登录凭据」重新保存一次
 - 只复用你账号本来就有权限的内容，不绕过会员墙 / DRM
 
+### 反爬与浏览器
+
+- 源包可选 `defaults.tlsProfile`（`chrome` / `firefox` / `safari`）：按浏览器指纹发 TLS 请求；
+- 源包可选 `defaults.render: browser`：用本机 Chrome/Edge 无头渲染后再解析（持久会话，Cookie 会写回该源凭据）；
+- 遇到挑战页（`Just a moment`、`cf-challenge`、人机验证等）会自动切浏览器兜底，仍失败则在抓取任务里明确报“被反爬挑战页拦截”；
+- 同域请求遇 429/503 会自动放慢（间隔翻倍，上限 2s），成功后再逐步恢复；
+- 环境变量：
+  - `REELKEEP_BROWSER`：指定浏览器可执行文件；
+  - `REELKEEP_BROWSER_DIR`：浏览器 profile 根目录（默认 `%LOCALAPPDATA%\Reelkeep\browser`）；
+  - `REELKEEP_BROWSER_CDP`：连接外部 CDP 浏览器（Chromium 系反检测浏览器），不自己启动；Firefox 系的 Camoufox 不支持 CDP，需要单独的 sidecar 服务。
+- 源管理页会显示每个源的请求统计：`2xx / 拦截 / 挑战 / 失败`（进程内累计）。
+
 ### 格式与安全
 
 - 机器可读格式：[docs/schema/source.schema.json](docs/schema/source.schema.json)

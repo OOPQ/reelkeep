@@ -88,7 +88,7 @@ func (f *HTTPFetcher) getTLS(ctx context.Context, u *url.URL, headers map[string
 		if err := f.limiter.Wait(ctx, u.Hostname()); err != nil {
 			return nil, err
 		}
-		if f.auth != nil && f.cookieFn != nil && authHost(u.Hostname(), f.auth, f.baseHost) {
+		if f.useCookie(u.Hostname()) {
 			if c := sanitizeCookie(f.cookieFn()); c != "" && req.Header.Get("Cookie") == "" {
 				req.Header.Set("Cookie", c)
 			}

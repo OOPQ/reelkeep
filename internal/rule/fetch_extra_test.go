@@ -37,7 +37,7 @@ func TestRenderBrowser(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		fmt.Fprint(w, `<html><body><div id="app"></div>
-<script>document.getElementById('app').textContent='rendered-by-js'</script></body></html>`)
+<script>document.cookie='sid=abc; path=/';document.getElementById('app').textContent='rendered-by-js'</script></body></html>`)
 	}))
 	defer srv.Close()
 
@@ -52,11 +52,20 @@ func TestRenderBrowser(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	var sank string
+	f.SetCookieSink(func(c string) { sank = c })
+	defer func() {
+		f.CloseBrowser()
+		time.Sleep(800 * time.Millisecond) // 等浏览器释放 profile 文件，否则 t.TempDir 清理会报占用
+	}()
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	b, err := f.Get(ctx, srv.URL, nil)
 	if err != nil {
 		t.Fatalf("浏览器渲染失败: %v", err)
+	}
+	if !strings.Contains(sank, "sid=abc") {
+		t.Fatalf("浏览器 Cookie 没有回灌: %q", sank)
 	}
 	if !strings.Contains(string(b), "rendered-by-js") {
 		t.Fatalf("渲染结果里没有 JS 产物: %.200s", string(b))

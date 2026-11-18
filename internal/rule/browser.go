@@ -85,6 +85,17 @@ type browserState struct {
 // ensureBrowser 启动（或复用）本源的浏览器；失败会缓存错误，避免反复重试。
 func (f *HTTPFetcher) ensureBrowser() (*rod.Browser, error) {
 	f.bs.once.Do(func() {
+		// 远程 CDP：把外部反检测浏览器（如 Chromium 系）直接挂上来，不自己启动。
+		if remote := strings.TrimSpace(os.Getenv("REELKEEP_BROWSER_CDP")); remote != "" {
+			b := rod.New().ControlURL(remote)
+			if err := b.Connect(); err != nil {
+				f.bs.err = fmt.Errorf("连接远程浏览器失败: %w", err)
+				return
+			}
+			f.bs.browser = b
+			f.bs.cleanup = func() {}
+			return
+		}
 		l := launcher.New().
 			Headless(true).
 			Leakless(true).
@@ -196,6 +207,20 @@ func (f *HTTPFetcher) getRendered(ctx context.Context, u *url.URL, headers map[s
 	}
 	if len(bts) == 0 {
 		return nil, errors.New("浏览器没有返回内容")
+	}
+	// 把这次浏览器会话的 Cookie 回灌给该源（登录/挑战之后，HTTP 请求也能直接用）。
+	if f.cookieSink != nil {
+		if cookies, cerr := page.Cookies([]string{u.String()}); cerr == nil && len(cookies) > 0 {
+			parts := make([]string, 0, len(cookies))
+			for _, c := range cookies {
+				if c.Name != "" {
+					parts = append(parts, c.Name+"="+c.Value)
+				}
+			}
+			if len(parts) > 0 {
+				f.cookieSink(strings.Join(parts, "; "))
+			}
+		}
 	}
 	return bts, nil
 }

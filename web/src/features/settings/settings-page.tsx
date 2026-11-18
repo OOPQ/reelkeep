@@ -28,15 +28,17 @@ import { Select } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { ApiError } from '@/components/api-error'
 
 export function SettingsPage() {
   const qc = useQueryClient()
-  const { data, isLoading, refetch, isFetching } = useAppState(5_000)
+  const { data, isLoading, refetch, isFetching, error } = useAppState(5_000)
   const density = useUiStore(s => s.density)
   const setDensity = useUiStore(s => s.setDensity)
   const longPressRate = useUiStore(s => s.longPressRate)
   const setLongPressRate = useUiStore(s => s.setLongPressRate)
   const [proxy, setProxy] = React.useState('')
+  const [sourceIndex, setSourceIndex] = React.useState('')
   const [ffmpeg, setFfmpeg] = React.useState('')
   const [concurrent, setConcurrent] = React.useState('3')
   const [retryCount, setRetryCount] = React.useState('4')
@@ -63,6 +65,7 @@ export function SettingsPage() {
   React.useEffect(() => {
     if (!data?.settings) return
     setProxy(data.settings.proxy || '')
+    setSourceIndex(data.settings.sourceIndexUrl || '')
     setFfmpeg(data.settings.ffmpegPath || '')
     setConcurrent(String(data.settings.concurrent || 3))
     setRetryCount(String(data.settings.retryCount || 4))
@@ -125,6 +128,7 @@ export function SettingsPage() {
         retryCount: Number(retryCount) || 4,
         retryDelay: Number(retryDelay) || 1,
         httpLimitKB: Number(httpLimit) || 0,
+        sourceIndexUrl: sourceIndex.trim(),
       }
       const r = await post<{ ok: boolean; error?: string }>('/api/config', payload)
       if (!r.ok) throw new Error(r.error || '保存失败')
@@ -174,6 +178,13 @@ export function SettingsPage() {
   }
 
   if (isLoading) return <SettingsSkeleton />
+  if (error) {
+    return (
+      <div className="p-4">
+        <ApiError title="设置加载失败" error={error} onRetry={() => void refetch()} busy={isFetching} />
+      </div>
+    )
+  }
 
   const project = data?.project as { root?: string; data?: string; media?: string; cache?: string; database?: string; dbMB?: number; videoCount?: number; videoGB?: number; coverCount?: number } | undefined
   const videoGB = Number(project?.videoGB || data?.stats?.diskGB || 0)
@@ -208,6 +219,10 @@ export function SettingsPage() {
         <div className="mt-3 space-y-2.5">
           <Field label="代理">
             <Input value={proxy} onChange={e => setProxy(e.target.value)} placeholder="http://127.0.0.1:7890（留空 = 系统代理）" />
+          </Field>
+          <Field label="源索引地址">
+            <Input value={sourceIndex} onChange={e => setSourceIndex(e.target.value)} placeholder="https://…/sources/index.json（留空 = 内置默认）" />
+            <div className="mt-1 text-[9px] text-[color:var(--subtle)]">「源管理 → 可用源」从这个 JSON 读取可安装/可更新的源包。</div>
           </Field>
           <Field label="FFmpeg 路径">
             <Input value={ffmpeg} onChange={e => setFfmpeg(e.target.value)} placeholder="D:\ffmpeg\bin\ffmpeg.exe（留空 = 自动查找）" />

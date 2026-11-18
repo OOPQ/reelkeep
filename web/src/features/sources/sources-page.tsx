@@ -19,6 +19,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
 import { Skeleton } from '@/components/ui/skeleton'
+import { ApiError } from '@/components/api-error'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 
 type Rank = { key: string; label: string; group?: string }
@@ -112,6 +113,55 @@ export function SourcesPage() {
 
   const items = query.data?.items || []
   const refresh = () => query.refetch()
+
+  // 在线索引：列出可安装/可更新的源包
+  type IndexItem = {
+    id: string
+    name: string
+    version: string
+    description?: string
+    installedVersion?: string
+    updatable: boolean
+    compatible: boolean
+  }
+  const [indexItems, setIndexItems] = React.useState<IndexItem[] | null>(null)
+  const [indexUrl, setIndexUrl] = React.useState('')
+  const [indexBusy, setIndexBusy] = React.useState(false)
+  const [indexErr, setIndexErr] = React.useState('')
+
+  const loadIndex = React.useCallback(async () => {
+    setIndexBusy(true)
+    setIndexErr('')
+    try {
+      const res = await fetch('/api/sources/index', { cache: 'no-store' })
+      const data = await res.json()
+      if (!data.ok) throw new Error(data.error || '读取索引失败')
+      setIndexItems(data.items || [])
+      setIndexUrl(data.indexUrl || '')
+    } catch (e) {
+      setIndexErr((e as Error).message)
+      setIndexItems(null)
+    } finally {
+      setIndexBusy(false)
+    }
+  }, [])
+
+  React.useEffect(() => { void loadIndex() }, [loadIndex])
+
+  const installFromIndex = async (it: IndexItem) => {
+    setBusy(`idx:${it.id}`)
+    try {
+      const r = await post<{ ok: boolean; error?: string; version?: string }>('/api/sources/install', { id: it.id })
+      if (!r.ok) throw new Error(r.error || '安装失败')
+      toast.success(`${it.name || it.id} 已${it.updatable ? '更新' : '安装'}到 v${r.version || it.version}`)
+      refresh()
+      void loadIndex()
+    } catch (e) {
+      toast.error((e as Error).message)
+    } finally {
+      setBusy(null)
+    }
+  }
 
   const importFromFile = async (file: File | undefined) => {
     if (!file) return
@@ -391,6 +441,14 @@ export function SourcesPage() {
     )
   }
 
+  if (query.error) {
+    return (
+      <div className="p-4">
+        <ApiError title="源列表加载失败" error={query.error} onRetry={() => void query.refetch()} busy={query.isFetching} />
+      </div>
+    )
+  }
+
   return (
     <div className="grid gap-3 p-4">
       <Card className="p-4">
@@ -472,6 +530,51 @@ export function SourcesPage() {
             </div>
           </div>
         </div>
+      </Card>
+
+      <Card className="p-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="text-[12px] font-semibold">可用源（在线索引）</div>
+          <Badge tone="muted">{indexItems ? `${indexItems.length} 个` : '未加载'}</Badge>
+          <span className="truncate text-[9.5px] text-[color:var(--subtle)]">{indexUrl || '索引地址见设置 → 下载设置'}</span>
+          <Button size="sm" variant="outline" className="ml-auto" onClick={() => void loadIndex()} disabled={indexBusy}>
+            <RefreshCw className={cn('size-3.5', indexBusy && 'animate-spin')} />
+            刷新索引
+          </Button>
+        </div>
+        {indexErr ? (
+          <div className="mt-2 rounded-[8px] border border-[color:color-mix(in_srgb,var(--danger)_30%,var(--border))] px-2.5 py-2 text-[10px] text-[color:var(--danger)]">
+            读取索引失败：{indexErr}
+          </div>
+        ) : null}
+        {indexItems?.length ? (
+          <div className="mt-3 divide-y divide-[color:var(--border)]">
+            {indexItems.map(it => (
+              <div key={it.id} className="flex flex-wrap items-center gap-2 py-2">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="truncate text-[11px] font-medium">{it.name || it.id}</span>
+                    <span className="text-[9px] text-[color:var(--subtle)]">v{it.version}</span>
+                    {!it.compatible ? <Badge tone="bad">需要更新版本</Badge> : null}
+                    {it.installedVersion && !it.updatable ? <Badge tone="ok">已安装</Badge> : null}
+                    {it.updatable ? <Badge tone="new">可更新</Badge> : null}
+                  </div>
+                  {it.description ? (
+                    <div className="mt-0.5 line-clamp-1 text-[9.5px] text-[color:var(--subtle)]">{it.description}</div>
+                  ) : null}
+                </div>
+                <Button
+                  size="sm"
+                  variant={it.updatable ? 'default' : 'outline'}
+                  disabled={!it.compatible || busy === `idx:${it.id}`}
+                  onClick={() => void installFromIndex(it)}
+                >
+                  {busy === `idx:${it.id}` ? '安装中…' : it.updatable ? '更新' : it.installedVersion ? '重装' : '安装'}
+                </Button>
+              </div>
+            ))}
+          </div>
+        ) : null}
       </Card>
 
       {items.length === 0 ? (

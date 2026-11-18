@@ -353,6 +353,7 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
   }
 
   const deleteSnapshot = async (name: string) => {
+    if (!(await confirmAction({ title: '删除快照', description: `删除快照「${name}」？该图片不会被保留。`, confirmText: '删除', danger: true }))) return
     try {
       const r = await post<{ ok: boolean; error?: string }>('/api/snapshot/delete', { token: row.token, name })
       if (!r.ok) throw new Error(r.error || '删除失败')
@@ -552,7 +553,7 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
         onFocus={e => { if (e.target === e.currentTarget) e.currentTarget.blur() }}
         title="条目详情"
         description={`${index + 1} / ${rows.length} · ${row.token}`}
-        bodyClassName="flex min-h-0 p-0"
+        bodyClassName="flex min-h-0 flex-col p-0 md:flex-row"
         className="h-[min(92vh,780px)] w-[min(1180px,calc(100vw-48px))]"
         footer={
           <div className="flex w-full items-center justify-between gap-3">
@@ -625,7 +626,7 @@ onPause={() => { setIsPlaying(false); saveResume() }}
 onPlay={() => { setIsPlaying(true); if (videoRef.current) videoRef.current.playbackRate = playbackRate; recordPlay() }}
               onVolumeChange={e => { setIsMuted(e.currentTarget.muted); setVolume(e.currentTarget.volume) }}
               onCanPlay={() => setVideoReady(true)}
-              onError={() => { setVideoError(true); setPlaying(false); setIsPlaying(false) }}
+              onError={() => { setVideoError(true); setPlaying(false); setIsPlaying(false); toast.error('视频加载失败：文件可能已被移动，或编码浏览器不支持') }}
               className={cn(
                 'absolute inset-0 z-10 h-full w-full object-contain outline-none transition-opacity duration-200',
                 videoReady ? 'opacity-100' : 'opacity-0',
@@ -745,7 +746,7 @@ onPlay={() => { setIsPlaying(true); if (videoRef.current) videoRef.current.playb
 
         </div>
 
-        <aside className="w-[320px] shrink-0 overflow-auto border-l border-[color:var(--border)] p-4">
+        <aside className="w-full shrink-0 overflow-auto border-t border-[color:var(--border)] p-4 md:w-[320px] md:border-l md:border-t-0">
           <div className="text-[9px] tracking-[.9px] text-[color:var(--subtle)]">ITEM / {index + 1} OF {rows.length}</div>
           <h2 className="mt-1 break-all text-[15px] font-semibold leading-snug">{rowTitle(row)}</h2>
           <div className="mt-3 flex items-baseline gap-2">

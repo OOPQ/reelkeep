@@ -58,6 +58,10 @@ type Defaults struct {
 	// Proxy: none（默认，直连）| system（跟随 HTTP(S)_PROXY 环境变量）。
 	// 设置里的显式代理由调用方注入，优先级更高。
 	Proxy string `json:"proxy,omitempty"`
+	// Render: 留空用普通 HTTP；browser 用本机 Chrome/Edge 无头渲染后再取 DOM。
+	Render string `json:"render,omitempty"`
+	// TLSProfile: 留空用 Go 默认 TLS；chrome/firefox/safari 用对应指纹发请求。
+	TLSProfile string `json:"tlsProfile,omitempty"`
 }
 
 // List 描述列表页（HTML 或 JSON API）。

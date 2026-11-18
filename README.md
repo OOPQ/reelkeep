@@ -132,7 +132,7 @@ qise 这类站点，高清/会员内容需要登录态。Reelkeep **不代填账
 
 - 凭据保存在 `%APPDATA%\Reelkeep\secrets\<source>.json`，Windows 用 **DPAPI 加密**（绑定当前 Windows 账户）
 - 凭据不会写进源包，导出/分享源包时不会带出去
-- 旧版的 `qiseCookie` 会在首次启动时自动迁移一次
+- 旧版的 `qiseCookie` 配置项已移除；如果之前填过，请在「源管理 → 登录凭据」重新保存一次
 - 只复用你账号本来就有权限的内容，不绕过会员墙 / DRM
 
 ### 格式与安全

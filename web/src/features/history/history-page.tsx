@@ -10,6 +10,7 @@ import { coverUrl, cn, rowTitle } from '@/lib/utils'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { ApiError } from '@/components/api-error'
 import type { Row } from '@/types'
 
 type HistoryGroup = {
@@ -82,7 +83,7 @@ function HistorySection({ group, defaultOpen, onPlay }: { group: HistoryGroup; d
 }
 
 export function HistoryPage() {
-  const { data, refetch } = useAppState(15_000)
+  const { data, refetch, error, isFetching } = useAppState(15_000)
   const navigate = useNavigate()
   const openPreview = useUiStore(s => s.openPreview)
   const [query, setQuery] = React.useState('')
@@ -121,6 +122,14 @@ export function HistoryPage() {
     } catch (e) {
       toast.error((e as Error).message)
     }
+  }
+
+  if (error) {
+    return (
+      <div className="p-4">
+        <ApiError title="浏览历史加载失败" error={error} onRetry={() => void refetch()} busy={isFetching} />
+      </div>
+    )
   }
 
   return (

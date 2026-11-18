@@ -10,6 +10,7 @@ import type { Row } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
+import { ApiError } from '@/components/api-error'
 import { IconButton } from '@/components/ui/icon-button'
 import { Card } from '@/components/ui/card'
 import { CoverImage } from '@/components/cover-image'
@@ -17,7 +18,7 @@ import { StatusBadge } from '@/components/status-badge'
 
 export function BinPage() {
   const qc = useQueryClient()
-  const { data, isLoading, refetch, isFetching } = useAppState(8_000)
+  const { data, isLoading, refetch, isFetching, error } = useAppState(8_000)
   const [query, setQuery] = React.useState('')
   const [busy, setBusy] = React.useState<string | null>(null)
 
@@ -87,6 +88,7 @@ export function BinPage() {
   }
 
   if (isLoading) return <BinSkeleton />
+  if (error) return <div className="p-4"><ApiError title="回收站加载失败" error={error} onRetry={() => void refetch()} busy={isFetching} /></div>
 
   return (
     <div className="space-y-3 p-4">

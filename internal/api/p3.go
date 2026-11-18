@@ -57,9 +57,13 @@ func (s *Server) importProjectFiles() (int, int, error) {
 		return 0, 0, nil
 	}
 	s.mu.RLock()
-	known := make(map[string]bool, len(s.rows))
+	known := make(map[string]bool, len(s.rows)*2)
 	for i := range s.rows {
 		known[strings.ToLower(s.rows[i].Token)] = true
+		// 已下载文件按稳定 uid 命名，扫盘时也要能认出来，避免重复登记
+		if uid := model.MediaUID(s.rows[i].Source, s.rows[i].SourceID, s.rows[i].Token); uid != "" {
+			known[strings.ToLower(uid)] = true
+		}
 	}
 	s.mu.RUnlock()
 
@@ -785,18 +789,13 @@ func (s *Server) handleReveal(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) recordPlay(token string) (string, string) {
-	row, ok, err := s.st.GetRow(token)
-	if err != nil || !ok {
+	now := time.Now().Format("2006-01-02 15:04:05")
+	n, err := s.st.BumpPlayCount(token, now)
+	if err != nil {
 		return "", ""
 	}
-	n, _ := strconv.Atoi(row.PlayCount)
-	n++
-	now := time.Now().Format("2006-01-02 15:04:05")
-	row.PlayCount = strconv.Itoa(n)
-	row.LastPlay = now
-	_ = s.st.UpsertRows([]model.Row{row})
 	s.ReloadRow(token)
-	return row.PlayCount, now
+	return n, now
 }
 
 func openFile(path string) error {

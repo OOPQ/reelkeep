@@ -1,0 +1,45 @@
+{
+    "version":  1,
+    "sources":  [
+                    {
+                        "id":  "hanime1",
+                        "name":  "Hanime1",
+                        "version":  "1.0.2",
+                        "file":  "hanime1.json",
+                        "sha256":  "f569207926dc558d20fcb7462f4153def61cc42d3cf33460c85499a10d83740b",
+                        "description":  "Hanime1 静态 HTML 源，列表与详情直接提供 mp4 地址。"
+                    },
+                    {
+                        "id":  "hsex",
+                        "name":  "Hsex",
+                        "version":  "1.0.2",
+                        "file":  "hsex.json",
+                        "sha256":  "091803b44efdd3b7f1a39c5a4a1547b712f79b881203e4b73005eb819e1fdd6b",
+                        "description":  "hsex.icu 视频列表：最新/New、最热、周榜/Weekly、月榜/Monthly、5分钟/5min+、10分钟/+；播放地址为多码率 HLS，需要 ffmpeg；默认跟随系统代理。"
+                    },
+                    {
+                        "id":  "pektino",
+                        "name":  "Pektino",
+                        "version":  "1.0.1",
+                        "file":  "pektino.json",
+                        "sha256":  "07b0b1d5fa39c483d63f4af12b3ab309da5dfe67e0b81510f591d976da49ab8c",
+                        "description":  "Pektino 日榜/周榜/月榜/总榜。列表页 HTML 卡片 50 条/页；详情页读 schema.org VideoObject，直接给 mp4；video.twimg.com 不带第三方 Referer。"
+                    },
+                    {
+                        "id":  "qise",
+                        "name":  "Qise / 91视频",
+                        "version":  "1.0.1",
+                        "file":  "qise.json",
+                        "sha256":  "622fac410daed366593fba11fc8373379539406028e3ba4c5ab763c731ac145f",
+                        "description":  "qise100 视频区。/videos 分类列表 + 详情页 mp4；登录 Cookie 用于高清/会员内容，并随媒体请求一起发送。"
+                    },
+                    {
+                        "id":  "qise-video",
+                        "name":  "Qise 单视频 / 91",
+                        "version":  "1.0.1",
+                        "file":  "qise-video.json",
+                        "sha256":  "ad03b41ae0454c530dd9d24a45b1fd42b7a97df13759b394bd7ca8f9012c9386",
+                        "description":  "qise100 /video 单视频分类（旧版）。列表卡片指向 viewhd，详情从 embed 页取 m3u8；登录 Cookie 可提高清晰度。"
+                    }
+                ]
+}

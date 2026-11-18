@@ -453,7 +453,7 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
           <div className="text-[10px] tracking-[.6px] text-[color:var(--danger)]">API OFFLINE</div>
           <h2 className="mt-1 text-[16px] font-semibold">读取台账失败</h2>
           <p className="mt-2 max-w-[520px] text-[11.5px] leading-5 text-[color:var(--muted)]">
-            {(error as Error).message}。确认 8791 控制台仍在运行，Vite 的 `/api` 代理会转发到它。
+            {(error as Error).message}。确认 Reelkeep 仍在运行，然后点重试。
           </p>
           <Button className="mt-4" size="sm" variant="outline" onClick={() => refetch()} disabled={isFetching}>
             <RotateCcw className={cn('size-3.5', isFetching && 'animate-spin')} /> 重试
@@ -694,6 +694,14 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
         </div>
 
       <div className={cn('min-h-0 flex-1', view === 'gallery' && 'ui-scroll overflow-auto pr-0.5')}>
+        {serverMode && serverQuery.isError ? (
+          <div className="mb-2 flex items-center gap-2 rounded-[10px] border border-[color:color-mix(in_srgb,var(--danger)_35%,var(--border))] bg-[color:color-mix(in_srgb,var(--danger)_6%,var(--surface))] px-3 py-2 text-[10px] text-[color:var(--danger)]">
+            列表加载失败：{(serverQuery.error as Error).message}
+            <Button size="sm" variant="outline" className="ml-auto h-7" onClick={() => void serverQuery.refetch()} disabled={serverQuery.isFetching}>
+              <RotateCcw className={cn('size-3.5', serverQuery.isFetching && 'animate-spin')} /> 重试
+            </Button>
+          </div>
+        ) : null}
         {view === 'table' ? (
           <LibraryTable
             rows={displayRows}

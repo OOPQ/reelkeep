@@ -76,7 +76,18 @@
         "headers": { "$ref": "#/$defs/headers" },
         "userAgent": { "type": "string", "maxLength": 300 },
         "timeoutSec": { "type": "integer", "minimum": 1, "maximum": 60, "default": 15 },
-        "maxBytes": { "type": "integer", "minimum": 1024, "maximum": 33554432, "default": 8388608 }
+        "maxBytes": { "type": "integer", "minimum": 1024, "maximum": 33554432, "default": 8388608 },
+        "render": {
+          "type": "string",
+          "enum": ["http", "browser"],
+          "default": "http",
+          "description": "browser 表示用本机 Chrome/Edge 无头渲染后再取 DOM（不发送自定义头和 Cookie）"
+        },
+        "tlsProfile": {
+          "type": "string",
+          "enum": ["chrome", "firefox", "safari"],
+          "description": "用对应浏览器的 TLS 指纹发请求，绕开按指纹拦截的站点"
+        }
       }
     },
     "headers": {

@@ -235,7 +235,7 @@ func TestShippedPackagesLoad(t *testing.T) {
 	}
 	n := 0
 	for _, e := range entries {
-		if e.IsDir() || !strings.HasSuffix(strings.ToLower(e.Name()), ".json") {
+		if e.IsDir() || !strings.HasSuffix(strings.ToLower(e.Name()), ".json") || e.Name() == "index.json" {
 			continue
 		}
 		n++

@@ -144,6 +144,7 @@ type Server struct {
 	coverMissing int
 
 	scanMu   sync.Mutex
+	cfgMu    sync.Mutex // 串行化设置保存，避免两次保存互相覆盖
 	logbuf   *Log
 	metrics  *Metrics
 	mediaKey string
@@ -399,9 +400,13 @@ func statsFrom(rows []model.Row, idx scan.Index, coverMissing int, ledgerPath, c
 		st.ByRes = []ResCount{}
 	}
 	orphans := make([]scan.Entry, 0, len(idx.Files))
-	ledger := make(map[string]bool, len(rows))
+	ledger := make(map[string]bool, len(rows)*2)
 	for i := range rows {
 		ledger[strings.ToLower(rows[i].Token)] = true
+		// 媒体文件以稳定 uid 命名，孤儿判断要把 uid 也算进台账
+		if uid := model.MediaUID(rows[i].Source, rows[i].SourceID, rows[i].Token); uid != "" {
+			ledger[strings.ToLower(uid)] = true
+		}
 	}
 	for k, f := range idx.Files {
 		if !ledger[k] {
@@ -545,6 +550,7 @@ func (s *Server) settingsPayload() map[string]any {
 		"retryCount":    cfg.RetryCount,
 		"retryDelay":    cfg.RetryDelay,
 		"httpLimitKB":   cfg.HTTPLimitKB,
+		"sourceIndexUrl": cfg.SourceIndexURL,
 	}
 }
 
@@ -610,6 +616,8 @@ func (s *Server) Handler() http.Handler {
 
 	// 源管理与抓取
 	mux.HandleFunc("GET /api/sources", s.handleSources)
+	mux.HandleFunc("GET /api/sources/index", s.handleSourceIndex)
+	mux.HandleFunc("POST /api/sources/install", s.handleSourceInstall)
 	mux.HandleFunc("GET /api/sources/package", s.handleSourcePackage)
 	mux.HandleFunc("POST /api/sources/import", s.handleSourceImport)
 	mux.HandleFunc("POST /api/sources/import-zip", s.handleSourceZipImport)
@@ -645,9 +653,20 @@ func (s *Server) Handler() http.Handler {
 	// 静态资源与媒体
 	mux.HandleFunc("GET /assets/", s.handleAssets)
 	mux.HandleFunc("GET /media/", s.handleMedia)
+
+	// 健康检查（比 /api/state 轻，探活与监控用）
+	mux.HandleFunc("GET /api/health", s.handleHealth)
 	mux.HandleFunc("GET /", s.handleSPA)
 
-	return s.withMetrics(mux)
+	return s.withGuard(s.withMetrics(mux))
+}
+
+func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
+	s.mu.RLock()
+	root := s.paths.Root
+	ver := s.version
+	s.mu.RUnlock()
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "version": ver, "project": root})
 }
 
 func (s *Server) withMetrics(next http.Handler) http.Handler {

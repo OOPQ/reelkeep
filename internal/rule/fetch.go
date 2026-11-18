@@ -37,6 +37,14 @@ type HTTPFetcher struct {
 	auth     *Auth
 	baseHost string
 	cookieFn func() string
+
+	render     string
+	tlsProfile string
+	proxyFn    func() string
+
+	tlsMu     sync.Mutex
+	tlsClient any // *tlsclient client，按 profile+代理 缓存
+	tlsKey    string
 }
 
 // SetCookieProvider 注入登录 Cookie 提供者（来自加密凭据存储）。
@@ -58,6 +66,9 @@ func NewHTTPFetcher(p *Package, proxyFn func() string) (*HTTPFetcher, error) {
 		allowed: allowed, ua: p.Defaults.UserAgent, maxBytes: p.Defaults.MaxBytes,
 		auth: p.Auth, baseHost: strings.ToLower(u.Hostname()),
 		limiter: newHostLimiter(200 * time.Millisecond),
+		render:  strings.ToLower(strings.TrimSpace(p.Defaults.Render)),
+		tlsProfile: strings.ToLower(strings.TrimSpace(p.Defaults.TLSProfile)),
+		proxyFn: proxyFn,
 	}
 	if f.ua == "" {
 		f.ua = defaultUA
@@ -151,6 +162,13 @@ func (f *HTTPFetcher) Get(ctx context.Context, rawURL string, headers map[string
 	}
 	if err := f.checkURL(u); err != nil {
 		return nil, err
+	}
+	// 浏览器渲染 / TLS 指纹走独立实现；普通路径继续下面的重试循环。
+	if f.render == "browser" {
+		return f.getRendered(ctx, u, headers)
+	}
+	if f.tlsProfile != "" {
+		return f.getTLS(ctx, u, headers)
 	}
 	// 单次尝试的超时由 client.Timeout 控制，失败重试会重新计时。
 

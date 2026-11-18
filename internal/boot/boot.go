@@ -5,6 +5,7 @@ package boot
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -15,6 +16,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -51,6 +53,7 @@ type Instance struct {
 
 	http *http.Server
 	ln   net.Listener
+	lock *proc.FileLock
 }
 
 // ResolveProject 决定项目目录并初始化结构（与 CLI 行为一致）。
@@ -87,6 +90,39 @@ func Start(ctx context.Context, opt Options) (*Instance, error) {
 			Paths: paths, Existing: true,
 		}, nil
 	}
+
+	// 用项目内的锁文件兜住「同时双击两次」的竞态：抢不到锁说明另一个进程正在启动。
+	lockPath := filepath.Join(paths.DataDir, "instance.lock")
+	portFile := filepath.Join(paths.DataDir, "instance.port")
+	lock, err := proc.LockFile(lockPath)
+	if errors.Is(err, proc.ErrLocked) {
+		for i := 0; i < 25; i++ {
+			if p := lockPort(portFile); p > 0 {
+				if _, ok := probe(p); ok {
+					return &Instance{
+						URL: fmt.Sprintf("http://127.0.0.1:%d/", p), Port: p,
+						Paths: paths, Existing: true,
+					}, nil
+				}
+			} else if existing, ok := findExisting(paths.Root, port); ok {
+				return &Instance{
+					URL: fmt.Sprintf("http://127.0.0.1:%d/", existing), Port: existing,
+					Paths: paths, Existing: true,
+				}, nil
+			}
+			time.Sleep(120 * time.Millisecond)
+		}
+		return nil, fmt.Errorf("项目已在另一个进程里打开，但没有响应；请稍后重试或关闭多余窗口")
+	}
+	if err != nil {
+		return nil, fmt.Errorf("创建实例锁失败: %w", err)
+	}
+	releaseLock := true
+	defer func() {
+		if releaseLock {
+			lock.Release()
+		}
+	}()
 
 	st, err := store.Open(paths.Database)
 	if err != nil {
@@ -145,6 +181,8 @@ func Start(ctx context.Context, opt Options) (*Instance, error) {
 		cleanup()
 		return nil, err
 	}
+	// 记下端口，后启动的实例能直接找到它，不再依赖端口窗口扫描。
+	_ = os.WriteFile(portFile, []byte(strconv.Itoa(actualPort)), 0o644)
 	srv.SetPort(actualPort)
 
 	if err := dl.Start(context.Background()); err != nil {
@@ -165,8 +203,9 @@ func Start(ctx context.Context, opt Options) (*Instance, error) {
 	url := fmt.Sprintf("http://127.0.0.1:%d/", actualPort)
 	inst := &Instance{
 		URL: url, Port: actualPort, Paths: paths, Store: st, Server: srv,
-		Download: dl, Source: mgr, http: httpSrv, ln: ln,
+		Download: dl, Source: mgr, http: httpSrv, ln: ln, lock: lock,
 	}
+	releaseLock = false
 	if installed := mgr.List(); len(installed) > 0 {
 		srv.LogBuffer().Add("source", fmt.Sprintf("已加载 %d 个外部源包", len(installed)))
 	}
@@ -196,6 +235,10 @@ func (i *Instance) Close() {
 	}
 	if i.Store != nil {
 		_ = i.Store.Close()
+	}
+	if i.lock != nil {
+		_ = os.Remove(filepath.Join(i.Paths.DataDir, "instance.port"))
+		i.lock.Release()
 	}
 }
 
@@ -227,7 +270,20 @@ func warnSyncDir(root string) {
 	}
 }
 
-// findExisting 在 base..base+19 里找同一项目已运行的实例。
+// lockPort 读锁文件里记录的端口（未写入时返回 0）。
+func lockPort(path string) int {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return 0
+	}
+	n, err := strconv.Atoi(strings.TrimSpace(string(b)))
+	if err != nil || n <= 0 || n > 65535 {
+		return 0
+	}
+	return n
+}
+
+// findExisting 在 base..base+20 里找同一项目的实例。
 func findExisting(root string, base int) (int, bool) {
 	for p := base; p < base+20; p++ {
 		got, ok := probe(p)
@@ -238,27 +294,25 @@ func findExisting(root string, base int) (int, bool) {
 	return 0, false
 }
 
-// probe 判断端口上跑的是不是本程序，并返回它的项目根目录。
+// probe 判断端口上跑的是不是本程序，并返回它的项目根目录（用轻量的 /api/health）。
 func probe(port int) (string, bool) {
 	cli := http.Client{Timeout: 800 * time.Millisecond}
-	resp, err := cli.Get(fmt.Sprintf("http://127.0.0.1:%d/api/state", port))
+	resp, err := cli.Get(fmt.Sprintf("http://127.0.0.1:%d/api/health", port))
 	if err != nil {
 		return "", false
 	}
 	defer resp.Body.Close()
 	var p struct {
-		OK      bool `json:"ok"`
-		Project struct {
-			Root string `json:"root"`
-		} `json:"project"`
+		OK      bool   `json:"ok"`
+		Project string `json:"project"`
 	}
 	if json.NewDecoder(resp.Body).Decode(&p) != nil {
 		return "", false
 	}
-	if !p.OK || p.Project.Root == "" {
+	if !p.OK || p.Project == "" {
 		return "", false
 	}
-	return p.Project.Root, true
+	return p.Project, true
 }
 
 func samePath(a, b string) bool {

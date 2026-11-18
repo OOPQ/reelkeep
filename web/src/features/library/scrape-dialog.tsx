@@ -125,9 +125,9 @@ export function ScrapeDialog({
               </div>
               <div>
                 <div className="ui-field-label mb-1.5">抓取数量（条）</div>
-                <Input type="number" min={1} max={2000} value={limit} onChange={e => setLimit(e.target.value)} />
+                <Input type="number" min={1} max={500} value={limit} onChange={e => setLimit(e.target.value)} />
                 <div className="mt-1 text-[9.5px] text-[color:var(--subtle)]">
-                  每页约 {src?.pageSize || 50} 条；会按数量自动翻页，超出会截断。
+                  每页约 {src?.pageSize || 50} 条；会按数量自动翻页，超出会截断。单次最多 500 条。
                 </div>
               </div>
               <div className="space-y-1.5 pt-1">

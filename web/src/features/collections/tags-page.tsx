@@ -132,6 +132,12 @@ export function TagsPage() {
     })
   }, [itemsQuery.data?.tokens, rowMap, query, status])
 
+  // 标签下也可能有上千条，先渲染一页。
+  const PAGE = 120
+  const [visible, setVisible] = React.useState(PAGE)
+  React.useEffect(() => { setVisible(PAGE) }, [current?.id, query, status])
+  const shownRows = React.useMemo(() => rows.slice(0, visible), [rows, visible])
+
   const openPreviewList = React.useCallback((token: string, autoplay = false) => {
     openPreview(token, autoplay, rows.map(r => r.token))
   }, [openPreview, rows])
@@ -361,7 +367,7 @@ export function TagsPage() {
         <>
         <LibraryGallery
           downloads={downloadMap}
-          rows={rows}
+          rows={shownRows}
           selected={selected}
           onToggle={token => setSelected(s => s.includes(token) ? s.filter(t => t !== token) : [...s, token])}
           onOpen={openPreviewList}
@@ -370,6 +376,13 @@ export function TagsPage() {
           onDownload={row => { void actions.download([row.token]) }}
           menu={menu}
         />
+        {rows.length > shownRows.length ? (
+          <div className="grid place-items-center pt-1">
+            <Button size="sm" variant="outline" onClick={() => setVisible(v => v + PAGE)}>
+              加载更多（剩余 {rows.length - shownRows.length} 条）
+            </Button>
+          </div>
+        ) : null}
         {!rows.length ? (
           <div className="grid min-h-[220px] place-items-center rounded-[var(--radius-card)] border border-[color:var(--border)] bg-[color:var(--surface)]">
             <div className="text-center">

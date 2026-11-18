@@ -210,6 +210,7 @@ export function QueuePage() {
             <TabsTrigger value="active">进行中 <span className="rounded-full border border-[color:var(--border)] px-1.5 text-[8.5px]">{groups.active.length}</span></TabsTrigger>
             <TabsTrigger value="done">已完成 <span className="rounded-full border border-[color:var(--border)] px-1.5 text-[8.5px]">{groups.done.length}</span></TabsTrigger>
             <TabsTrigger value="failed">失败 <span className="rounded-full border border-[color:var(--border)] px-1.5 text-[8.5px]">{groups.failed.length}</span></TabsTrigger>
+            <TabsTrigger value="cancelled">已取消 <span className="rounded-full border border-[color:var(--border)] px-1.5 text-[8.5px]">{groups.cancelled.length}</span></TabsTrigger>
           </TabsList>
         </Tabs>
         <span className="text-[9.5px] text-[color:var(--subtle)]">

@@ -101,7 +101,12 @@ type Settings struct {
 	QbtURL         string `json:"qbtUrl"`
 	QbtUser        string `json:"qbtUser"`
 	QbtPass        string `json:"qbtPass"`
+	// SourceIndexURL 是「可用源」索引地址（JSON）；空表示用内置默认。
+	SourceIndexURL string `json:"sourceIndexUrl"`
 }
+
+// DefaultSourceIndexURL 指向仓库里的公共源索引。
+const DefaultSourceIndexURL = "https://raw.githubusercontent.com/OOPQ/reelkeep/main/sources/index.json"
 
 // LoadSettings 读配置；缺省值与原版一致。
 func LoadSettings(p Paths) Settings {
@@ -123,6 +128,9 @@ func LoadSettings(p Paths) Settings {
 	if s.TorrentBackend == "" {
 		s.TorrentBackend = "builtin"
 	}
+	if s.SourceIndexURL == "" {
+		s.SourceIndexURL = DefaultSourceIndexURL
+	}
 	return s
 }
 
@@ -139,6 +147,9 @@ func SaveSettings(p Paths, s Settings) error {
 	}
 	if s.FFmpegPath != "" {
 		out["ffmpegPath"] = s.FFmpegPath
+	}
+	if s.SourceIndexURL != "" {
+		out["sourceIndexUrl"] = s.SourceIndexURL
 	}
 	b, _ := json.MarshalIndent(out, "", "  ")
 	return os.WriteFile(filepath.Join(p.DataDir, "config.json"), b, 0o644)

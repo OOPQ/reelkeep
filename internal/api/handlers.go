@@ -84,6 +84,7 @@ func (s *Server) handleState(w http.ResponseWriter, r *http.Request) {
 			"retryCount":    cfg.RetryCount,
 			"retryDelay":    cfg.RetryDelay,
 			"httpLimitKB":   cfg.HTTPLimitKB,
+			"sourceIndexUrl": cfg.SourceIndexURL,
 		},
 		"sources": s.reg.Enabled(),
 		"media": map[string]any{
@@ -714,15 +715,17 @@ func (s *Server) handleDelete(w http.ResponseWriter, r *http.Request) {
 		bad(w, "台账里没有这些条目")
 		return
 	}
-	for _, f := range files {
-		if err := os.Remove(f); err != nil && !os.IsNotExist(err) {
-			bad(w, "删除文件失败: "+err.Error())
-			return
-		}
-	}
+	// 先删台账再删文件：文件删失败只会留下孤立文件（可再扫盘），
+	// 反过来则会出现「文件没了、记录还在」的死条目。
 	if err := s.st.RemovePermanently(tokensOf(records), records); err != nil {
 		bad(w, err.Error())
 		return
+	}
+	var fileErrs []string
+	for _, f := range files {
+		if err := os.Remove(f); err != nil && !os.IsNotExist(err) {
+			fileErrs = append(fileErrs, filepath.Base(f)+": "+err.Error())
+		}
 	}
 
 	set := map[string]bool{}
@@ -750,7 +753,12 @@ func (s *Server) handleDelete(w http.ResponseWriter, r *http.Request) {
 
 	_ = store.SaveDeletedJSON(s.paths.DataDir, deletedCopy)
 	s.logbuf.Add("delete", fmt.Sprintf("彻底删除 %d 条", len(records)))
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "deleted": len(records)})
+	resp := map[string]any{"ok": true, "deleted": len(records)}
+	if len(fileErrs) > 0 {
+		s.logbuf.Add("delete", fmt.Sprintf("文件删除失败 %d 个", len(fileErrs)))
+		resp["fileErrors"] = fileErrs
+	}
+	writeJSON(w, http.StatusOK, resp)
 }
 
 func tokensOf(list []model.DeletedToken) []string {
@@ -790,6 +798,8 @@ func (s *Server) handleScan(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
+	s.cfgMu.Lock()
+	defer s.cfgMu.Unlock()
 	var body struct {
 		Proxy          *string `json:"proxy"`
 		Concurrent     *int    `json:"concurrent"`
@@ -802,6 +812,7 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 		QbtURL         *string `json:"qbtUrl"`
 		QbtUser        *string `json:"qbtUser"`
 		QbtPass        *string `json:"qbtPass"`
+		SourceIndexURL *string `json:"sourceIndexUrl"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "invalid json"})
@@ -889,6 +900,17 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 	}
 	if body.QbtPass != nil {
 		cfg.QbtPass = *body.QbtPass
+	}
+	if body.SourceIndexURL != nil {
+		v := strings.TrimSpace(*body.SourceIndexURL)
+		if v != "" {
+			u, err := url.Parse(v)
+			if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+				bad(w, "源索引地址必须是 http(s) 绝对地址")
+				return
+			}
+		}
+		cfg.SourceIndexURL = v
 	}
 	if err := config.SaveSettings(s.paths, cfg); err != nil {
 		bad(w, err.Error())
@@ -1117,6 +1139,11 @@ func (s *Server) handleAssets(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleSPA(w http.ResponseWriter, r *http.Request) {
 	p := strings.TrimPrefix(r.URL.Path, "/")
+	// 未注册的 /api/* 返回 JSON 404，别落到前端页面
+	if strings.HasPrefix(p, "api/") {
+		writeJSON(w, http.StatusNotFound, map[string]any{"ok": false, "error": "unknown api: " + p})
+		return
+	}
 	if p != "" && !strings.Contains(p, "..") {
 		if f, err := s.assets.Open(p); err == nil {
 			stat, err := f.Stat()

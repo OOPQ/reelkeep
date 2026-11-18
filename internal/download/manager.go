@@ -334,20 +334,13 @@ func (m *Manager) updateLedger(t *Task) {
 	if err != nil {
 		return
 	}
-	row, ok, err := m.st.GetRow(t.M.Token)
-	if err != nil || !ok {
-		return
-	}
-	row.FileName = filepath.Base(final)
-	row.FilePath = final
-	row.FileSize = fmt.Sprintf("%d", st.Size())
-	row.FileDate = st.ModTime().Format("2006-01-02 15:04:05")
-	row.Status = "done"
+	title := ""
 	if t.M.Name != "" {
-		row.Title = strings.TrimSuffix(filepath.Base(final), filepath.Ext(final))
+		title = strings.TrimSuffix(filepath.Base(final), filepath.Ext(final))
 	}
-	row.Note = "auto:download"
-	if err := m.st.UpsertRows([]model.Row{row}); err != nil {
+	// 只写下载相关列：整行 upsert 会把同时发生的播放计数/评分覆盖回去。
+	if err := m.st.SetDownloadedFile(t.M.Token, filepath.Base(final), final,
+		fmt.Sprintf("%d", st.Size()), st.ModTime().Format("2006-01-02 15:04:05"), title); err != nil {
 		m.logf("download", "回填台账失败: "+err.Error())
 		return
 	}

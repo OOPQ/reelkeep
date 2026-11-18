@@ -84,6 +84,7 @@ func TestHTTPContractSmoke(t *testing.T) {
 				body = bytes.NewReader(nil)
 			}
 			req := httptest.NewRequest(c.method, c.path, body)
+			req.Host = "127.0.0.1:8791"
 			if c.body != nil {
 				req.Header.Set("Content-Type", "application/json")
 			}

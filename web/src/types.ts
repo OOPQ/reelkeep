@@ -94,6 +94,7 @@ export type AppSettings = {
   retryDelay?: number
   torrentLimitKB?: number
   httpLimitKB?: number
+  sourceIndexUrl?: string
   torrentBackend?: string
   qbtUrl?: string
   qbtUser?: string

@@ -155,6 +155,12 @@ export function CollectionsPage() {
     })
   }, [allRows, query, status])
 
+  // 合集详情可能有上千条，先渲染一页，点「加载更多」再往下加。
+  const PAGE = 120
+  const [visible, setVisible] = React.useState(PAGE)
+  React.useEffect(() => { setVisible(PAGE) }, [current?.id, query, status])
+  const shownRows = React.useMemo(() => rows.slice(0, visible), [rows, visible])
+
   const setCover = async (token: string) => {
     if (!current) return
     setCoverBusy(true)
@@ -428,7 +434,7 @@ export function CollectionsPage() {
         </div>
         <LibraryGallery
           downloads={downloadMap}
-          rows={rows}
+          rows={shownRows}
           selected={selected}
           onToggle={token => setSelected(s => s.includes(token) ? s.filter(t => t !== token) : [...s, token])}
           onOpen={openPreviewList}
@@ -437,6 +443,13 @@ export function CollectionsPage() {
           onDownload={row => { void actions.download([row.token]) }}
           menu={menu}
         />
+        {rows.length > shownRows.length ? (
+          <div className="grid place-items-center pt-1">
+            <Button size="sm" variant="outline" onClick={() => setVisible(v => v + PAGE)}>
+              加载更多（剩余 {rows.length - shownRows.length} 条）
+            </Button>
+          </div>
+        ) : null}
         {!rows.length ? (
           <div className="grid min-h-[220px] place-items-center rounded-[var(--radius-card)] border border-[color:var(--border)] bg-[color:var(--surface)]">
             <div className="text-center">
@@ -546,7 +559,7 @@ export function CollectionsPage() {
           }
         >
           <div className="grid grid-cols-3 gap-2 p-4 sm:grid-cols-4 md:grid-cols-5">
-            {allRows.map(row => (
+            {allRows.slice(0, 150).map(row => (
               <button
                 key={row.token}
                 type="button"
@@ -564,6 +577,9 @@ export function CollectionsPage() {
             ))}
             {!allRows.length ? <div className="col-span-full py-8 text-center text-[11px] text-[color:var(--subtle)]">这个合集还没有影片</div> : null}
           </div>
+          {allRows.length > 150 ? (
+            <div className="px-4 pb-3 text-[9.5px] text-[color:var(--subtle)]">仅列出前 150 条，可先缩小合集或用列表里的封面按钮设置。</div>
+          ) : null}
         </DialogContent>
       </Dialog>
 

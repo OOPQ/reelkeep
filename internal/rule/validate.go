@@ -61,6 +61,16 @@ func (p *Package) Validate() []error {
 			add(fmt.Sprintf("linkMatch[%d]", i), "不是合法正则：%v", err)
 		}
 	}
+	switch strings.ToLower(strings.TrimSpace(p.Defaults.Render)) {
+	case "", "http", "browser":
+	default:
+		add("defaults.render", "只支持 http（默认）或 browser")
+	}
+	switch strings.ToLower(strings.TrimSpace(p.Defaults.TLSProfile)) {
+	case "", "chrome", "firefox", "safari":
+	default:
+		add("defaults.tlsProfile", "只支持 chrome / firefox / safari")
+	}
 	caps := map[string]bool{}
 	for i, c := range p.Capabilities {
 		switch c {

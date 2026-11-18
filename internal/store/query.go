@@ -40,8 +40,20 @@ func (q RowQuery) where() (string, []any) {
 		}
 	}
 	if q.Res != "" && q.Res != "all" {
-		parts = append(parts, "res = ?")
-		args = append(args, q.Res)
+		const w = "CAST(substr(res,1,instr(res,'x')-1) AS INTEGER)"
+		const h = "CAST(substr(res,instr(res,'x')+1) AS INTEGER)"
+		const short = "(CASE WHEN instr(res,'x')>0 THEN MIN(" + w + "," + h + ") ELSE 0 END)"
+		switch q.Res {
+		case "1080", "720", "4k":
+			threshold := map[string]int{"720": 720, "1080": 1080, "4k": 2160}[q.Res]
+			parts = append(parts, short+" >= ?")
+			args = append(args, threshold)
+		case "portrait":
+			parts = append(parts, w+" < "+h)
+		default:
+			parts = append(parts, "res = ?")
+			args = append(args, q.Res)
+		}
 	}
 	if q.MinDur > 0 {
 		parts = append(parts, "CAST(NULLIF(seconds,'') AS INTEGER) >= ?")

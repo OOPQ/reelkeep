@@ -716,8 +716,8 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
 
           {(!playing || !isPlaying) && (canPlay || downloadable) ? (
             <div className="pointer-events-none absolute inset-0 z-20 grid place-items-center opacity-0 group-hover:opacity-100">
-              <div className="absolute inset-0 bg-black/25" />
-              <div className="relative flex flex-col items-center gap-2">
+              <div className="absolute inset-0 bg-black/20" />
+              <div className="relative flex flex-col items-center gap-1.5">
                 {canPlay ? (
                   <button
                     type="button"
@@ -733,22 +733,22 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
                       setVideoReady(false)
                       setPlaying(true)
                     }}
-                    className="pointer-events-auto grid size-16 place-items-center rounded-full border border-white/25 bg-black/45 text-white/90 shadow-xl backdrop-blur-md transition hover:scale-110 hover:bg-black/65 md:size-20"
+                    className="pointer-events-auto text-white/95 drop-shadow-[0_2px_16px_rgba(0,0,0,0.65)] transition-transform duration-150 hover:scale-110 hover:text-white"
                     aria-label="播放"
                   >
-                    <Play className="size-7 fill-current md:size-9" />
+                    <Play className="size-14 fill-current md:size-16" />
                   </button>
                 ) : (
                   <button
                     type="button"
                     onClick={() => void download()}
-                    className="pointer-events-auto grid size-16 place-items-center rounded-full border border-white/25 bg-black/45 text-white/90 shadow-xl backdrop-blur-md transition hover:scale-110 hover:bg-black/65 md:size-20"
+                    className="pointer-events-auto text-white/95 drop-shadow-[0_2px_16px_rgba(0,0,0,0.65)] transition-transform duration-150 hover:scale-110 hover:text-white"
                     aria-label="下载"
                   >
-                    <Download className="size-7 md:size-9" />
+                    <Download className="size-14 md:size-16" />
                   </button>
                 )}
-                <span className="rounded-full bg-black/55 px-2.5 py-0.5 text-[10px] font-medium text-white/85 backdrop-blur">
+                <span className="text-[10.5px] font-medium tracking-wide text-white/85 drop-shadow-[0_1px_8px_rgba(0,0,0,0.8)]">
                   {canPlay ? '播放' : '下载'}
                 </span>
               </div>

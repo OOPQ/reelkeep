@@ -714,38 +714,44 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
             <CoverImage token={row.token} full fit="contain" alt={rowTitle(row)} className={cn('h-full w-full', videoReady ? 'opacity-0' : 'opacity-100')} />
           </button>
 
-          {!playing || !isPlaying ? (
+          {(!playing || !isPlaying) && (canPlay || downloadable) ? (
             <div className="pointer-events-none absolute inset-0 z-20 grid place-items-center opacity-0 group-hover:opacity-100">
-              {canPlay ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    userPaused.current = false
-                    setVideoError(false)
-                    const v = videoRef.current
-                    if (v) {
-                      void v.play().catch(() => {})
+              <div className="absolute inset-0 bg-black/25" />
+              <div className="relative flex flex-col items-center gap-2">
+                {canPlay ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      userPaused.current = false
+                      setVideoError(false)
+                      const v = videoRef.current
+                      if (v) {
+                        void v.play().catch(() => {})
+                        setPlaying(true)
+                        return
+                      }
+                      setVideoReady(false)
                       setPlaying(true)
-                      return
-                    }
-                    setVideoReady(false)
-                    setPlaying(true)
-                  }}
-                  className="pointer-events-auto grid size-16 place-items-center rounded-full border border-white/25 bg-black/45 text-white/90 shadow-xl backdrop-blur-md transition hover:scale-110 hover:bg-black/65 md:size-20"
-                  aria-label="播放"
-                >
-                  <Play className="size-7 fill-current md:size-9" />
-                </button>
-              ) : downloadable ? (
-                <button
-                  type="button"
-                  onClick={() => void download()}
-                  className="pointer-events-auto grid size-16 place-items-center rounded-full border border-white/25 bg-black/45 text-white/90 shadow-xl backdrop-blur-md transition hover:scale-110 hover:bg-black/65 md:size-20"
-                  aria-label="下载"
-                >
-                  <Download className="size-7 md:size-9" />
-                </button>
-              ) : null}
+                    }}
+                    className="pointer-events-auto grid size-16 place-items-center rounded-full border border-white/25 bg-black/45 text-white/90 shadow-xl backdrop-blur-md transition hover:scale-110 hover:bg-black/65 md:size-20"
+                    aria-label="播放"
+                  >
+                    <Play className="size-7 fill-current md:size-9" />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => void download()}
+                    className="pointer-events-auto grid size-16 place-items-center rounded-full border border-white/25 bg-black/45 text-white/90 shadow-xl backdrop-blur-md transition hover:scale-110 hover:bg-black/65 md:size-20"
+                    aria-label="下载"
+                  >
+                    <Download className="size-7 md:size-9" />
+                  </button>
+                )}
+                <span className="rounded-full bg-black/55 px-2.5 py-0.5 text-[10px] font-medium text-white/85 backdrop-blur">
+                  {canPlay ? '播放' : '下载'}
+                </span>
+              </div>
             </div>
           ) : null}
 

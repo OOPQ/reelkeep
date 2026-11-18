@@ -428,18 +428,34 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
     }
   }
 
+  const undoRemove = async (token: string) => {
+    try {
+      const r = await post<{ ok: boolean; error?: string }>('/api/restore', { tokens: [token] })
+      if (!r.ok) throw new Error(r.error || '恢复失败')
+      toast.success('已恢复')
+      qc.invalidateQueries({ queryKey: ['state'] })
+      qc.invalidateQueries({ queryKey: ['library-rows'] })
+    } catch (e) {
+      toast.error((e as Error).message)
+    }
+  }
+
   const remove = async () => {
-    if (!(await confirmAction({ title: '移入回收站', description: `删除「${rowTitle(row)}」？可在回收站恢复。`, confirmText: '移入回收站', danger: true }))) return
     const tid = toast.loading('正在删除…')
     try {
       const r = await post<{ ok: boolean; error?: string }>('/api/mark', { tokens: [row.token], status: 'recycled' })
       if (!r.ok) throw new Error(r.error || '删除失败')
-      toast.success('已移入回收站', { id: tid })
+      const deleted = row.token
+      toast.success('已移入回收站', {
+        id: tid,
+        duration: 8000,
+        action: { label: '撤销', onClick: () => { void undoRemove(deleted) } },
+      })
       qc.invalidateQueries({ queryKey: ['state'] })
       qc.invalidateQueries({ queryKey: ['library-rows'] })
       // 删完不直接关窗：优先跳下一项，没有下一项就跳上一项，都没有才关闭。
-      const at = rows.findIndex(r => r.token === row.token)
-      const rest = rows.filter(r => r.token !== row.token).map(r => r.token)
+      const at = rows.findIndex(r => r.token === deleted)
+      const rest = rows.filter(r => r.token !== deleted).map(r => r.token)
       if (rest.length === 0) {
         onClose()
         return

@@ -81,7 +81,6 @@ func (s *Server) handleState(w http.ResponseWriter, r *http.Request) {
 			"proxy":         cfg.Proxy,
 			"concurrent":    cfg.Concurrent,
 			"ffmpegPath":    cfg.FFmpegPath,
-			"qiseCookieSet": cfg.QiseCookie != "",
 			"retryCount":    cfg.RetryCount,
 			"retryDelay":    cfg.RetryDelay,
 			"httpLimitKB":   cfg.HTTPLimitKB,
@@ -795,7 +794,6 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 		Proxy          *string `json:"proxy"`
 		Concurrent     *int    `json:"concurrent"`
 		FFmpegPath     *string `json:"ffmpegPath"`
-		QiseCookie     *string `json:"qiseCookie"`
 		RetryCount     *int    `json:"retryCount"`
 		RetryDelay     *int    `json:"retryDelay"`
 		HTTPLimitKB    *int    `json:"httpLimitKB"`
@@ -846,9 +844,6 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		cfg.FFmpegPath = p
-	}
-	if body.QiseCookie != nil {
-		cfg.QiseCookie = strings.TrimSpace(*body.QiseCookie)
 	}
 	if body.RetryCount != nil {
 		if *body.RetryCount < 1 || *body.RetryCount > 8 {

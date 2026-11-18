@@ -52,6 +52,15 @@ func (p *Package) Validate() []error {
 			add(fmt.Sprintf("hosts[%d]", i), "必须是纯域名（不含协议/端口/路径）：%q", h)
 		}
 	}
+	for i, pat := range p.LinkMatch {
+		if strings.TrimSpace(pat) == "" {
+			add(fmt.Sprintf("linkMatch[%d]", i), "不能为空")
+			continue
+		}
+		if _, err := regexp.Compile(pat); err != nil {
+			add(fmt.Sprintf("linkMatch[%d]", i), "不是合法正则：%v", err)
+		}
+	}
 	caps := map[string]bool{}
 	for i, c := range p.Capabilities {
 		switch c {

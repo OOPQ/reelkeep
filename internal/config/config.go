@@ -93,7 +93,6 @@ type Settings struct {
 	Proxy          string `json:"proxy"`
 	Concurrent     int    `json:"concurrent"`
 	FFmpegPath     string `json:"ffmpegPath"`
-	QiseCookie     string `json:"qiseCookie"`
 	RetryCount     int    `json:"retryCount"`
 	RetryDelay     int    `json:"retryDelay"`
 	TorrentLimitKB int    `json:"torrentLimitKB"`
@@ -140,9 +139,6 @@ func SaveSettings(p Paths, s Settings) error {
 	}
 	if s.FFmpegPath != "" {
 		out["ffmpegPath"] = s.FFmpegPath
-	}
-	if s.QiseCookie != "" {
-		out["qiseCookie"] = s.QiseCookie
 	}
 	b, _ := json.MarshalIndent(out, "", "  ")
 	return os.WriteFile(filepath.Join(p.DataDir, "config.json"), b, 0o644)

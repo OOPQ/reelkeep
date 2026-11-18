@@ -282,7 +282,7 @@ func (m *Manager) Import(data []byte, overwrite bool) (*Package, error) {
 	if err != nil {
 		return nil, err
 	}
-	// 不允许覆盖已有原生实现的源（否则 qise 之类会被同名外部源静默替换）；
+	// 不允许覆盖已有原生实现的源（否则会被同名外部源静默替换）；
 	// 只有配置清单、没有 Go 实现的 id 允许用外部源补位。
 	if m.reg.HasBuiltin(p.ID) {
 		return nil, fmt.Errorf("源 id %q 已有内置实现，请换一个 id", p.ID)

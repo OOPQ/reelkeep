@@ -542,7 +542,6 @@ func (s *Server) settingsPayload() map[string]any {
 		"proxy":         cfg.Proxy,
 		"concurrent":    cfg.Concurrent,
 		"ffmpegPath":    cfg.FFmpegPath,
-		"qiseCookieSet": cfg.QiseCookie != "",
 		"retryCount":    cfg.RetryCount,
 		"retryDelay":    cfg.RetryDelay,
 		"httpLimitKB":   cfg.HTTPLimitKB,

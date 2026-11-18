@@ -206,7 +206,7 @@ func (f *HTTPFetcher) Get(ctx context.Context, rawURL string, headers map[string
 			}
 			return nil, rerr
 		}
-		// qise 这类站点首次可能只回 204 + JSESSIONID；同一 client 重试一次即可拿到正文。
+		// 有些站点首次只回 204 + 会话 Cookie；同一 client 重试一次即可拿到正文。
 		if len(b) < 100 && attempt == 0 {
 			lastErr = fmt.Errorf("响应过短（%d 字节）", len(b))
 			time.Sleep(250 * time.Millisecond)

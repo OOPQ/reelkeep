@@ -114,30 +114,31 @@ func TestManagerRecordResult(t *testing.T) {
 func TestManagerAuthLifecycle(t *testing.T) {
 	root := t.TempDir()
 	m := NewManager(filepath.Join(root, "sources"), source.EmptyRegistry())
-	qise, err := os.ReadFile(filepath.Join("..", "..", "sources", "qise.json"))
+	pkg, err := os.ReadFile(filepath.Join("testdata", "auth.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := m.Import(qise, true); err != nil {
-		t.Fatalf("导入 qise 失败: %v", err)
+	if _, err := m.Import(pkg, true); err != nil {
+		t.Fatalf("导入源包失败: %v", err)
 	}
-	if m.HasAuth("qise") {
+	const id = "demo-auth"
+	if m.HasAuth(id) {
 		t.Fatal("初始不应有凭据")
 	}
-	if err := m.SetAuth("qise", "PHPSESSID=abc"); err != nil {
+	if err := m.SetAuth(id, "session=abc"); err != nil {
 		t.Fatal(err)
 	}
-	if !m.HasAuth("qise") {
+	if !m.HasAuth(id) {
 		t.Fatal("保存后应有凭据")
 	}
 	list := m.List()
 	if len(list) != 1 || !list[0].AuthConfigured || list[0].AuthType != "cookie" {
 		t.Fatalf("列表里的登录状态不对: %+v", list)
 	}
-	if err := m.ClearAuth("qise"); err != nil {
+	if err := m.ClearAuth(id); err != nil {
 		t.Fatal(err)
 	}
-	if m.HasAuth("qise") {
+	if m.HasAuth(id) {
 		t.Fatal("清除后不应再有凭据")
 	}
 }

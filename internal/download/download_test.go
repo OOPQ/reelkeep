@@ -219,7 +219,7 @@ func TestLegacyQueueMigration(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer st.Close()
-	legacy := `[{"token":"old1","url":"https://example.com/a.mp4","mode":"http","headers":{},"source":"pektino","addedAt":"2026-11-01 10:00:00"}]`
+	legacy := `[{"token":"old1","url":"https://example.com/a.mp4","mode":"http","headers":{},"source":"demo","addedAt":"2026-11-01 10:00:00"}]`
 	if err := os.WriteFile(filepath.Join(paths.DataDir, ".queue.json"), []byte(legacy), 0o644); err != nil {
 		t.Fatal(err)
 	}

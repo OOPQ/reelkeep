@@ -29,6 +29,12 @@
       "items": { "type": "string", "pattern": "^[A-Za-z0-9.-]+$" },
       "uniqueItems": true
     },
+    "linkMatch": {
+      "type": "array",
+      "description": "链接抓取时按 URL 路径归类：正则命中则优先用这个源；同一站点有多个源时用它区分",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    },
     "capabilities": {
       "type": "array",
       "items": { "enum": ["scrape", "detail", "cover", "download"] },

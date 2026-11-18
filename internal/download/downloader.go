@@ -355,7 +355,7 @@ func (m *Manager) hlsOnce(ctx context.Context, t *Task, ff, part string) error {
 	return nil
 }
 
-// refresh 通过源重新解析这条记录（qise 的签名地址过期）。
+// refresh 通过源重新解析这条记录（源可签发会过期的地址）。
 func (m *Manager) refresh(ctx context.Context, t *Task) error {
 	row, ok, err := m.st.GetRow(t.M.Token)
 	if err != nil {

@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -17,7 +18,8 @@ import (
 	"github.com/OOPQ/reelkeep/internal/source"
 )
 
-// pickLinkSource 按 URL host 归类到对应源；无法匹配时回退网页解析器。
+// pickLinkSource 把链接归类到源：先按 host 匹配，同 host 多源时用源包声明的
+// linkMatch 正则按路径区分；都没命中就取第一个候选，最后回退到网页解析器。
 func (s *Server) pickLinkSource(raw string) (string, source.Source, bool) {
 	lower := strings.ToLower(strings.TrimSpace(raw))
 	if strings.HasPrefix(lower, "magnet:") {
@@ -28,8 +30,10 @@ func (s *Server) pickLinkSource(raw string) (string, source.Source, bool) {
 	if err == nil && u.Hostname() != "" {
 		host := strings.TrimPrefix(strings.ToLower(u.Hostname()), "www.")
 		type candidate struct {
-			key string
-			src source.Source
+			key     string
+			src     source.Source
+			matched bool
+			pathLen int
 		}
 		var candidates []candidate
 		for _, m := range s.reg.Enabled() {
@@ -47,26 +51,65 @@ func (s *Server) pickLinkSource(raw string) (string, source.Source, bool) {
 			if _, ok := src.(source.URLScraper); !ok {
 				continue
 			}
-			candidates = append(candidates, candidate{m.Key, src})
+			matched := false
+			for _, pat := range m.LinkMatch {
+				if re, err := regexp.Compile(pat); err == nil && re.MatchString(u.Path) {
+					matched = true
+					break
+				}
+			}
+			if !matched {
+				// 没写 linkMatch 的旧源包：按榜单路径的静态前缀猜一次。
+				for _, r := range m.Ranks {
+					if pre := rankPathPrefix(r.Path); pre != "" && pathHasPrefix(u.Path, pre) {
+						matched = true
+						break
+					}
+				}
+			}
+			candidates = append(candidates, candidate{m.Key, src, matched, len(su.Path)})
 		}
-		// qise 与 qise-video 共用 host，按路径区分。
-		prefer := ""
-		if strings.Contains(strings.ToLower(u.Path), "/video/") {
-			prefer = "qise-video"
-		} else if strings.Contains(strings.ToLower(u.Path), "/videos/") {
-			prefer = "qise"
-		}
-		for _, c := range candidates {
-			if c.key == prefer {
-				return c.key, c.src, true
+		best := -1
+		for i, c := range candidates {
+			switch {
+			case best < 0:
+				best = i
+			case c.matched && !candidates[best].matched:
+				best = i
+			case c.matched == candidates[best].matched && c.pathLen > candidates[best].pathLen:
+				best = i
 			}
 		}
-		if len(candidates) > 0 {
-			return candidates[0].key, candidates[0].src, true
+		if best >= 0 {
+			return candidates[best].key, candidates[best].src, true
 		}
 	}
 	src, ok := s.reg.Get("other")
 	return "other", src, ok
+}
+
+// rankPathPrefix 取榜单路径里查询串/占位符之前的静态路径（"/video?page={page}" → "/video"）。
+func rankPathPrefix(p string) string {
+	if i := strings.IndexAny(p, "{?&#"); i >= 0 {
+		p = p[:i]
+	}
+	p = strings.TrimRight(strings.TrimSpace(p), "/")
+	if len(p) <= 1 {
+		return ""
+	}
+	return p
+}
+
+// pathHasPrefix 判断 URL 路径是否落在静态前缀下，要求边界是 / ? 或结尾，
+// 这样 "/video" 不会把 "/videos/1" 也算进去。
+func pathHasPrefix(path, prefix string) bool {
+	path = strings.ToLower(path)
+	prefix = strings.ToLower(prefix)
+	if !strings.HasPrefix(path, prefix) {
+		return false
+	}
+	rest := path[len(prefix):]
+	return rest == "" || rest[0] == '/' || rest[0] == '?' || rest[0] == '&'
 }
 
 // scrapeJob 是一次抓取任务（同一时间只允许一个）。

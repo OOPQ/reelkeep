@@ -714,7 +714,7 @@ func (m *Manager) migrateLegacyQueue() {
 			src = it.Subdir
 		}
 		if src == "" {
-			src = "pektino"
+			src = "other"
 		}
 		h, _ := json.Marshal(it.Headers)
 		t := model.DownloadTask{
@@ -743,7 +743,7 @@ func now() string { return time.Now().Format("2006-01-02 15:04:05") }
 
 func sourceKey(s string) string {
 	if s == "" {
-		return "pektino"
+		return "other"
 	}
 	return s
 }

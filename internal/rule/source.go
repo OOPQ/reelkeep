@@ -389,7 +389,7 @@ func (s *RuleSource) Cover(ctx context.Context, r model.Row) (string, error) {
 	return d.CoverURL, nil
 }
 
-// Resolve 解析可下载地址；qise 这类签名刷新由 RefreshOn410 交给下载器。
+// Resolve 解析可下载地址；签名地址过期由 RefreshOn410 交给下载器。
 func (s *RuleSource) Resolve(ctx context.Context, r model.Row) (source.DownloadSpec, error) {
 	spec := source.DownloadSpec{URL: r.URL, Mode: "http", Headers: map[string]string{}}
 	if s.pkg.Auth != nil {

@@ -14,7 +14,7 @@ import (
 )
 
 func TestSafeName(t *testing.T) {
-	ok := []string{"qise@127663", "abc", "a_b-c.d", "视频@1"}
+	ok := []string{"demo@127663", "abc", "a_b-c.d", "视频@1"}
 	bad := []string{"", ".", "..", "a/b", `a\b`, "a:b", "a*b", "a?b", "a\"b", "a<b", "a>b", "a|b"}
 	for _, s := range ok {
 		if !safeName(s) {

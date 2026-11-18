@@ -29,7 +29,11 @@ export function filterRows(rows: Row[], f: LibraryFilters) {
   return rows.filter(row => {
     if (row.status === 'recycled') return false
     if (f.status !== 'all' && row.status !== f.status) return false
-    if (f.source !== 'all' && row.source !== f.source) return false
+    if (f.source !== 'all') {
+      // 「其他」是兜底分类：老「网页」条目落到 other，通用链接抓取/本地导入落到 local。
+      const fallback = f.source === 'other' && (row.source === 'local' || row.source === 'web' || !row.source)
+      if (!fallback && row.source !== f.source) return false
+    }
 
     switch (f.flag) {
       case 'fav': if (row.fav !== '1') return false; break

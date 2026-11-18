@@ -228,10 +228,23 @@ func TestLoadDirSkipsBadFile(t *testing.T) {
 
 // 仓库里随附的源包必须始终能通过校验。
 func TestShippedPackagesLoad(t *testing.T) {
-	for _, name := range []string{"pektino.json", "hsex.json", "qise.json"} {
-		if _, err := LoadFile(filepath.Join("..", "..", "sources", name)); err != nil {
-			t.Fatalf("%s 校验失败: %v", name, err)
+	dir := filepath.Join("..", "..", "sources")
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	n := 0
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(strings.ToLower(e.Name()), ".json") {
+			continue
 		}
+		n++
+		if _, err := LoadFile(filepath.Join(dir, e.Name())); err != nil {
+			t.Fatalf("%s 校验失败: %v", e.Name(), err)
+		}
+	}
+	if n == 0 {
+		t.Fatal("sources 目录里没有源包")
 	}
 }
 

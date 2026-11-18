@@ -14,6 +14,7 @@
 | `author` / `description` | 否 | 作者与说明 |
 | `baseUrl` | 是 | `http(s)` 绝对地址；其 host 自动进入允许名单 |
 | `hosts` | 否 | 额外允许访问的域名（封面 CDN、媒体 CDN），精确匹配、不含端口 |
+| `linkMatch` | 否 | 链接抓取按 URL 路径归类的正则数组；同一站点有多个源时用它区分 |
 | `capabilities` | 是 | `scrape` `detail` `cover` `download` 的子集 |
 | `defaults` | 否 | 默认请求头、UA、超时（默认 15s）、响应上限（默认 8MB）、代理（`none`/`system`） |
 | `list` | 是 | 列表页规则 |

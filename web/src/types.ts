@@ -90,8 +90,6 @@ export type AppSettings = {
   proxy?: string
   concurrent?: number
   ffmpegPath?: string
-  qiseCookie?: string
-  qiseCookieSet?: boolean
   retryCount?: number
   retryDelay?: number
   torrentLimitKB?: number

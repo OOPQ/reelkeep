@@ -257,10 +257,12 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
     if (all?.length) return all.map(s => ({ key: s.id, name: s.name || s.id }))
     return (data?.sources || []).map(s => ({ key: s.key, name: s.name || s.key }))
   }, [installedSourcesQuery.data?.items, data?.sources])
-  const sourceOptions = React.useMemo(
-    () => [{ value: 'all', label: '全部来源' }, ...filterSources.map(s => ({ value: s.key, label: s.name }))],
-    [filterSources],
-  )
+  const sourceOptions = React.useMemo(() => {
+    const opts = [{ value: 'all', label: '全部来源' }, ...filterSources.map(s => ({ value: s.key, label: s.name }))]
+    // 「其他」是兜底分类，不在源注册表里，但台账里可能有这类条目。
+    if (!opts.some(o => o.value === 'other')) opts.push({ value: 'other', label: '其他' })
+    return opts
+  }, [filterSources])
 
   const filterCount = [res !== 'all', minDur !== ''].filter(Boolean).length
   const hasFilters = filterCount > 0 || query || status !== 'all' || source !== 'all' || flag !== 'none' || tagIds.length > 0 || !!collectionId
@@ -463,7 +465,7 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
 
   const stats = data?.stats
   const job = data?.job as { running?: boolean; rank?: string; progress?: { phase?: string; done?: number; total?: number } } | undefined
-  const sourceLabel = source === 'all' ? '全部来源' : filterSources.find(s => s.key === source)?.name || source
+  const sourceLabel = source === 'all' ? '全部来源' : sourceOptions.find(o => o.value === source)?.label || source
   const flagLabel = FLAG_OPTIONS.find(f => f.value === flag)?.label || '不限标记'
 
   return (

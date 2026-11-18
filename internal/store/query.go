@@ -31,8 +31,13 @@ func (q RowQuery) where() (string, []any) {
 		args = append(args, q.Status)
 	}
 	if q.Source != "" && q.Source != "all" {
-		parts = append(parts, "source = ?")
-		args = append(args, q.Source)
+		// 「其他」是兜底分类：老「网页」条目落到 other，通用链接抓取/本地导入落到 local。
+		if q.Source == "other" {
+			parts = append(parts, "source IN ('other','local','web','')")
+		} else {
+			parts = append(parts, "source = ?")
+			args = append(args, q.Source)
+		}
 	}
 	if q.Res != "" && q.Res != "all" {
 		parts = append(parts, "res = ?")

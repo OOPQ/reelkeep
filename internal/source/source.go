@@ -2,7 +2,7 @@
 //
 // 设计要点（与旧版的差异）：
 //   - 能力用字符串声明，与 sources.json 一致；具体能力用可选接口协商
-//     （Detailer / Coverer / DownloadResolver），下载器不再出现 if source == "qise"。
+//     （Detailer / Coverer / DownloadResolver），下载器不按源名分支。
 //   - 注册表只注册构造函数；启用/顺序/榜单仍由 configs/sources.json 控制，
 //     加源或关源不需要改代码。
 package source
@@ -51,6 +51,8 @@ type Manifest struct {
 	SupportsPages bool     `json:"supportsPages"`
 	Incremental   bool     `json:"incremental"`
 	Ranks         []Rank   `json:"ranks"`
+	// LinkMatch 是链接抓取时的归类依据：正则命中则优先用这个源。
+	LinkMatch []string `json:"linkMatch,omitempty"`
 }
 
 // ScrapeRequest 是一次抓取的参数（对应旧版 options）。
@@ -98,7 +100,7 @@ type Coverer interface {
 }
 
 // DownloadResolver 是可选能力：解析/刷新可下载地址。
-// qise 的签名刷新、标清回退都封在源内部，下载器不需要认识源名。
+// 签名刷新、码率回退等站点细节都封在源内部，下载器不需要认识源名。
 type DownloadResolver interface {
 	Resolve(ctx context.Context, r model.Row) (DownloadSpec, error)
 }

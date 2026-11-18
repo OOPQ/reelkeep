@@ -15,6 +15,7 @@
     "int.qiniuyun56.xyz",
     "int.ucloud165.xyz"
   ],
+  "linkMatch": ["/videos/"],
   "capabilities": [
     "scrape",
     "detail",

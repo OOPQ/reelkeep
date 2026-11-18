@@ -13,13 +13,13 @@ func TestLoadSettingsWithBOM(t *testing.T) {
 	if err := os.MkdirAll(p.DataDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	body := []byte(`{"proxy":"http://127.0.0.1:7890","concurrent":4,"ffmpegPath":"D:\\ffmpeg.exe","qiseCookie":"k=v"}`)
+	body := []byte(`{"proxy":"http://127.0.0.1:7890","concurrent":4,"ffmpegPath":"D:\\ffmpeg.exe"}`)
 	withBOM := append([]byte{0xEF, 0xBB, 0xBF}, body...)
 	if err := os.WriteFile(filepath.Join(p.DataDir, "config.json"), withBOM, 0o644); err != nil {
 		t.Fatal(err)
 	}
 	s := LoadSettings(p)
-	if s.Proxy != "http://127.0.0.1:7890" || s.Concurrent != 4 || s.QiseCookie != "k=v" {
+	if s.Proxy != "http://127.0.0.1:7890" || s.Concurrent != 4 || s.FFmpegPath != `D:\ffmpeg.exe` {
 		t.Fatalf("BOM 配置没读对: %+v", s)
 	}
 }

@@ -21,6 +21,8 @@ type Package struct {
 	Description  string    `json:"description,omitempty"`
 	BaseURL      string    `json:"baseUrl"`
 	Hosts        []string  `json:"hosts,omitempty"`
+	// LinkMatch 是链接抓取时的归类依据（对 URL 路径做正则匹配），用来区分同一站点下的多个源。
+	LinkMatch    []string  `json:"linkMatch,omitempty"`
 	Capabilities []string  `json:"capabilities"`
 	Defaults     Defaults  `json:"defaults"`
 	List         List      `json:"list"`
@@ -169,6 +171,7 @@ func (p *Package) Manifest() source.Manifest {
 		SupportsPages: true,
 		Incremental:   false,
 		Ranks:         ranks,
+		LinkMatch:     p.LinkMatch,
 	}
 }
 

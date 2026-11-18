@@ -7,6 +7,7 @@
   "description": "qise100 /video 单视频分类（旧版）。列表卡片指向 viewhd，详情从 embed 页取 m3u8；登录 Cookie 可提高清晰度。",
   "baseUrl": "https://rfdjzz.qise100.com",
   "hosts": ["cdn.cdnkdjs.com", "cdn2.jiuse2.cloud", "cdn2.jiuse3.cloud", "cdn3.jiuse3.cloud", "cdn3.jiuse2.cloud", "int.ucloud165.xyz"],
+  "linkMatch": ["/video/"],
   "capabilities": ["scrape", "detail", "cover", "download"],
   "defaults": { "proxy": "system", "timeoutSec": 30 },
   "auth": { "type": "cookie", "loginUrl": "/login", "domains": ["qise100.com"] },

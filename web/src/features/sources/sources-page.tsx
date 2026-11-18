@@ -478,7 +478,7 @@ export function SourcesPage() {
         <Card className="p-8 text-center">
           <div className="text-[12px] font-medium">还没有安装外部源</div>
           <div className="mt-1 text-[10px] text-[color:var(--subtle)]">
-            可以从仓库的 sources\ 目录拿现成的源包，例如 pektino.json、hsex.json
+            可以从仓库的 sources\ 目录导入现成的源包（每个站点一个 JSON）
           </div>
         </Card>
       ) : (

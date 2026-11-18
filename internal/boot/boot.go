@@ -116,15 +116,6 @@ func Start(ctx context.Context, opt Options) (*Instance, error) {
 	mgr.SetProxy(settings.Proxy)
 	loadErrs := mgr.LoadAll()
 
-	// 旧版 qise Cookie 迁移到加密凭据（只迁一次）
-	if settings.QiseCookie != "" {
-		if _, ok := mgr.Package("qise"); ok && !mgr.HasAuth("qise") {
-			if err := mgr.SetAuth("qise", settings.QiseCookie); err != nil {
-				logf("迁移 qise Cookie 失败: %v", err)
-			}
-		}
-	}
-
 	assets, err := fs.Sub(web.Dist, "dist")
 	if err != nil {
 		cleanup()
@@ -148,7 +139,6 @@ func Start(ctx context.Context, opt Options) (*Instance, error) {
 		return nil, fmt.Errorf("启动失败: %w", err)
 	}
 	dl.SetOnRow(srv.ReloadRow)
-	srv.StartLegacyPektinoRepair()
 
 	ln, actualPort, err := listen(port)
 	if err != nil {

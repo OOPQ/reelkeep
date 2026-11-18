@@ -5,8 +5,6 @@ import {
   Database,
   Download,
   ExternalLink,
-  Eye,
-  EyeOff,
   FolderOpen,
   Gauge,
   Image,
@@ -39,14 +37,11 @@ export function SettingsPage() {
   const longPressRate = useUiStore(s => s.longPressRate)
   const setLongPressRate = useUiStore(s => s.setLongPressRate)
   const [proxy, setProxy] = React.useState('')
-  const [cookie, setCookie] = React.useState('')
-  const [cookieSet, setCookieSet] = React.useState(false)
   const [ffmpeg, setFfmpeg] = React.useState('')
   const [concurrent, setConcurrent] = React.useState('3')
   const [retryCount, setRetryCount] = React.useState('4')
   const [retryDelay, setRetryDelay] = React.useState('1')
   const [httpLimit, setHttpLimit] = React.useState('0')
-  const [showCookie, setShowCookie] = React.useState(false)
   const [busy, setBusy] = React.useState<string | null>(null)
   const [checking, setChecking] = React.useState(false)
   const [updateInfo, setUpdateInfo] = React.useState<{ current: string; latest: string; hasUpdate: boolean; url: string } | null>(null)
@@ -68,8 +63,6 @@ export function SettingsPage() {
   React.useEffect(() => {
     if (!data?.settings) return
     setProxy(data.settings.proxy || '')
-    setCookie('')
-    setCookieSet(!!data.settings.qiseCookieSet)
     setFfmpeg(data.settings.ffmpegPath || '')
     setConcurrent(String(data.settings.concurrent || 3))
     setRetryCount(String(data.settings.retryCount || 4))
@@ -133,7 +126,6 @@ export function SettingsPage() {
         retryDelay: Number(retryDelay) || 1,
         httpLimitKB: Number(httpLimit) || 0,
       }
-      if (cookie.trim()) payload.qiseCookie = cookie.trim()
       const r = await post<{ ok: boolean; error?: string }>('/api/config', payload)
       if (!r.ok) throw new Error(r.error || '保存失败')
       toast.success('下载设置已保存')
@@ -216,14 +208,6 @@ export function SettingsPage() {
         <div className="mt-3 space-y-2.5">
           <Field label="代理">
             <Input value={proxy} onChange={e => setProxy(e.target.value)} placeholder="http://127.0.0.1:7890（留空 = 系统代理）" />
-          </Field>
-          <Field label="qise Cookie">
-            <div className="relative">
-              <Input value={cookie} onChange={e => setCookie(e.target.value)} type={showCookie ? 'text' : 'password'} placeholder={cookieSet ? '已配置，留空不修改' : '登录后复制完整 Cookie（可选）'} className="pr-9" />
-              <button type="button" aria-label={showCookie ? '隐藏 Cookie' : '显示 Cookie'} onClick={() => setShowCookie(s => !s)} className="absolute right-2 top-1/2 -translate-y-1/2 text-[color:var(--subtle)] hover:text-[color:var(--foreground)]">
-                {showCookie ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
-              </button>
-            </div>
           </Field>
           <Field label="FFmpeg 路径">
             <Input value={ffmpeg} onChange={e => setFfmpeg(e.target.value)} placeholder="D:\ffmpeg\bin\ffmpeg.exe（留空 = 自动查找）" />

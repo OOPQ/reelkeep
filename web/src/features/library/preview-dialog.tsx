@@ -17,6 +17,7 @@ import {
   VolumeX,
   Play,
   Star,
+  Trash2,
   X,
 } from 'lucide-react'
 import type { DownloadItem, MediaConfig, Row, Snapshot } from '@/types'
@@ -79,6 +80,7 @@ export function PreviewDialog({ rows, token, autoplay = false, media, onClose, o
   const stageRef = React.useRef<HTMLDivElement>(null)
   const longPressRate = useUiStore(s => s.longPressRate)
   const bumpCoverRev = useUiStore(s => s.bumpCoverRev)
+  const closePreview = useUiStore(s => s.closePreview)
   const videoRef = React.useRef<HTMLVideoElement>(null)
   const qc = useQueryClient()
   const navigate = useNavigate()
@@ -407,6 +409,21 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
     }
   }
 
+  const remove = async () => {
+    if (!(await confirmAction({ title: '移入回收站', description: `删除「${rowTitle(row)}」？可在回收站恢复。`, confirmText: '移入回收站', danger: true }))) return
+    const tid = toast.loading('正在删除…')
+    try {
+      const r = await post<{ ok: boolean; error?: string }>('/api/mark', { tokens: [row.token], status: 'recycled' })
+      if (!r.ok) throw new Error(r.error || '删除失败')
+      toast.success('已移入回收站', { id: tid })
+      closePreview()
+      qc.invalidateQueries({ queryKey: ['state'] })
+      qc.invalidateQueries({ queryKey: ['library-rows'] })
+    } catch (e) {
+      toast.error((e as Error).message, { id: tid })
+    }
+  }
+
   const toggleCollection = async (col: { id: number; name: string; has: boolean }) => {
     const r = await post<{ ok: boolean; error?: string }>('/api/collections', {
       action: col.has ? 'remove' : 'add',
@@ -583,6 +600,9 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
                   <Download className="size-3.5" /> {downloading ? '提交中…' : downloadButtonLabel(row, downloadItem)}
                 </Button>
               ) : null}
+              <Button size="sm" variant="outline" onClick={() => void remove()} title="移入回收站">
+                <Trash2 className="size-3.5" /> 删除
+              </Button>
               <DialogClose asChild>
                 <Button size="sm" variant="ghost">
                   关闭

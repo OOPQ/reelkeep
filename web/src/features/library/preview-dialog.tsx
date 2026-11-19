@@ -29,6 +29,28 @@ import { unlockAudio } from '@/lib/sound'
 import { confirmAction } from '@/store/confirm'
 import { useUiStore } from '@/store/ui'
 import { Button } from '@/components/ui/button'
+
+// 判断点击是否落在媒体实际渲染区域（object-contain 的留白不算）。
+function mediaContentContains(el: HTMLElement | null, x: number, y: number): boolean {
+  if (!el) return true
+  const r = el.getBoundingClientRect()
+  let iw = 0
+  let ih = 0
+  if (el instanceof HTMLVideoElement) {
+    iw = el.videoWidth
+    ih = el.videoHeight
+  } else if (el instanceof HTMLImageElement) {
+    iw = el.naturalWidth
+    ih = el.naturalHeight
+  }
+  if (!iw || !ih) return true
+  const scale = Math.min(r.width / iw, r.height / ih)
+  const w = iw * scale
+  const h = ih * scale
+  const left = r.left + (r.width - w) / 2
+  const top = r.top + (r.height - h) / 2
+  return x >= left && x <= left + w && y >= top && y <= top + h
+}
 import { Dialog, DialogClose, DialogContent } from '@/components/ui/dialog'
 import { IconButton } from '@/components/ui/icon-button'
 import { RatingInput } from '@/components/rating-input'
@@ -711,14 +733,29 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
 
           className={cn(
             'group relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-[color:var(--background)]',
-            (canPlay || downloadable) ? 'cursor-pointer' : 'cursor-default',
             nav?.token === row?.token && (nav.dir === 'next' ? 'pv-enter-next' : 'pv-enter-prev'),
             deleting && 'pv-deleting',
           )}
+          onMouseMove={e => {
+            const stage = stageRef.current
+            if (!stage) return
+            const t = e.target as HTMLElement
+            if (t.closest('button, a, input, select, textarea, [role="slider"], [data-no-stage-click]')) return
+            const media = videoRef.current || (stage.querySelector('img') as HTMLImageElement | null)
+            const inside = mediaContentContains(media, e.clientX, e.clientY)
+            stage.style.cursor = inside && (canPlay || downloadable) ? 'pointer' : 'default'
+          }}
+          onMouseLeave={() => {
+            if (stageRef.current) stageRef.current.style.cursor = 'default'
+          }}
           onClick={e => {
             const t = e.target as HTMLElement
             // 控制条、按钮、输入框、进度条上的点击不触发播放/暂停。
             if (t.closest('button, a, input, select, textarea, [role="slider"], [data-no-stage-click]')) return
+            const stage = stageRef.current
+            const media = videoRef.current || (stage?.querySelector('img') as HTMLImageElement | null)
+            // 视频/封面留白区域（既不是画面也不是操作区）不响应点击。
+            if (!mediaContentContains(media, e.clientX, e.clientY)) return
             if (!canPlay) {
               if (downloadable) void download()
               return

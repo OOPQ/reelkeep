@@ -79,7 +79,7 @@ function Brand({
             type="button"
             onClick={onSwitch}
             title={'切换项目：' + projectName}
-            className="mt-0.5 flex max-w-full items-center gap-1 text-left text-[9px] tracking-[.5px] text-[color:var(--subtle)] transition-colors hover:text-[color:var(--foreground)]"
+            className="mt-0.5 flex max-w-full items-center gap-1 text-left text-[10px] tracking-[.5px] text-[color:var(--subtle)] transition-colors hover:text-[color:var(--foreground)]"
           >
             <FolderOpen className="size-2.5 shrink-0" />
             <span className="truncate">{projectName}</span>
@@ -115,14 +115,14 @@ function Sidebar() {
     >
       <Brand collapsed={collapsed} projectName={projectName} onSwitch={() => setProjectOpen(true)} />
 
-      <div className={cn('mt-4 px-2 text-[9px] tracking-[.9px] text-[color:var(--subtle)]', collapsed && 'hidden')}>浏览</div>
+      <div className={cn('mt-4 px-2 text-[10px] tracking-[.9px] text-[color:var(--subtle)]', collapsed && 'hidden')}>浏览</div>
       <nav className="mt-1 flex flex-col gap-0.5" aria-label="主菜单">
         {NAV.slice(0, 3).map(item => (
           <SideLink key={item.key} item={item} collapsed={collapsed} count={counts[item.key]} />
         ))}
       </nav>
 
-      <div className={cn('mt-4 px-2 text-[9px] tracking-[.9px] text-[color:var(--subtle)]', collapsed && 'hidden')}>管理</div>
+      <div className={cn('mt-4 px-2 text-[10px] tracking-[.9px] text-[color:var(--subtle)]', collapsed && 'hidden')}>管理</div>
       <nav className="mt-1 flex flex-col gap-0.5" aria-label="管理菜单">
         {NAV.slice(3).map(item => (
           <SideLink key={item.key} item={item} collapsed={collapsed} count={counts[item.key]} />
@@ -133,13 +133,13 @@ function Sidebar() {
         <div className={cn('flex items-center gap-2 px-1', collapsed && 'justify-center')}>
           <span className={cn('size-1.5 shrink-0 rounded-full', data?.ok ? 'bg-[color:var(--success)]' : 'bg-[color:var(--danger)]')} />
           {!collapsed ? (
-            <span className="min-w-0 truncate text-[9.5px] text-[color:var(--subtle)]">
+            <span className="min-w-0 truncate text-[10.5px] text-[color:var(--subtle)]">
               {data?.ok ? `在线 · ${formatCount(stats?.total || 0)} 条` : '连接中…'}
             </span>
           ) : null}
         </div>
         <div className={cn('flex items-center gap-2 px-1', collapsed && 'justify-center')}>
-          {!collapsed ? <span className="text-[9.5px] text-[color:var(--subtle)]">主题</span> : null}
+          {!collapsed ? <span className="text-[10.5px] text-[color:var(--subtle)]">主题</span> : null}
           <div className="flex items-center gap-0.5 rounded-lg border border-[color:var(--border)] bg-[color:var(--surface-2)] p-0.5">
             <button type="button" aria-label="亮色主题" title="亮色" onClick={() => setTheme('light')} className={cn('grid size-6 place-items-center rounded-md transition-colors', theme === 'light' ? 'bg-[color:var(--surface-3)] text-[color:var(--foreground)]' : 'text-[color:var(--subtle)] hover:text-[color:var(--foreground)]')}>
               <Sun className="size-3.5" />
@@ -173,7 +173,7 @@ function SideLink({
       title={collapsed ? item.label : undefined}
       className={({ isActive }) =>
         cn(
-          'group relative flex h-[34px] items-center gap-2.5 rounded-lg border px-2.5 text-[11.5px] transition-colors',
+          'group relative flex h-[36px] items-center gap-2.5 rounded-lg border px-2.5 text-[12.5px] transition-colors',
           collapsed && 'justify-center px-0',
           isActive
             ? 'border-[color:color-mix(in_srgb,var(--primary)_25%,var(--border))] bg-[color:color-mix(in_srgb,var(--primary)_9%,transparent)] text-[color:var(--foreground)]'
@@ -181,10 +181,10 @@ function SideLink({
         )
       }
     >
-      <Icon className="size-4 shrink-0 opacity-80" />
+      <Icon className="size-[17px] shrink-0 opacity-80" />
       {!collapsed ? <span className="truncate">{item.label}</span> : null}
       {!collapsed && count ? (
-        <span className="ml-auto rounded-full border border-[color:var(--border)] bg-[color:var(--surface-2)] px-1.5 text-[9px] leading-[15px] text-[color:var(--subtle)]">
+        <span className="ml-auto rounded-full border border-[color:var(--border)] bg-[color:var(--surface-2)] px-1.5 text-[9.5px] leading-[16px] text-[color:var(--subtle)]">
           {formatCount(count)}
         </span>
       ) : null}

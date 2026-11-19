@@ -78,6 +78,8 @@ export function PreviewDialog({ rows, token, autoplay = false, media, onClose, o
   const [deleting, setDeleting] = React.useState(false)
   // 用户主动暂停后，忽略迟到的 play 事件（play() 是异步的，暂停得早会“复活”出声）。
   const userPaused = React.useRef(false)
+  // 防止旧的 pause 事件在快速连点后把“用户想播放”的意图改回暂停。
+  const expectPlaying = React.useRef(false)
   const [videoReady, setVideoReady] = React.useState(false)
   const [videoError, setVideoError] = React.useState(false)
   const [copied, setCopied] = React.useState(false)
@@ -587,10 +589,12 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
   const togglePlay = () => {
     const v = videoRef.current
     if (!v) return
-    // 以视频真实状态为准：暂停（含播完）就播，正在播就停，保证一次点击生效。
+    // 以“用户意图”为准：暂停中（含播完）再点就播，正在播再点就停。
+    // 这样即使视频还停在加载/自动播放启动阶段，第一次点击也能可靠地改变状态。
     const atEnd = v.ended || (v.duration > 0 && v.currentTime >= v.duration - 0.05)
-    if (v.paused || atEnd) {
+    if (userPaused.current || atEnd) {
       userPaused.current = false
+      expectPlaying.current = true
       if (atEnd) {
         try { v.currentTime = 0 } catch (e) {}
         setCurrentTime(0)
@@ -600,6 +604,7 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
       setIsPlaying(true)
     } else {
       userPaused.current = true
+      expectPlaying.current = false
       v.pause()
       setIsPlaying(false)
     }
@@ -805,9 +810,10 @@ onTimeUpdate={e => { const t = e.currentTarget.currentTime; setCurrentTime(t); i
 onLoadedMetadata={e => { const d = e.currentTarget.duration || Number(row.seconds) || 0; setDuration(d); e.currentTarget.playbackRate = playbackRate; if (!resumeApplied.current) { resumeApplied.current = true; try { const saved = Number(localStorage.getItem(`pektino.resume.${row.token}`) || 0); if (saved > 3 && (!d || saved < d - 5)) { e.currentTarget.currentTime = saved; setCurrentTime(saved) } } catch { } } }}
               onDurationChange={e => setDuration(e.currentTarget.duration || Number(row.seconds) || 0)}
               onPlaying={() => { setVideoReady(true); setIsPlaying(true) }}
-onPause={() => { setIsPlaying(false); saveResume() }}
-              onEnded={() => { setIsPlaying(false); saveResume() }}
+onPause={() => { setIsPlaying(false); saveResume(); if (!expectPlaying.current) userPaused.current = true }}
+              onEnded={() => { expectPlaying.current = false; userPaused.current = true; setIsPlaying(false); saveResume() }}
 onPlay={e => {
+                expectPlaying.current = false
                 if (userPaused.current) {
                   e.currentTarget.pause()
                   setIsPlaying(false)

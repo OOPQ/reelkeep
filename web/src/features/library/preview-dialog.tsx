@@ -264,12 +264,18 @@ export function PreviewDialog({ rows, token, autoplay = false, media, onClose, o
     lastResumeSave.current = 0
   }, [token, autoplay, canPlay, row?.seconds])
 
+  // 当前真正显示在画面上的媒体：视频元数据就绪用 video，否则用封面图。
+  const activeMedia = React.useCallback((): HTMLElement | null => {
+    const stage = stageRef.current
+    if (videoRef.current && videoRef.current.videoWidth > 0) return videoRef.current
+    return (stage?.querySelector('img') as HTMLImageElement | null) ?? null
+  }, [])
+
   // 媒体实际渲染区域（object-contain 后的内容框），用于只在画面范围内显示手型光标。
   const updateMediaBox = React.useCallback(() => {
     const stage = stageRef.current
     if (!stage) return
-    const img = stage.querySelector('img') as HTMLImageElement | null
-    const el: HTMLElement | null = videoRef.current ?? img
+    const el = activeMedia()
     if (!el) {
       setMediaBox(null)
       return
@@ -297,7 +303,7 @@ export function PreviewDialog({ rows, token, autoplay = false, media, onClose, o
     const h = ih * scale
     const next = { left: (sr.width - w) / 2, top: (sr.height - h) / 2, width: w, height: h }
     setMediaBox(prev => (prev && Math.abs(prev.left - next.left) < 0.5 && Math.abs(prev.top - next.top) < 0.5 && Math.abs(prev.width - next.width) < 0.5 && Math.abs(prev.height - next.height) < 0.5 ? prev : next))
-  }, [])
+  }, [activeMedia])
 
   React.useEffect(() => {
     updateMediaBox()
@@ -796,7 +802,7 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
             if (!stage) return
             const t = e.target as HTMLElement
             if (t.closest('button, a, input, select, textarea, [role="slider"], [data-no-stage-click]')) return
-            const media = videoRef.current || (stage.querySelector('img') as HTMLImageElement | null)
+            const media = activeMedia()
             stage.style.cursor = mediaContentContains(media, e.clientX, e.clientY) && (canPlay || downloadable) ? 'pointer' : 'default'
           }}
           onMouseLeave={() => {
@@ -807,7 +813,7 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
             // 控制条、按钮、输入框、进度条上的点击不触发播放/暂停。
             if (t.closest('button, a, input, select, textarea, [role="slider"], [data-no-stage-click]')) return
             const stage = stageRef.current
-            const media = videoRef.current || (stage?.querySelector('img') as HTMLImageElement | null)
+            const media = activeMedia()
             // 视频/封面留白区域（既不是画面也不是操作区）不响应点击。
             if (!mediaContentContains(media, e.clientX, e.clientY)) return
             if (!canPlay) {
@@ -834,7 +840,7 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
           }}
         >
           <div className="pointer-events-none absolute inset-0 z-0">
-            <CoverImage token={row.token} full fit="contain" alt={rowTitle(row)} className={cn('grid h-full w-full place-items-center', videoReady ? 'opacity-0' : 'opacity-100')} imgClassName={cn('pointer-events-auto h-auto w-auto max-h-full max-w-full object-contain', canPlay || downloadable ? 'cursor-pointer' : 'cursor-default')} />
+            <CoverImage token={row.token} full fit="contain" alt={rowTitle(row)} className={cn('grid h-full w-full place-items-center', videoReady ? 'opacity-0' : 'opacity-100')} imgClassName={cn('h-auto w-auto max-h-full max-w-full object-contain', playing ? 'pointer-events-none' : 'pointer-events-auto', !playing && (canPlay || downloadable) ? 'cursor-pointer' : 'cursor-default')} />
           </div>
 
           {(!playing || !isPlaying) && (canPlay || downloadable || downloadBusy) ? (

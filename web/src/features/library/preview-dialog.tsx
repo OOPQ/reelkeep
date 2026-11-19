@@ -724,7 +724,7 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
           onClick={e => {
             const t = e.target as HTMLElement
             // 控制条、按钮、输入框、进度条上的点击不触发播放/暂停。
-            if (t.closest('button, a, input, select, textarea, [role="slider"], [data-no-stage-click]')) return
+            if (t.closest('button, a, input, select, textarea, [role="slider"]')) return
             if (!canPlay) {
               if (downloadable) void download()
               return
@@ -822,7 +822,7 @@ onPlay={e => {
 
 
           {playing && !videoError ? (
-            <div data-no-stage-click className="absolute inset-x-0 bottom-0 z-30 cursor-default bg-[linear-gradient(0deg,rgba(0,0,0,.88),rgba(0,0,0,.35),transparent)] px-3 pb-4 pt-10">
+            <div className="absolute inset-x-0 bottom-0 z-30 bg-[linear-gradient(0deg,rgba(0,0,0,.88),rgba(0,0,0,.35),transparent)] px-3 pb-4 pt-10">
               <div className="flex items-center gap-2">
                 <IconButton label={isPlaying ? '暂停' : '播放'} size="sm" onClick={togglePlay}>
                   {isPlaying ? <Pause className="size-3.5" /> : <Play className="size-3.5" />}

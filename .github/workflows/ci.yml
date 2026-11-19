@@ -253,10 +253,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { os: macos-15-intel, artifact: macos-amd64, arch: amd64 }
-          - { os: macos-14, artifact: macos-arm64, arch: arm64 }
-          - { os: ubuntu-24.04, artifact: linux-amd64, debarch: amd64 }
-          - { os: ubuntu-24.04-arm, artifact: linux-arm64, debarch: arm64 }
+          - { os: macos-15-intel, artifact: macos-amd64, arch: amd64, goarch: amd64, cc: clang }
+          - { os: macos-15-intel, artifact: macos-arm64, arch: arm64, goarch: arm64, cc: "clang -arch arm64" }
+          - { os: ubuntu-24.04, artifact: linux-amd64, debarch: amd64, goarch: amd64, cc: gcc }
+          - { os: ubuntu-24.04-arm, artifact: linux-arm64, debarch: arm64, goarch: arm64, cc: gcc }
     steps:
       - uses: actions/checkout@v4
 
@@ -295,6 +295,8 @@ jobs:
         shell: bash
         env:
           CGO_ENABLED: "1"
+          GOARCH: ${{ matrix.goarch }}
+          CC: ${{ matrix.cc }}
         run: |
           VERSION=$(cat VERSION)
           mkdir -p dist

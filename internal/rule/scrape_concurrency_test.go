@@ -106,7 +106,24 @@ func TestScrapeDetailConcurrency(t *testing.T) {
 	}
 }
 
-// TestScrapeIncrementalSkipsDetail 验证增量模式不再请求详情。
+// TestScrapeSkipRange 验证范围抓取：Skip=3, Limit=2 只返回第 4、5 条。
+func TestScrapeSkipRange(t *testing.T) {
+	f := &slowFetcher{list: demoListHTML(10), delay: 5 * time.Millisecond}
+	rs := New(demoScrapePackage(4), f)
+	var titles []string
+	err := rs.Scrape(context.Background(), source.ScrapeRequest{Pages: []int{1}, PageSize: 10, Skip: 3, Limit: 2}, func(r model.Row) error {
+		titles = append(titles, r.Title)
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"T4", "T5"}
+	if len(titles) != len(want) || titles[0] != want[0] || titles[1] != want[1] {
+		t.Fatalf("收到 %v，期望 %v", titles, want)
+	}
+}
+
 func TestScrapeIncrementalSkipsDetail(t *testing.T) {
 	const n = 8
 	f := &slowFetcher{list: demoListHTML(n), delay: 10 * time.Millisecond}

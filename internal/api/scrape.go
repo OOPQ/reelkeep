@@ -130,6 +130,7 @@ type scrapeJob struct {
 	Rank        string
 	Pages       []int
 	Limit       int
+	Skip        int
 	TargetURL   string
 	Running     bool
 	Started     time.Time
@@ -255,6 +256,7 @@ func (s *Server) handleScrape(w http.ResponseWriter, r *http.Request) {
 		URL         string `json:"url"`
 		Pages       []int  `json:"pages"`
 		Limit       int    `json:"limit"`
+		Skip        int    `json:"skip"`
 		SkipDeleted *bool  `json:"skipDeleted"`
 		Incremental *bool  `json:"incremental"`
 	}
@@ -342,8 +344,8 @@ func (s *Server) handleScrape(w http.ResponseWriter, r *http.Request) {
 		bad(w, "一次最多 20 页")
 		return
 	}
-	if body.Limit < 0 || body.Limit > 500 {
-		bad(w, "limit 必须在 0–500 之间")
+	if body.Limit < 0 || body.Limit > 500 || body.Skip < 0 || body.Skip+body.Limit > 500 {
+		bad(w, "抓取范围必须在 1–500 条之间（如 500 或 300,400）")
 		return
 	}
 	skipDeleted := true
@@ -357,7 +359,7 @@ func (s *Server) handleScrape(w http.ResponseWriter, r *http.Request) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	j := &scrapeJob{
-		Source: body.Source, Rank: body.Rank, Pages: pages, Limit: body.Limit, Total: body.Limit,
+		Source: body.Source, Rank: body.Rank, Pages: pages, Limit: body.Limit, Skip: body.Skip, Total: body.Limit,
 		Running: true, Started: time.Now(), Phase: "list", Cancel: cancel,
 	}
 	s.jobMu.Lock()
@@ -381,7 +383,7 @@ func (s *Server) handleScrape(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) runScrape(ctx context.Context, j *scrapeJob, src source.Source, skipDeleted, incremental bool) {
 	runID := time.Now().Format("20060102-150405") + "-" + sanitizeName(j.Source) + "-" + sanitizeName(j.Rank)
-	j.logf("run=%s source=%s rank=%s pages=%v limit=%d", runID, j.Source, j.Rank, j.Pages, j.Limit)
+	j.logf("run=%s source=%s rank=%s pages=%v limit=%d skip=%d", runID, j.Source, j.Rank, j.Pages, j.Limit, j.Skip)
 
 	// 增量：最近 3 天抓过的条目不再请求详情页，只更新列表字段。
 	var known map[string]bool
@@ -403,6 +405,7 @@ func (s *Server) runScrape(ctx context.Context, j *scrapeJob, src source.Source,
 		Rank:        j.Rank,
 		Pages:       j.Pages,
 		Limit:       j.Limit,
+		Skip:        j.Skip,
 		PageSize:    50,
 		Incremental: incremental,
 		KnownTokens: known,

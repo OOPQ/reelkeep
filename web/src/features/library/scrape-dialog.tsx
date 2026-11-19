@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { parseScrapeRange } from './scrape-range'
 
 export function ScrapeDialog({
   open,
@@ -58,10 +59,13 @@ export function ScrapeDialog({
         toast.success('已开始识别本地视频')
       } else {
         if (!source) throw new Error('请选择来源')
+        const range = parseScrapeRange(limit)
+        if (!range) throw new Error('抓取数量格式不对，例如 500 或 300,400')
         const r = await post<{ ok: boolean; error?: string }>('/api/scrape', {
           source,
           rank,
-          limit: Number(limit) || 50,
+          skip: range.skip,
+          limit: range.limit,
           incremental,
           skipDeleted,
         })
@@ -125,9 +129,16 @@ export function ScrapeDialog({
               </div>
               <div>
                 <div className="ui-field-label mb-1.5">抓取数量（条）</div>
-                <Input type="number" min={1} max={500} value={limit} onChange={e => setLimit(e.target.value)} />
+                <Input
+                  value={limit}
+                  onChange={e => setLimit(e.target.value)}
+                  inputMode="numeric"
+                  placeholder="500 或 300,400"
+                  aria-invalid={!parseScrapeRange(limit)}
+                  className={!parseScrapeRange(limit) ? 'border-[color:var(--danger)]' : undefined}
+                />
                 <div className="mt-1 text-[9.5px] text-[color:var(--subtle)]">
-                  每页约 {src?.pageSize || 50} 条；会按数量自动翻页，超出会截断。单次最多 500 条。
+                  填 500 = 前 500 条；填 300,400 = 第 300 到 400 条。按数量自动翻页，单次最多到第 500 条。
                 </div>
               </div>
               <div className="space-y-1.5 pt-1">

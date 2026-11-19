@@ -83,6 +83,14 @@ func (s *RuleSource) Scrape(ctx context.Context, req source.ScrapeRequest, emit 
 		pageSize = s.pkg.List.PageSize
 	}
 	limit := req.Limit
+	skip := req.Skip
+	if skip < 0 {
+		skip = 0
+	}
+	total := 0
+	if limit > 0 {
+		total = skip + limit
+	}
 
 	emitted := 0
 	seen := map[string]bool{}
@@ -118,7 +126,7 @@ func (s *RuleSource) Scrape(ctx context.Context, req source.ScrapeRequest, emit 
 		}
 		cands := make([]candidate, 0, len(rows))
 		for _, r := range rows {
-			if limit > 0 && emitted+len(cands) >= limit {
+			if total > 0 && emitted+len(cands) >= total {
 				break
 			}
 			key := strings.ToLower(r.Token)
@@ -232,6 +240,12 @@ func (s *RuleSource) Scrape(ctx context.Context, req source.ScrapeRequest, emit 
 			if r.URL == "" {
 				continue
 			}
+			if skip > 0 {
+				// 范围抓取：跳过前面的条目，但本页仍算“有新条目”，避免自动翻页提前停止。
+				skip--
+				pageNew++
+				continue
+			}
 			if err := emit(r); err != nil {
 				return err
 			}
@@ -242,7 +256,7 @@ func (s *RuleSource) Scrape(ctx context.Context, req source.ScrapeRequest, emit 
 			}
 		}
 		if auto {
-			if limit > 0 && emitted >= limit {
+			if total > 0 && emitted >= total {
 				return nil
 			}
 			// 站点忽略 page 参数或本页全是重复项时停止，避免无限翻页

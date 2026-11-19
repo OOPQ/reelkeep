@@ -59,9 +59,11 @@ type Manifest struct {
 
 // ScrapeRequest 是一次抓取的参数（对应旧版 options）。
 type ScrapeRequest struct {
-	Rank        string
-	Pages       []int
-	Limit       int
+	Rank  string
+	Pages []int
+	Limit int
+	// Skip 跳过前面的条目数（范围抓取用，如第 300–400 条 => Skip=299, Limit=102）。
+	Skip        int
 	Threads     int
 	PageSize    int
 	Incremental bool

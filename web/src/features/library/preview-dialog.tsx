@@ -565,9 +565,9 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
   const togglePlay = () => {
     const v = videoRef.current
     if (!v) return
-    // 播到结尾后第一次点击就从头重播，不需要先“暂停”再“播放”。
+    // 以视频真实状态为准：暂停（含播完）就播，正在播就停，保证一次点击生效。
     const atEnd = v.ended || (v.duration > 0 && v.currentTime >= v.duration - 0.05)
-    if (userPaused.current || atEnd) {
+    if (v.paused || atEnd) {
       userPaused.current = false
       if (atEnd) {
         try { v.currentTime = 0 } catch (e) {}
@@ -708,10 +708,10 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
           key={row?.token}
           ref={stageRef}
           data-preview-stage
-          title={canPlay ? '点击画面播放/暂停（空格也可）' : downloadable ? '点击画面下载' : ''}
+
           className={cn(
             'group relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-[color:var(--background)]',
-            !isPlaying && (canPlay || downloadable) ? 'cursor-pointer' : 'cursor-default',
+            (canPlay || downloadable) ? 'cursor-pointer' : 'cursor-default',
             nav?.token === row?.token && (nav.dir === 'next' ? 'pv-enter-next' : 'pv-enter-prev'),
             deleting && 'pv-deleting',
           )}

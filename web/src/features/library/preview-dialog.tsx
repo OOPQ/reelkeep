@@ -32,7 +32,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogClose, DialogContent } from '@/components/ui/dialog'
 import { IconButton } from '@/components/ui/icon-button'
 import { RatingInput } from '@/components/rating-input'
-import { downloadButtonLabel, isDownloadBusy, DownloadProgress } from './download-status'
+import { isDownloadBusy, DownloadProgress } from './download-status'
 import { StatusBadge } from '@/components/status-badge'
 import { CoverImage } from '@/components/cover-image'
 
@@ -565,10 +565,17 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
   const togglePlay = () => {
     const v = videoRef.current
     if (!v) return
-    if (userPaused.current) {
+    // 播到结尾后第一次点击就从头重播，不需要先“暂停”再“播放”。
+    const atEnd = v.ended || (v.duration > 0 && v.currentTime >= v.duration - 0.05)
+    if (userPaused.current || atEnd) {
       userPaused.current = false
+      if (atEnd) {
+        try { v.currentTime = 0 } catch (e) {}
+        setCurrentTime(0)
+      }
       void v.play().catch(() => {})
       setPlaying(true)
+      setIsPlaying(true)
     } else {
       userPaused.current = true
       v.pause()
@@ -680,16 +687,10 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
               <Button size="sm" variant="outline" disabled title="下一批接入">
                 画中画
               </Button>
-              {!row.file_name ? (
-                downloadItem && isDownloadBusy(row, downloadItem) ? (
-                  <div className="w-28 rounded-md border border-white/15 bg-white/5 px-2 py-1">
-                    <DownloadProgress item={downloadItem} />
-                  </div>
-                ) : (
-                  <Button size="sm" variant="outline" onClick={download} disabled={downloading} title={downloadItem?.error || downloadButtonLabel(row, downloadItem)}>
-                    <Download className="size-3.5" /> {downloading ? '提交中…' : downloadButtonLabel(row, downloadItem)}
-                  </Button>
-                )
+              {!row.file_name && downloadItem && isDownloadBusy(row, downloadItem) ? (
+                <div className="w-28 rounded-md border border-white/15 bg-white/5 px-2 py-1">
+                  <DownloadProgress item={downloadItem} />
+                </div>
               ) : null}
               <Button size="sm" variant="outline" onClick={() => void remove()} title="移入回收站">
                 <Trash2 className="size-3.5" /> 删除
@@ -710,7 +711,7 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
           title={canPlay ? '点击画面播放/暂停（空格也可）' : downloadable ? '点击画面下载' : ''}
           className={cn(
             'group relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-[color:var(--background)]',
-            (canPlay || downloadable) && 'cursor-pointer',
+            !isPlaying && (canPlay || downloadable) ? 'cursor-pointer' : 'cursor-default',
             nav?.token === row?.token && (nav.dir === 'next' ? 'pv-enter-next' : 'pv-enter-prev'),
             deleting && 'pv-deleting',
           )}
@@ -768,6 +769,7 @@ onLoadedMetadata={e => { const d = e.currentTarget.duration || Number(row.second
               onDurationChange={e => setDuration(e.currentTarget.duration || Number(row.seconds) || 0)}
               onPlaying={() => { setVideoReady(true); setIsPlaying(true) }}
 onPause={() => { setIsPlaying(false); saveResume() }}
+              onEnded={() => { setIsPlaying(false); saveResume() }}
 onPlay={e => {
                 if (userPaused.current) {
                   e.currentTarget.pause()

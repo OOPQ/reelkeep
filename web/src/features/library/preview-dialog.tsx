@@ -29,28 +29,6 @@ import { unlockAudio } from '@/lib/sound'
 import { confirmAction } from '@/store/confirm'
 import { useUiStore } from '@/store/ui'
 import { Button } from '@/components/ui/button'
-
-// 判断点击是否落在媒体实际渲染区域（object-contain 的留白不算）。
-function mediaContentContains(el: HTMLElement | null, x: number, y: number): boolean {
-  if (!el) return true
-  const r = el.getBoundingClientRect()
-  let iw = 0
-  let ih = 0
-  if (el instanceof HTMLVideoElement) {
-    iw = el.videoWidth
-    ih = el.videoHeight
-  } else if (el instanceof HTMLImageElement) {
-    iw = el.naturalWidth
-    ih = el.naturalHeight
-  }
-  if (!iw || !ih) return true
-  const scale = Math.min(r.width / iw, r.height / ih)
-  const w = iw * scale
-  const h = ih * scale
-  const left = r.left + (r.width - w) / 2
-  const top = r.top + (r.height - h) / 2
-  return x >= left && x <= left + w && y >= top && y <= top + h
-}
 import { Dialog, DialogClose, DialogContent } from '@/components/ui/dialog'
 import { IconButton } from '@/components/ui/icon-button'
 import { RatingInput } from '@/components/rating-input'
@@ -107,7 +85,6 @@ export function PreviewDialog({ rows, token, autoplay = false, media, onClose, o
   const [hoverTime, setHoverTime] = React.useState<number | null>(null)
   const [hoverPct, setHoverPct] = React.useState(0)
   const stageRef = React.useRef<HTMLDivElement>(null)
-  const [mediaBox, setMediaBox] = React.useState<{ left: number; top: number; width: number; height: number } | null>(null)
   const longPressRate = useUiStore(s => s.longPressRate)
   const bumpCoverRev = useUiStore(s => s.bumpCoverRev)
   const setPreviewOrder = useUiStore(s => s.setPreviewOrder)
@@ -264,60 +241,6 @@ export function PreviewDialog({ rows, token, autoplay = false, media, onClose, o
     lastResumeSave.current = 0
   }, [token, autoplay, canPlay, row?.seconds])
 
-  // 当前真正显示在画面上的媒体：视频元数据就绪用 video，否则用封面图。
-  const activeMedia = React.useCallback((): HTMLElement | null => {
-    const stage = stageRef.current
-    if (videoRef.current && videoRef.current.videoWidth > 0) return videoRef.current
-    return (stage?.querySelector('img') as HTMLImageElement | null) ?? null
-  }, [])
-
-  // 媒体实际渲染区域（object-contain 后的内容框），用于只在画面范围内显示手型光标。
-  const updateMediaBox = React.useCallback(() => {
-    const stage = stageRef.current
-    if (!stage) return
-    const el = activeMedia()
-    if (!el) {
-      setMediaBox(null)
-      return
-    }
-    let iw = 0
-    let ih = 0
-    if (el instanceof HTMLVideoElement) {
-      iw = el.videoWidth
-      ih = el.videoHeight
-    } else if (el instanceof HTMLImageElement) {
-      iw = el.naturalWidth
-      ih = el.naturalHeight
-    }
-    if (!iw || !ih) {
-      setMediaBox(null)
-      return
-    }
-    const sr = stage.getBoundingClientRect()
-    if (!sr.width || !sr.height) {
-      setMediaBox(null)
-      return
-    }
-    const scale = Math.min(sr.width / iw, sr.height / ih)
-    const w = iw * scale
-    const h = ih * scale
-    const next = { left: (sr.width - w) / 2, top: (sr.height - h) / 2, width: w, height: h }
-    setMediaBox(prev => (prev && Math.abs(prev.left - next.left) < 0.5 && Math.abs(prev.top - next.top) < 0.5 && Math.abs(prev.width - next.width) < 0.5 && Math.abs(prev.height - next.height) < 0.5 ? prev : next))
-  }, [activeMedia])
-
-  React.useEffect(() => {
-    updateMediaBox()
-    const stage = stageRef.current
-    const ro = stage ? new ResizeObserver(() => updateMediaBox()) : null
-    if (stage && ro) ro.observe(stage)
-    const iv = window.setInterval(updateMediaBox, 300)
-    const stop = window.setTimeout(() => window.clearInterval(iv), 5000)
-    return () => {
-      if (ro) ro.disconnect()
-      window.clearInterval(iv)
-      window.clearTimeout(stop)
-    }
-  }, [token, playing, videoReady, canPlay, downloadable, updateMediaBox])
   const prev = index > 0 ? rows[index - 1] : null
   const next = index >= 0 && index < rows.length - 1 ? rows[index + 1] : null
   const keepPlaying = () => playing || isPlaying || Boolean(videoRef.current && !videoRef.current.paused)
@@ -794,28 +717,14 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
 
           className={cn(
             'group relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-[color:var(--background)]',
+            (canPlay || downloadable) ? 'cursor-pointer' : 'cursor-default',
             nav?.token === row?.token && (nav.dir === 'next' ? 'pv-enter-next' : 'pv-enter-prev'),
             deleting && 'pv-deleting',
           )}
-          onMouseMove={e => {
-            const stage = stageRef.current
-            if (!stage) return
-            const t = e.target as HTMLElement
-            if (t.closest('button, a, input, select, textarea, [role="slider"], [data-no-stage-click]')) return
-            const media = activeMedia()
-            stage.style.cursor = mediaContentContains(media, e.clientX, e.clientY) && (canPlay || downloadable) ? 'pointer' : 'default'
-          }}
-          onMouseLeave={() => {
-            if (stageRef.current) stageRef.current.style.cursor = ''
-          }}
           onClick={e => {
             const t = e.target as HTMLElement
             // 控制条、按钮、输入框、进度条上的点击不触发播放/暂停。
             if (t.closest('button, a, input, select, textarea, [role="slider"], [data-no-stage-click]')) return
-            const stage = stageRef.current
-            const media = activeMedia()
-            // 视频/封面留白区域（既不是画面也不是操作区）不响应点击。
-            if (!mediaContentContains(media, e.clientX, e.clientY)) return
             if (!canPlay) {
               if (downloadable) void download()
               return
@@ -840,7 +749,7 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
           }}
         >
           <div className="pointer-events-none absolute inset-0 z-0">
-            <CoverImage token={row.token} full fit="contain" alt={rowTitle(row)} className={cn('grid h-full w-full place-items-center', videoReady ? 'opacity-0' : 'opacity-100')} imgClassName={cn('h-auto w-auto max-h-full max-w-full object-contain', playing ? 'pointer-events-none' : 'pointer-events-auto', !playing && (canPlay || downloadable) ? 'cursor-pointer' : 'cursor-default')} />
+            <CoverImage token={row.token} full fit="contain" alt={rowTitle(row)} className={cn('h-full w-full', videoReady ? 'opacity-0' : 'opacity-100')} />
           </div>
 
           {(!playing || !isPlaying) && (canPlay || downloadable || downloadBusy) ? (
@@ -893,8 +802,7 @@ onPlay={e => {
               onVolumeChange={e => { setIsMuted(e.currentTarget.muted); setVolume(e.currentTarget.volume) }}
               onCanPlay={() => setVideoReady(true)}
               onError={() => { setVideoError(true); setPlaying(false); setIsPlaying(false); toast.error('视频加载失败：文件可能已被移动，或编码浏览器不支持') }}
-              style={mediaBox ? { width: mediaBox.width, height: mediaBox.height } : { width: 0, height: 0 }}
-              className={cn('z-10 object-contain outline-none', canPlay ? 'cursor-pointer' : 'cursor-default')}
+              className="absolute inset-0 z-10 h-full w-full object-contain outline-none"
             />
           ) : null}
 

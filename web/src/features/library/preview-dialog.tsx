@@ -78,6 +78,8 @@ export function PreviewDialog({ rows, token, autoplay = false, media, onClose, o
   const [volume, setVolume] = React.useState(1)
   const [dragging, setDragging] = React.useState(false)
   const [isFullscreen, setIsFullscreen] = React.useState(false)
+  const [controlsVisible, setControlsVisible] = React.useState(true)
+  const controlsTimer = React.useRef(0)
   const [playbackRate, setPlaybackRate] = React.useState(1)
   const resumeApplied = React.useRef(false)
   const lastResumeSave = React.useRef(0)
@@ -399,6 +401,31 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
     }
   }, [token, canPlay, qc, longPressRate, playbackRate])
 
+  // 全屏播放时无操作自动隐藏控件，鼠标移动再显示。
+  const armControlsTimer = React.useCallback(() => {
+    window.clearTimeout(controlsTimer.current)
+    setControlsVisible(true)
+    if (isFullscreen && isPlaying) {
+      controlsTimer.current = window.setTimeout(() => setControlsVisible(false), 2600)
+    }
+  }, [isFullscreen, isPlaying])
+
+  React.useEffect(() => {
+    armControlsTimer()
+    return () => window.clearTimeout(controlsTimer.current)
+  }, [armControlsTimer])
+
+  React.useEffect(() => {
+    if (!isFullscreen) setControlsVisible(true)
+  }, [isFullscreen])
+
+  React.useEffect(() => {
+    const onChange = () => setIsFullscreen(Boolean(document.fullscreenElement))
+    document.addEventListener('fullscreenchange', onChange)
+    onChange()
+    return () => document.removeEventListener('fullscreenchange', onChange)
+  }, [])
+
 
   if (!row) return null
 
@@ -659,7 +686,6 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
     void Promise.resolve(request.call(el)).catch(() => {})
   }
 
-
   return (
     <>
 <Dialog open={!!token} onOpenChange={open => { if (!open) closeDialog() }}>
@@ -732,9 +758,13 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
           className={cn(
             'group relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-[color:var(--background)]',
             (canPlay || downloadable) ? 'cursor-pointer' : 'cursor-default',
+            !controlsVisible && 'cursor-none',
             nav?.token === row?.token && (nav.dir === 'next' ? 'pv-enter-next' : 'pv-enter-prev'),
             deleting && 'pv-deleting',
           )}
+          onMouseMove={() => {
+            if (isFullscreen) armControlsTimer()
+          }}
           onClick={e => {
             const t = e.target as HTMLElement
             // 控制条、按钮、输入框、进度条上的点击不触发播放/暂停。
@@ -766,7 +796,7 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
             <CoverImage token={row.token} full fit="contain" alt={rowTitle(row)} className={cn('h-full w-full', videoReady ? 'opacity-0' : 'opacity-100')} />
           </div>
 
-          {(!playing || !isPlaying) && (canPlay || downloadable || downloadBusy) ? (
+          {controlsVisible && (!playing || !isPlaying) && (canPlay || downloadable || downloadBusy) ? (
             <div className="pointer-events-none absolute inset-0 z-20 grid place-items-center opacity-0 group-hover:opacity-100">
               <div className="absolute inset-0 bg-black/20" />
               <div className="relative flex flex-col items-center gap-1.5">
@@ -836,7 +866,7 @@ onPlay={e => {
 
 
           {playing && !videoError ? (
-            <div className="absolute inset-x-0 bottom-0 z-30 bg-[linear-gradient(0deg,rgba(0,0,0,.88),rgba(0,0,0,.35),transparent)] px-3 pb-4 pt-10">
+            <div className={cn('absolute inset-x-0 bottom-0 z-30 bg-[linear-gradient(0deg,rgba(0,0,0,.88),rgba(0,0,0,.35),transparent)] px-3 pb-4 pt-10 transition-opacity duration-200', controlsVisible ? 'opacity-100' : 'pointer-events-none opacity-0')}>
               <div className="flex items-center gap-2">
                 <IconButton label={isPlaying ? '暂停' : '播放'} size="sm" onClick={togglePlay}>
                   {isPlaying ? <Pause className="size-3.5" /> : <Play className="size-3.5" />}

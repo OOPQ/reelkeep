@@ -559,7 +559,7 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
   return (
     <div className="flex h-full min-h-0 flex-col gap-3 p-4">
       <div className="grid grid-cols-[repeat(auto-fit,minmax(130px,1fr))] gap-2">
-        <StatCard icon={Library} label="总数" value={formatCount(stats?.total || 0)} active={status === 'all' && flag === 'none'} onClick={() => { setStatus('all'); setFlag('none') }} />
+        <StatCard icon={Library} label="总数" value={formatCount(stats?.total || 0)} sub={`今日 +${stats?.todayAdded || 0}`} active={status === 'all' && flag === 'none'} onClick={() => { setStatus('all'); setFlag('none') }} />
         <StatCard icon={Download} label="待下载" value={formatCount(stats?.new || 0)} active={status === 'new'} onClick={() => { setStatus('new'); setFlag('none') }} />
         <StatCard icon={FolderCheck} label="已完成" value={formatCount(stats?.done || 0)} active={status === 'done'} onClick={() => { setStatus('done'); setFlag('none') }} />
         <StatCard icon={Archive} label="在磁盘" value={formatCount(stats?.downloaded || 0)} sub={`磁盘 ${Number(stats?.diskGB || 0).toFixed(1)} GB`} active={flag === 'have'} onClick={() => { setStatus('all'); setFlag('have') }} />

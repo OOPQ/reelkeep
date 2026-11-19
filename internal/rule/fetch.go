@@ -110,8 +110,8 @@ func NewHTTPFetcher(p *Package, proxyFn func() string) (*HTTPFetcher, error) {
 	f := &HTTPFetcher{
 		allowed: allowed, ua: p.Defaults.UserAgent, maxBytes: p.Defaults.MaxBytes,
 		auth: p.Auth, baseHost: strings.ToLower(u.Hostname()),
-		limiter: newHostLimiter(rateLimit(p)),
-		render:  strings.ToLower(strings.TrimSpace(p.Defaults.Render)),
+		limiter:    newHostLimiter(rateLimit(p)),
+		render:     strings.ToLower(strings.TrimSpace(p.Defaults.Render)),
 		tlsProfile: strings.ToLower(strings.TrimSpace(p.Defaults.TLSProfile)),
 		proxyFn:    proxyFn,
 		sourceID:   p.ID,

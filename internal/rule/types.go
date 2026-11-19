@@ -13,14 +13,14 @@ import (
 
 // Package 是一个源包（source package），对应 docs/schema/source.schema.json。
 type Package struct {
-	Schema       int       `json:"schema"`
-	ID           string    `json:"id"`
-	Name         string    `json:"name"`
-	Version      string    `json:"version"`
-	Author       string    `json:"author,omitempty"`
-	Description  string    `json:"description,omitempty"`
-	BaseURL      string    `json:"baseUrl"`
-	Hosts        []string  `json:"hosts,omitempty"`
+	Schema      int      `json:"schema"`
+	ID          string   `json:"id"`
+	Name        string   `json:"name"`
+	Version     string   `json:"version"`
+	Author      string   `json:"author,omitempty"`
+	Description string   `json:"description,omitempty"`
+	BaseURL     string   `json:"baseUrl"`
+	Hosts       []string `json:"hosts,omitempty"`
 	// LinkMatch 是链接抓取时的归类依据（对 URL 路径做正则匹配），用来区分同一站点下的多个源。
 	LinkMatch []string `json:"linkMatch,omitempty"`
 	// LinkHosts 是额外的链接归类域名（如 pektino 源同时处理 X/Twitter 链接）。

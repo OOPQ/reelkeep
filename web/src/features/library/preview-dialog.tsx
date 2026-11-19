@@ -691,6 +691,13 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
 <Dialog open={!!token} onOpenChange={open => { if (!open) closeDialog() }}>
       <DialogContent
         onOpenAutoFocus={e => e.preventDefault()}
+        onEscapeKeyDown={e => {
+          // 全屏时 Esc 先退全屏，不直接关闭浮窗。
+          if (isFullscreen) {
+            e.preventDefault()
+            void document.exitFullscreen?.().catch(() => {})
+          }
+        }}
         onFocus={e => { if (e.target === e.currentTarget) e.currentTarget.blur() }}
         title="条目详情"
         description={`${index + 1} / ${rows.length} · ${row.token}`}

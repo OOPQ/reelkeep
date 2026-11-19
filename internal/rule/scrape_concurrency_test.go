@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/OOPQ/reelkeep/internal/model"
-"github.com/OOPQ/reelkeep/internal/source"
+	"github.com/OOPQ/reelkeep/internal/source"
 )
 
 // slowFetcher 对详情页请求人为加延迟，用来验证并发与增量跳过。

@@ -9,9 +9,9 @@ import (
 	"net/url"
 	"strings"
 
+	fhttp "github.com/bogdanfinn/fhttp"
 	tlsclient "github.com/bogdanfinn/tls-client"
 	"github.com/bogdanfinn/tls-client/profiles"
-	fhttp "github.com/bogdanfinn/fhttp"
 )
 
 // 可用的 TLS 指纹名字（源包 defaults.tlsProfile）。

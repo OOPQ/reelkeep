@@ -342,6 +342,10 @@ func statsFrom(rows []model.Row, idx scan.Index, coverMissing int, ledgerPath, c
 			counts[r.Status] = 0
 		}
 		counts[r.Status]++
+		if r.Status == "recycled" {
+			// 回收站条目不计入时长/磁盘/未下载等统计，避免和「总数」口径不一致。
+			continue
+		}
 		if v, err := strconv.ParseInt(r.Seconds, 10, 64); err == nil && v > 0 {
 			secs += v
 			if strings.HasPrefix(r.FirstSeen, today) {
@@ -380,7 +384,7 @@ func statsFrom(rows []model.Row, idx scan.Index, coverMissing int, ledgerPath, c
 	st.Failed = counts["failed"]
 	st.Hours = round2(float64(secs) / 3600)
 	st.TodayHours = round2(float64(todaySecs) / 3600)
-	st.Missing = len(rows) - st.Downloaded
+	st.Missing = st.Total - st.Downloaded
 	st.CoverMissing = coverMissing
 	st.DiskGB = round2(bytesSum / (1 << 30))
 	st.LastSeen = lastSeen
@@ -550,12 +554,12 @@ func (s *Server) settingsPayload() map[string]any {
 	cfg := s.settings
 	s.mu.RUnlock()
 	return map[string]any{
-		"proxy":         cfg.Proxy,
-		"concurrent":    cfg.Concurrent,
-		"ffmpegPath":    cfg.FFmpegPath,
-		"retryCount":    cfg.RetryCount,
-		"retryDelay":    cfg.RetryDelay,
-		"httpLimitKB":   cfg.HTTPLimitKB,
+		"proxy":          cfg.Proxy,
+		"concurrent":     cfg.Concurrent,
+		"ffmpegPath":     cfg.FFmpegPath,
+		"retryCount":     cfg.RetryCount,
+		"retryDelay":     cfg.RetryDelay,
+		"httpLimitKB":    cfg.HTTPLimitKB,
 		"sourceIndexUrl": cfg.SourceIndexURL,
 	}
 }

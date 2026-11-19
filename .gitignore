@@ -39,3 +39,6 @@ Thumbs.db
 /release-assets/
 /dist-ci/
 /ci101/
+
+# 本地临时验收目录
+/.tmp-*/

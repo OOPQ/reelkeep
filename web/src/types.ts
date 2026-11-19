@@ -58,6 +58,7 @@ export type Stats = {
   failed: number
   hours: number
   todayAdded: number
+  todayHours: number
   byRes?: Record<string, number>
   busy?: boolean
   downloaded: number

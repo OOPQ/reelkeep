@@ -565,7 +565,7 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
         <StatCard icon={Archive} label="在磁盘" value={formatCount(stats?.downloaded || 0)} sub={`磁盘 ${Number(stats?.diskGB || 0).toFixed(1)} GB`} active={flag === 'have'} onClick={() => { setStatus('all'); setFlag('have') }} />
         <StatCard icon={FolderX} label="未下载" value={formatCount(stats?.missing || 0)} active={flag === 'miss'} onClick={() => { setStatus('all'); setFlag('miss') }} />
         <StatCard icon={Heart} label="收藏" value={formatCount(stats?.favorites || 0)} tone="danger" active={flag === 'fav'} onClick={() => { setStatus('all'); setFlag('fav') }} />
-        <StatCard icon={Clock3} label="总时长(h)" value={Number(stats?.hours || 0).toFixed(1)} sub={`今日 +${stats?.todayAdded || 0}`} />
+        <StatCard icon={Clock3} label="总时长(h)" value={Number(stats?.hours || 0).toFixed(1)} sub={`今日 +${Number(stats?.todayHours || 0).toFixed(1)}h`} />
       </div>
 
       <div className="flex flex-wrap items-center gap-2">

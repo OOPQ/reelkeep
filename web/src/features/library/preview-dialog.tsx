@@ -51,6 +51,9 @@ export function PreviewDialog({ rows, token, autoplay = false, media, onClose, o
   const index = React.useMemo(() => rows.findIndex(r => r.token === token), [rows, token])
   const row = index >= 0 ? rows[index] : null
   const [playing, setPlaying] = React.useState(false)
+  // 上/下一项的进场方向（只对目标条目生效，普通打开不播动画）
+  const [nav, setNav] = React.useState<{ dir: 'next' | 'prev'; token: string } | null>(null)
+  const [deleting, setDeleting] = React.useState(false)
   // 用户主动暂停后，忽略迟到的 play 事件（play() 是异步的，暂停得早会“复活”出声）。
   const userPaused = React.useRef(false)
   const [videoReady, setVideoReady] = React.useState(false)
@@ -101,6 +104,7 @@ export function PreviewDialog({ rows, token, autoplay = false, media, onClose, o
 
   const remove = async () => {
     if (!row) return
+    setDeleting(true)
     const tid = toast.loading('正在删除…')
     try {
       const r = await post<{ ok: boolean; error?: string }>('/api/mark', { tokens: [row.token], status: 'recycled' })
@@ -116,14 +120,20 @@ export function PreviewDialog({ rows, token, autoplay = false, media, onClose, o
       // 删完不直接关窗：优先跳下一项，没有下一项就跳上一项，都没有才关闭。
       const at = rows.findIndex(r => r.token === deleted)
       const rest = rows.filter(r => r.token !== deleted).map(r => r.token)
+      // 让删除的缩小淡出动画播完再切换。
+      await new Promise(resolve => setTimeout(resolve, 170))
       if (rest.length === 0) {
         onClose()
         return
       }
-      const nextToken = rest[Math.min(at < 0 ? 0 : at, rest.length - 1)]
+      const idx = Math.min(at < 0 ? 0 : at, rest.length - 1)
+      const nextToken = rest[idx]
       setPreviewOrder(rest)
+      setNav({ dir: at >= 0 && at < rest.length ? 'next' : 'prev', token: nextToken })
+      setDeleting(false)
       onNavigate(nextToken, autoplay)
     } catch (e) {
+      setDeleting(false)
       toast.error((e as Error).message, { id: tid })
     }
   }
@@ -231,8 +241,8 @@ export function PreviewDialog({ rows, token, autoplay = false, media, onClose, o
   const prev = index > 0 ? rows[index - 1] : null
   const next = index >= 0 && index < rows.length - 1 ? rows[index + 1] : null
   const keepPlaying = () => playing || isPlaying || Boolean(videoRef.current && !videoRef.current.paused)
-  const goPrev = () => { if (prev) { saveResumeRef.current(); onNavigate(prev.token, keepPlaying()) } }
-  const goNext = () => { if (next) { saveResumeRef.current(); onNavigate(next.token, keepPlaying()) } }
+  const goPrev = () => { if (prev) { setNav({ dir: 'prev', token: prev.token }); saveResumeRef.current(); onNavigate(prev.token, keepPlaying()) } }
+  const goNext = () => { if (next) { setNav({ dir: 'next', token: next.token }); saveResumeRef.current(); onNavigate(next.token, keepPlaying()) } }
 
   React.useEffect(() => {
     if (!row) return
@@ -694,12 +704,15 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
         }
       >
         <div
+          key={row?.token}
           ref={stageRef}
           data-preview-stage
           title={canPlay ? '点击画面播放/暂停（空格也可）' : downloadable ? '点击画面下载' : ''}
           className={cn(
             'group relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-[#05080c]',
             (canPlay || downloadable) && 'cursor-pointer',
+            nav?.token === row?.token && (nav.dir === 'next' ? 'pv-enter-next' : 'pv-enter-prev'),
+            deleting && 'pv-deleting',
           )}
           onClick={e => {
             const t = e.target as HTMLElement

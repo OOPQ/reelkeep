@@ -305,6 +305,7 @@ type Stats struct {
 	Failed       int          `json:"failed"`
 	Hours        float64      `json:"hours"`
 	TodayAdded   int          `json:"todayAdded"`
+	TodayHours   float64      `json:"todayHours"`
 	ByRes        []ResCount   `json:"byRes"`
 	LedgerPath   string       `json:"ledgerPath"`
 	LastSeen     string       `json:"lastSeen"`
@@ -331,6 +332,7 @@ func statsFrom(rows []model.Row, idx scan.Index, coverMissing int, ledgerPath, c
 	counts := map[string]int{}
 	resCount := map[string]int{}
 	var secs int64
+	var todaySecs int64
 	var bytesSum float64
 	today := time.Now().Format("2006-01-02")
 	var lastSeen string
@@ -342,6 +344,9 @@ func statsFrom(rows []model.Row, idx scan.Index, coverMissing int, ledgerPath, c
 		counts[r.Status]++
 		if v, err := strconv.ParseInt(r.Seconds, 10, 64); err == nil && v > 0 {
 			secs += v
+			if strings.HasPrefix(r.FirstSeen, today) {
+				todaySecs += v
+			}
 		}
 		if v, err := strconv.ParseFloat(r.FileSize, 64); err == nil && v > 0 {
 			bytesSum += v
@@ -374,6 +379,7 @@ func statsFrom(rows []model.Row, idx scan.Index, coverMissing int, ledgerPath, c
 	st.Recycled = counts["recycled"]
 	st.Failed = counts["failed"]
 	st.Hours = round2(float64(secs) / 3600)
+	st.TodayHours = round2(float64(todaySecs) / 3600)
 	st.Missing = len(rows) - st.Downloaded
 	st.CoverMissing = coverMissing
 	st.DiskGB = round2(bytesSum / (1 << 30))

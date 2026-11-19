@@ -3,6 +3,7 @@ package rule
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"regexp"
@@ -101,6 +102,9 @@ func (s *RuleSource) Scrape(ctx context.Context, req source.ScrapeRequest, emit 
 		listURL := s.pkg.ListURL(rank, page)
 		body, err := s.fetcher.Get(ctx, listURL, s.headers(nil))
 		if err != nil {
+			if errors.Is(err, ErrNetwork) {
+				return fmt.Errorf("抓取中断：列表页网络异常（%s）: %w", listURL, err)
+			}
 			return fmt.Errorf("列表页 %s: %w", listURL, err)
 		}
 		rows, err := s.parseList(body, listURL, rank, page, pageSize)
@@ -178,6 +182,37 @@ func (s *RuleSource) Scrape(ctx context.Context, req source.ScrapeRequest, emit 
 				mergeRow(&r, d)
 				results[i] = r
 			}
+		}
+
+		// 详情页全部网络失败 / 全部被反爬拦截时直接中断本轮抓取，避免继续翻页空转。
+		needed, netFails, challengeFails := 0, 0, 0
+		var firstFatal error
+		for i := range cands {
+			if !cands[i].need {
+				continue
+			}
+			needed++
+			if errs[i] == nil {
+				continue
+			}
+			switch {
+			case errors.Is(errs[i], ErrNetwork):
+				netFails++
+				if firstFatal == nil {
+					firstFatal = errs[i]
+				}
+			case errors.Is(errs[i], ErrChallenge):
+				challengeFails++
+				if firstFatal == nil {
+					firstFatal = errs[i]
+				}
+			}
+		}
+		if needed > 0 && netFails == needed {
+			return fmt.Errorf("抓取中断：详情页网络异常（%d/%d 失败）: %w", netFails, needed, firstFatal)
+		}
+		if needed > 0 && challengeFails == needed {
+			return fmt.Errorf("抓取中断：详情页全部被反爬拦截（%d/%d），请稍后重试或更新源包: %w", challengeFails, needed, firstFatal)
 		}
 
 		pageNew := 0

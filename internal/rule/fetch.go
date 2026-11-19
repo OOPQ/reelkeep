@@ -23,6 +23,9 @@ const defaultUA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 
 // ErrChallenge 表示被反爬挑战页拦截（需要浏览器/登录）。
 var ErrChallenge = errors.New("被反爬挑战页拦截")
 
+// ErrNetwork 表示网络层失败（连不上、超时、TLS 握手失败等），调用方应中断整轮抓取。
+var ErrNetwork = errors.New("网络异常")
+
 var challengeMarkers = []string{
 	"just a moment", "cf-challenge", "cf_chl_", "checking your browser",
 	"verify you are human", "attention required", "ddos protection",
@@ -248,12 +251,15 @@ func (f *HTTPFetcher) Get(ctx context.Context, rawURL string, headers map[string
 		}
 		resp, err := f.client.Do(req)
 		if err != nil {
-			lastErr = err
+			if ctx.Err() != nil {
+				return nil, ctx.Err()
+			}
+			lastErr = fmt.Errorf("%w: %v", ErrNetwork, err)
 			if attempt == 0 {
 				time.Sleep(300 * time.Millisecond)
 				continue // 站点偶发慢响应，重试一次
 			}
-			return nil, err
+			return nil, lastErr
 		}
 		if resp.StatusCode >= 400 {
 			snippet, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
@@ -282,11 +288,11 @@ func (f *HTTPFetcher) Get(ctx context.Context, rawURL string, headers map[string
 		b, rerr := readBody(resp.Body, f.maxBytes)
 		_ = resp.Body.Close()
 		if rerr != nil {
-			lastErr = rerr
+			lastErr = fmt.Errorf("%w: %v", ErrNetwork, rerr)
 			if attempt == 0 {
 				continue
 			}
-			return nil, rerr
+			return nil, lastErr
 		}
 		// 有些站点首次只回 204 + 会话 Cookie；同一 client 重试一次即可拿到正文。
 		if len(b) < 100 && attempt == 0 {

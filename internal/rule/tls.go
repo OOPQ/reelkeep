@@ -95,7 +95,10 @@ func (f *HTTPFetcher) getTLS(ctx context.Context, u *url.URL, headers map[string
 		}
 		resp, err := client.Do(req)
 		if err != nil {
-			lastErr = err
+			if ctx.Err() != nil {
+				return nil, ctx.Err()
+			}
+			lastErr = fmt.Errorf("%w: %v", ErrNetwork, err)
 			continue
 		}
 		if resp.StatusCode >= 400 {

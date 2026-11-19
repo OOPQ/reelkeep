@@ -822,7 +822,7 @@ onPlay={e => {
 
 
           {playing && !videoError ? (
-            <div data-no-stage-click className="absolute inset-x-0 bottom-0 z-30 bg-[linear-gradient(0deg,rgba(0,0,0,.88),rgba(0,0,0,.35),transparent)] px-3 pb-4 pt-10">
+            <div data-no-stage-click className="absolute inset-x-0 bottom-0 z-30 cursor-default bg-[linear-gradient(0deg,rgba(0,0,0,.88),rgba(0,0,0,.35),transparent)] px-3 pb-4 pt-10">
               <div className="flex items-center gap-2">
                 <IconButton label={isPlaying ? '暂停' : '播放'} size="sm" onClick={togglePlay}>
                   {isPlaying ? <Pause className="size-3.5" /> : <Play className="size-3.5" />}

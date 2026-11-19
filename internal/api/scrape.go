@@ -248,9 +248,6 @@ func (s *Server) jobInfo() any {
 	return j.info()
 }
 
-// 单次抓取自动翻页最多 50 页，范围终点限制在 1000 条以内。
-const maxScrapePosition = 1000
-
 // handleScrape 启动一次抓取任务。
 func (s *Server) handleScrape(w http.ResponseWriter, r *http.Request) {
 	var body struct {
@@ -347,8 +344,8 @@ func (s *Server) handleScrape(w http.ResponseWriter, r *http.Request) {
 		bad(w, "一次最多 20 页")
 		return
 	}
-	if body.Limit < 0 || body.Limit > 500 || body.Skip < 0 || (body.Limit > 0 && body.Skip+body.Limit > maxScrapePosition) || (body.Limit == 0 && body.Skip > 0) {
-		bad(w, "抓取范围无效：单次最多 500 条，范围终点最多第 1000 条")
+	if body.Limit < 0 || body.Limit > 500 || body.Skip < 0 || (body.Limit == 0 && body.Skip > 0) {
+		bad(w, "抓取范围无效：单次最多 500 条；起点/终点不限，按自动翻页抓取")
 		return
 	}
 	skipDeleted := true

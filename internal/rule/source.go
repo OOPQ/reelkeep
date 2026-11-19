@@ -93,6 +93,7 @@ func (s *RuleSource) Scrape(ctx context.Context, req source.ScrapeRequest, emit 
 	}
 
 	emitted := 0
+	position := 0
 	seen := map[string]bool{}
 	var firstErr error
 	detailWorkers := s.pkg.Defaults.DetailWorkers
@@ -125,8 +126,9 @@ func (s *RuleSource) Scrape(ctx context.Context, req source.ScrapeRequest, emit 
 			need bool
 		}
 		cands := make([]candidate, 0, len(rows))
+		pageSkipped := 0
 		for _, r := range rows {
-			if total > 0 && emitted+len(cands) >= total {
+			if total > 0 && position >= total {
 				break
 			}
 			key := strings.ToLower(r.Token)
@@ -141,6 +143,13 @@ func (s *RuleSource) Scrape(ctx context.Context, req source.ScrapeRequest, emit 
 				continue
 			}
 			seen[key] = true
+			position++
+			if skip > 0 {
+				// 范围抓取：跳过前面的条目，不请求详情，节省时间。
+				skip--
+				pageSkipped++
+				continue
+			}
 			cands = append(cands, candidate{row: r, need: need})
 		}
 
@@ -223,7 +232,7 @@ func (s *RuleSource) Scrape(ctx context.Context, req source.ScrapeRequest, emit 
 			return fmt.Errorf("抓取中断：详情页全部被反爬拦截（%d/%d），请稍后重试或更新源包: %w", challengeFails, needed, firstFatal)
 		}
 
-		pageNew := 0
+		pageNew := pageSkipped
 		for i := range cands {
 			if ctx.Err() != nil {
 				return ctx.Err()
@@ -240,12 +249,6 @@ func (s *RuleSource) Scrape(ctx context.Context, req source.ScrapeRequest, emit 
 			if r.URL == "" {
 				continue
 			}
-			if skip > 0 {
-				// 范围抓取：跳过前面的条目，但本页仍算“有新条目”，避免自动翻页提前停止。
-				skip--
-				pageNew++
-				continue
-			}
 			if err := emit(r); err != nil {
 				return err
 			}
@@ -256,11 +259,11 @@ func (s *RuleSource) Scrape(ctx context.Context, req source.ScrapeRequest, emit 
 			}
 		}
 		if auto {
-			if total > 0 && emitted >= total {
+			if total > 0 && position >= total {
 				return nil
 			}
-			// 站点忽略 page 参数或本页全是重复项时停止，避免无限翻页
-			if pageNew == 0 || page >= 50 {
+			// 站点忽略 page 参数或本页全是重复项时停止，避免无限翻页；同时留一个硬上限兜底。
+			if pageNew == 0 || page >= 2000 {
 				if emitted == 0 && firstErr != nil {
 					return firstErr
 				}

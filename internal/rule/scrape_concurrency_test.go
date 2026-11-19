@@ -124,6 +124,26 @@ func TestScrapeSkipRange(t *testing.T) {
 	}
 }
 
+// TestScrapeSkipRangeNoDetailForSkipped 跳过部分不请求详情，只抓取目标条目。
+func TestScrapeSkipRangeNoDetailForSkipped(t *testing.T) {
+	f := &slowFetcher{list: demoListHTML(10), delay: 5 * time.Millisecond}
+	rs := New(demoScrapePackage(4), f)
+	var titles []string
+	err := rs.Scrape(context.Background(), source.ScrapeRequest{Pages: []int{1}, PageSize: 10, Skip: 8, Limit: 1}, func(r model.Row) error {
+		titles = append(titles, r.Title)
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(titles) != 1 || titles[0] != "T9" {
+		t.Fatalf("收到 %v，期望 [T9]", titles)
+	}
+	if f.detailCalls != 1 {
+		t.Fatalf("详情请求 %d 次，期望 1 次（跳过的条目不应请求详情）", f.detailCalls)
+	}
+}
+
 func TestScrapeIncrementalSkipsDetail(t *testing.T) {
 	const n = 8
 	f := &slowFetcher{list: demoListHTML(n), delay: 10 * time.Millisecond}

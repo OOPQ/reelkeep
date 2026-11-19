@@ -405,6 +405,9 @@ func (m *Manager) Enqueue(t model.DownloadTask) (bool, error) {
 			return false, nil // 已经在队列里
 		}
 	}
+	if m.paused && t.State == "queued" {
+		t.State = "paused" // 全局暂停期间新加入的条目直接记为暂停，恢复前不会被调度
+	}
 	m.tasks[t.UID] = &Task{M: t}
 	err := m.st.SaveTask(t)
 	m.mu.Unlock()
@@ -455,7 +458,7 @@ func (m *Manager) Pause(on bool, tokens []string) int {
 	if len(tokens) == 0 {
 		m.paused = on
 		for _, t := range m.tasks {
-			if on && t.M.State == "downloading" {
+			if on && (t.M.State == "downloading" || t.M.State == "queued") {
 				t.M.State = "paused"
 				if t.cancel != nil {
 					t.cancel()

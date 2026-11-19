@@ -16,7 +16,7 @@ import (
 	"github.com/OOPQ/reelkeep/internal/store"
 )
 
-func newTestManager(t *testing.T, reg *source.Registry, row model.Row) (*Manager, *store.Store, config.Paths) {
+func newTestManager(t *testing.T, reg *source.Registry, rows ...model.Row) (*Manager, *store.Store, config.Paths) {
 	t.Helper()
 	paths := config.ForRoot(t.TempDir())
 	if err := paths.Ensure(); err != nil {
@@ -26,8 +26,8 @@ func newTestManager(t *testing.T, reg *source.Registry, row model.Row) (*Manager
 	if err != nil {
 		t.Fatal(err)
 	}
-	if row.Token != "" {
-		if err := st.UpsertRows([]model.Row{row}); err != nil {
+	if len(rows) > 0 {
+		if err := st.UpsertRows(rows); err != nil {
 			t.Fatal(err)
 		}
 	}

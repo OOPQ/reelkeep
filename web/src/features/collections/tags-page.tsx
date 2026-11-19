@@ -36,7 +36,6 @@ import { Badge } from '@/components/ui/badge'
 import { Stars } from '@/components/stars'
 import { StatusBadge } from '@/components/status-badge'
 import { CoverImage } from '@/components/cover-image'
-import { PreviewDialog } from '@/features/library/preview-dialog'
 import { LibraryGallery } from '@/features/library/library-gallery'
 import type { RowMenuActions } from '@/features/library/row-context-menu'
 
@@ -80,9 +79,6 @@ export function TagsPage() {
   const setMulti = useUiStore(s => s.setMulti)
 
   const openPreview = useUiStore(s => s.openPreview)
-  const previewToken = useUiStore(s => s.previewToken)
-  const previewAutoplay = useUiStore(s => s.previewAutoplay)
-  const closePreview = useUiStore(s => s.closePreview)
 
   const collectionsQuery = useQuery<{ items: Collection[] }>({
     queryKey: ['tags'],
@@ -461,16 +457,6 @@ export function TagsPage() {
         </DialogContent>
       </Dialog>
 
-      <PreviewDialog
-        rows={rows}
-        token={previewToken}
-        downloadItem={previewToken ? downloadMap.get(previewToken) : undefined}
-        autoplay={previewAutoplay}
-        media={state?.media}
-        onClose={closePreview}
-        onNavigate={openPreview}
-        onFav={row => actions.fav([row.token], row.fav !== '1')}
-      />
     </div>
   )
 }

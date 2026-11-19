@@ -35,7 +35,6 @@ import { CoverImage } from '@/components/cover-image'
 import { StatusBadge } from '@/components/status-badge'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { TorrentJobDialog } from './torrent-job-dialog'
-import { PreviewDialog } from '@/features/library/preview-dialog'
 
 type Tab = 'active' | 'done' | 'failed' | 'cancelled'
 type DItem = { token: string; title?: string; state: string; bytes: number; total?: number; speed?: number; error?: string; history?: boolean; addedAt?: string; source?: string }
@@ -63,9 +62,6 @@ export function QueuePage() {
     userPicked.current = true
     setTab(tabParam as Tab)
   }, [tabParam])
-  const previewToken = useUiStore(s => s.previewToken)
-  const previewAutoplay = useUiStore(s => s.previewAutoplay)
-  const closePreview = useUiStore(s => s.closePreview)
 
   const download = data?.download
   const items: DItem[] = React.useMemo(() => download?.items || [], [download?.items])
@@ -317,17 +313,6 @@ export function QueuePage() {
       </div>
 
       <TorrentJobDialog jobId={jobId} onClose={() => setJobId(null)} />
-
-      <PreviewDialog
-        rows={data?.rows || []}
-        token={previewToken}
-        downloadItem={previewToken ? items.find(i => i.token === previewToken) : undefined}
-        autoplay={previewAutoplay}
-        media={data?.media}
-        onClose={closePreview}
-        onNavigate={openPreview}
-        onFav={row => actions.fav([row.token], row.fav !== '1')}
-      />
     </div>
   )
 }

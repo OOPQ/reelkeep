@@ -144,7 +144,7 @@ function Sidebar() {
             <button type="button" aria-label="亮色主题" title="亮色" onClick={() => setTheme('light')} className={cn('grid size-6 place-items-center rounded-md transition-colors', theme === 'light' ? 'bg-[color:var(--surface-3)] text-[color:var(--foreground)]' : 'text-[color:var(--subtle)] hover:text-[color:var(--foreground)]')}>
               <Sun className="size-3.5" />
             </button>
-            <button type="button" aria-label="暗色主题" title="暗色" onClick={() => setTheme('dark')} className={cn('grid size-6 place-items-center rounded-md transition-colors', theme === 'dark' ? 'bg-[color:var(--surface-3)] text-[color:var(--foreground)]' : 'text-[color:var(--subtle)] hover:text-[color:var(--foreground)]')}>
+            <button type="button" aria-label="暗色主题" title="暗色（近黑）" onClick={() => setTheme('dark')} className={cn('grid size-6 place-items-center rounded-md transition-colors', theme === 'dark' ? 'bg-[color:var(--surface-3)] text-[color:var(--foreground)]' : 'text-[color:var(--subtle)] hover:text-[color:var(--foreground)]')}>
               <Moon className="size-3.5" />
             </button>
           </div>

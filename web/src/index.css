@@ -3,22 +3,22 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  --background: #080c11;
-  --background-2: #0a1016;
-  --surface: #101820;
-  --surface-2: #0c131a;
-  --surface-3: #131d27;
-  --border: #22303d;
-  --border-strong: #314354;
-  --foreground: #e9f0f7;
-  --muted: #8d9bac;
-  --subtle: #5f6f80;
-  --primary: #5b9cff;
-  --primary-2: #7ab7ff;
-  --success: #3fb950;
-  --warning: #e3b341;
-  --danger: #ff7b72;
-  --ring: #5b9cff;
+  --background: #07080a;
+  --background-2: #0a0b0e;
+  --surface: #101216;
+  --surface-2: #0b0c10;
+  --surface-3: #171a20;
+  --border: #1e222a;
+  --border-strong: #2a2f3a;
+  --foreground: #f3f4f6;
+  --muted: #9aa0aa;
+  --subtle: #5f6672;
+  --primary: #99c8ff;
+  --primary-2: #7fb6f5;
+  --success: #4ade80;
+  --warning: #fbbf24;
+  --danger: #f87171;
+  --ring: #99c8ff;
   --radius: 9px;
   --radius-card: 14px;
   --radius-dialog: 18px;
@@ -27,25 +27,28 @@
   color-scheme: dark;
 }
 
+/* 亮色：参考 DSH 的中性白灰 */
 html.light {
-  --background: #eef3f8;
-  --background-2: #e8eef5;
+  --background: #f7f8fa;
+  --background-2: #ffffff;
   --surface: #ffffff;
-  --surface-2: #f7fafd;
-  --surface-3: #eef3f8;
-  --border: #d8e2ec;
-  --border-strong: #c2d1df;
-  --foreground: #18232f;
-  --muted: #5c6b7c;
-  --subtle: #64778a;
-  --primary: #2563eb;
-  --primary-2: #1d4ed8;
+  --surface-2: #f2f3f5;
+  --surface-3: #eceef1;
+  --border: #e3e5e8;
+  --border-strong: #d0d3d8;
+  --foreground: #0f1115;
+  --muted: #61666b;
+  --subtle: #81858c;
+  --primary: #2f6bff;
+  --primary-2: #1f4fd8;
   --success: #1a7f37;
   --warning: #9a6700;
   --danger: #cf222e;
-  --ring: #2563eb;
+  --ring: #2f6bff;
   color-scheme: light;
 }
+
+/* 第三套配色已并入暗色，此块不再使用 */
 
 @theme inline {
   --color-background: var(--background);

@@ -32,10 +32,10 @@ export function CoverImage({
   }, [token, full, coverRev])
 
   return (
-    <div className={cn('relative overflow-hidden bg-[#070b10]', className)}>
+    <div className={cn('relative overflow-hidden bg-[color:var(--surface-2)]', className)}>
       {!loaded && !failed ? <div className="ui-skeleton absolute inset-0" /> : null}
       {failed ? (
-        <div className="absolute inset-0 grid place-items-center bg-[linear-gradient(135deg,#142433,#0a1119_55%,#1b2d40)] text-[color:var(--subtle)]">
+        <div className="absolute inset-0 grid place-items-center bg-[linear-gradient(135deg,var(--surface-3),var(--surface-2)_55%,var(--surface))] text-[color:var(--subtle)]">
           <ImageOff className="size-5 opacity-60" />
         </div>
       ) : (

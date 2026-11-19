@@ -95,7 +95,7 @@ export function TitleBar() {
             title="关闭"
             aria-label="关闭"
             onClick={() => windowAction('close')}
-            className="grid w-11 place-items-center text-[color:var(--muted)] transition-colors hover:bg-[#d33b3b] hover:text-white"
+            className="grid w-11 place-items-center text-[color:var(--muted)] transition-colors hover:bg-[color:var(--danger)] hover:text-white"
           >
             <X className="size-4" />
           </button>

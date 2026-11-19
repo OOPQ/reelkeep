@@ -8,7 +8,7 @@ export const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: 'border-[color:var(--primary)] bg-[linear-gradient(180deg,#4f93ff,#2f6fe4)] text-white hover:brightness-110',
+        default: 'border-[color:var(--primary)] bg-[linear-gradient(180deg,var(--primary-2),var(--primary))] text-white hover:brightness-110',
         outline: 'border-[color:var(--border)] bg-[color:var(--surface-2)] text-[color:var(--foreground)] hover:border-[color:var(--border-strong)] hover:bg-[color:var(--surface-3)]',
         ghost: 'border-transparent bg-transparent text-[color:var(--muted)] hover:bg-[color:var(--surface-3)] hover:text-[color:var(--foreground)]',
         danger: 'border-[color:color-mix(in_srgb,var(--danger)_45%,var(--border))] bg-[color:color-mix(in_srgb,var(--danger)_10%,transparent)] text-[color:var(--danger)] hover:bg-[color:color-mix(in_srgb,var(--danger)_16%,transparent)]',

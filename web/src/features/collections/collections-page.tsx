@@ -374,11 +374,11 @@ export function CollectionsPage() {
                 'group overflow-hidden rounded-[14px] border border-[color:var(--border)] bg-[color:var(--surface)] text-left shadow-[0_6px_18px_rgba(0,0,0,.10)] transition-all hover:-translate-y-0.5 hover:border-[color:var(--border-strong)] hover:shadow-[0_12px_28px_rgba(0,0,0,.18)]',
               )}
             >
-              <div className="aspect-[16/9] overflow-hidden bg-[#070b10]">
+              <div className="aspect-[16/9] overflow-hidden bg-[color:var(--surface-2)]">
                 {col.coverToken ? (
                   <CoverImage token={col.coverToken} full alt={col.name} className="h-full w-full transition-transform duration-300 group-hover:scale-[1.03]" />
                 ) : (
-                  <div className="grid h-full w-full place-items-center bg-[linear-gradient(135deg,#142433,#0a1119_55%,#1b2d40)] text-[color:var(--subtle)]">
+                  <div className="grid h-full w-full place-items-center bg-[linear-gradient(135deg,var(--surface-3),var(--surface-2)_55%,var(--surface))] text-[color:var(--subtle)]">
                     <Layers className="size-7 opacity-60" />
                   </div>
                 )}

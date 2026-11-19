@@ -709,7 +709,7 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
           data-preview-stage
           title={canPlay ? '点击画面播放/暂停（空格也可）' : downloadable ? '点击画面下载' : ''}
           className={cn(
-            'group relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-[#05080c]',
+            'group relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-[color:var(--background)]',
             (canPlay || downloadable) && 'cursor-pointer',
             nav?.token === row?.token && (nav.dir === 'next' ? 'pv-enter-next' : 'pv-enter-prev'),
             deleting && 'pv-deleting',
@@ -827,7 +827,7 @@ onPlay={e => {
                     className="h-1 w-16 cursor-pointer accent-[color:var(--primary)]"
                   />
                   <select value={playbackRate} aria-label="播放倍速" onChange={e => setRate(Number(e.target.value))} className="h-6 rounded border border-white/20 bg-black/55 px-1 text-[9px] text-white outline-none">
-                    {[1, 1.25, 1.5, 2].map(rate => <option key={rate} value={rate} className="bg-[#111]">{rate}×</option>)}
+                    {[1, 1.25, 1.5, 2].map(rate => <option key={rate} value={rate} className="bg-[color:var(--surface)]">{rate}×</option>)}
                   </select>
                   <IconButton label={isFullscreen ? '退出全屏' : '全屏'} size="sm" onClick={toggleStageFullscreen}>
                     {isFullscreen ? <Minimize className="size-3.5" /> : <Maximize className="size-3.5" />}

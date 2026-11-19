@@ -14,7 +14,7 @@ export function Card({ className, ...props }: React.HTMLAttributes<HTMLDivElemen
 }
 
 export function CardMedia({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('relative overflow-hidden bg-[#070b10]', className)} {...props} />
+  return <div className={cn('relative overflow-hidden bg-[color:var(--surface-2)]', className)} {...props} />
 }
 
 export function CardBody({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {

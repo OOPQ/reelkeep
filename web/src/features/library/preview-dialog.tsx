@@ -32,7 +32,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogClose, DialogContent } from '@/components/ui/dialog'
 import { IconButton } from '@/components/ui/icon-button'
 import { RatingInput } from '@/components/rating-input'
-import { isDownloadBusy, DownloadProgress } from './download-status'
+import { isDownloadBusy, downloadErrorText, DownloadProgress } from './download-status'
 import { StatusBadge } from '@/components/status-badge'
 import { CoverImage } from '@/components/cover-image'
 
@@ -207,6 +207,7 @@ export function PreviewDialog({ rows, token, autoplay = false, media, onClose, o
   })
   const canPlay = Boolean(row?.file_name && media?.base && media?.key)
   const downloadBusy = Boolean(row && downloadItem && isDownloadBusy(row, downloadItem))
+  const downloadFailed = Boolean(row && downloadItem && !downloadBusy && (downloadItem.state === 'failed' || downloadItem.state === 'dead'))
   // 未下载但有下载地址时才给下载入口；下载中的状态交给按钮自己显示。
   const downloadable = Boolean(!row?.file_name && row?.url && !downloading && !downloadBusy)
   const recordedPlay = React.useRef<string | null>(null)
@@ -693,10 +694,23 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
               <Button size="sm" variant="outline" disabled title="下一批接入">
                 画中画
               </Button>
-              {!row.file_name && downloadItem && isDownloadBusy(row, downloadItem) ? (
-                <div className="w-28 rounded-md border border-white/15 bg-white/5 px-2 py-1">
-                  <DownloadProgress item={downloadItem} />
-                </div>
+              {!row.file_name && downloadItem ? (
+                downloadBusy ? (
+                  <div className="w-28 rounded-md border border-white/15 bg-white/5 px-2 py-1">
+                    <DownloadProgress item={downloadItem} />
+                  </div>
+                ) : downloadFailed ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => void download()}
+                    title={downloadItem.error || '下载失败'}
+                    className="max-w-[240px] border-[color:var(--danger)]/45 text-[color:var(--danger)]"
+                  >
+                    <Download className="size-3.5 shrink-0" />
+                    <span className="truncate">下载失败 · {downloadErrorText(downloadItem)}</span>
+                  </Button>
+                ) : null
               ) : null}
               <Button size="sm" variant="outline" onClick={() => void remove()} title="移入回收站">
                 <Trash2 className="size-3.5" /> 删除
@@ -766,7 +780,7 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
                   <Download className="size-14 text-white/95 drop-shadow-[0_2px_16px_rgba(0,0,0,0.65)] transition-transform duration-150 group-hover:scale-105 md:size-16" />
                 )}
                 <span className="text-[10.5px] font-medium tracking-wide text-white/85 drop-shadow-[0_1px_8px_rgba(0,0,0,0.8)]">
-                  {canPlay ? '播放' : downloadBusy ? '下载中' : '下载'}
+                  {canPlay ? '播放' : downloadBusy ? '下载中' : downloadFailed ? '重试下载' : '下载'}
                 </span>
               </div>
             </div>

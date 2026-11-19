@@ -182,8 +182,18 @@ export function SettingsPage() {
   const importFiles = () => action('import', () => post('/api/project/import', {}), '识别完成')
   const scan = () => action('scan', () => post('/api/scan', {}), '扫描完成')
   const repairCovers = async () => {
-    if (!(await confirmAction({ title: '修复缺失封面', description: '会尝试抓取详情页并补封面，最多处理 40 条；需要联网。', confirmText: '开始修复' }))) return
-    action('covers', () => post('/api/covers/repair', { limit: 40 }), '封面修复完成')
+    if (!(await confirmAction({ title: '修复缺失封面', description: '会分批抓取详情页并补封面（每次最多 100 条，直到没有进展）；需要联网，可能耗时几分钟。', confirmText: '开始修复' }))) return
+    action('covers', async () => {
+      let fixed = 0
+      // 单次后端最多 100 条，循环分批直到补完或没有进展。
+      for (let i = 0; i < 50; i++) {
+        const r = await post<{ ok: boolean; error?: string; fixed?: number; scanned?: number }>('/api/covers/repair', { limit: 100 })
+        if (!r.ok) throw new Error(r.error || '封面修复失败')
+        fixed += r.fixed || 0
+        if ((r.fixed || 0) === 0 || (r.scanned || 0) < 100) break
+      }
+      return { ok: true, fixed }
+    }, '封面修复完成')
   }
   const repairParts = async () => {
     if (!(await confirmAction({ title: '整理 .part', description: '把已完成但仍残留 .part 后缀的文件改名。', confirmText: '整理' }))) return
@@ -307,7 +317,7 @@ export function SettingsPage() {
       <Card className="p-4">
         <SectionTitle icon={Wrench} title="维护" sub="扫描、封面与下载残留" />
         <div className="mt-3 divide-y divide-[color:var(--border)]">
-          <ActionRow title="修复缺失封面" desc={`当前缺失 ${data?.stats?.coverMissing || 0} 条，最多处理 40 条`} onClick={repairCovers} busy={busy === 'covers'} icon={Image} />
+          <ActionRow title="修复缺失封面" desc={`当前缺失 ${data?.stats?.coverMissing || 0} 条，将分批全部修复`} onClick={repairCovers} busy={busy === 'covers'} icon={Image} />
           <ActionRow title="整理 .part" desc="把已完成但仍残留 .part 后缀的文件改名" onClick={repairParts} busy={busy === 'parts'} icon={RotateCcw} />
           <ActionRow title="清理封面缓存" desc="删除本地封面/缩略图缓存，不删除视频" onClick={clearCache} busy={busy === 'cache'} icon={Trash2} />
           <ActionRow title="解除下载占用" desc="结束残留进程，解除「已有任务在跑」" onClick={resetDownload} busy={busy === 'reset'} icon={AlertTriangle} danger />

@@ -138,7 +138,7 @@ export function ScrapeDialog({
                   className={!parseScrapeRange(limit) ? 'border-[color:var(--danger)]' : undefined}
                 />
                 <div className="mt-1 text-[9.5px] text-[color:var(--subtle)]">
-                  填 500 = 前 500 条；填 300,400 = 第 300 到 400 条。按数量自动翻页，单次最多到第 500 条。
+                  填 500 = 前 500 条；填 300,400 = 第 300 到 400 条。单次最多取 500 条，范围终点最多第 1000 条。
                 </div>
               </div>
               <div className="space-y-1.5 pt-1">

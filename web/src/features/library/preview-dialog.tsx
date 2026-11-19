@@ -228,8 +228,9 @@ export function PreviewDialog({ rows, token, autoplay = false, media, onClose, o
     staleTime: 3_000,
   })
   const canPlay = Boolean(row?.file_name && media?.base && media?.key)
+  const downloadBusy = Boolean(row && downloadItem && isDownloadBusy(row, downloadItem))
   // 未下载但有下载地址时才给下载入口；下载中的状态交给按钮自己显示。
-  const downloadable = Boolean(!row?.file_name && row?.url && !downloading && !(downloadItem && isDownloadBusy(row, downloadItem)))
+  const downloadable = Boolean(!row?.file_name && row?.url && !downloading && !downloadBusy)
   const recordedPlay = React.useRef<string | null>(null)
   React.useEffect(() => {
     if (!token) recordedPlay.current = null
@@ -771,17 +772,21 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
             <CoverImage token={row.token} full fit="contain" alt={rowTitle(row)} className={cn('grid h-full w-full place-items-center', videoReady ? 'opacity-0' : 'opacity-100')} imgClassName={cn('pointer-events-auto h-auto w-auto max-h-full max-w-full object-contain', canPlay || downloadable ? 'cursor-pointer' : 'cursor-default')} />
           </div>
 
-          {(!playing || !isPlaying) && (canPlay || downloadable) ? (
+          {(!playing || !isPlaying) && (canPlay || downloadable || downloadBusy) ? (
             <div className="pointer-events-none absolute inset-0 z-20 grid place-items-center opacity-0 group-hover:opacity-100">
               <div className="absolute inset-0 bg-black/20" />
               <div className="relative flex flex-col items-center gap-1.5">
                 {canPlay ? (
                   <Play className="size-14 fill-current text-white/95 drop-shadow-[0_2px_16px_rgba(0,0,0,0.65)] transition-transform duration-150 group-hover:scale-105 md:size-16" />
+                ) : downloadBusy ? (
+                  <div className="w-36 rounded-md border border-white/15 bg-black/55 px-2.5 py-1.5 backdrop-blur">
+                    <DownloadProgress item={downloadItem} />
+                  </div>
                 ) : (
                   <Download className="size-14 text-white/95 drop-shadow-[0_2px_16px_rgba(0,0,0,0.65)] transition-transform duration-150 group-hover:scale-105 md:size-16" />
                 )}
                 <span className="text-[10.5px] font-medium tracking-wide text-white/85 drop-shadow-[0_1px_8px_rgba(0,0,0,0.8)]">
-                  {canPlay ? '播放' : '下载'}
+                  {canPlay ? '播放' : downloadBusy ? '下载中' : '下载'}
                 </span>
               </div>
             </div>

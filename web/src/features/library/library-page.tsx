@@ -2,6 +2,7 @@ import * as React from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
+import { isDownloadBusy } from './download-status'
 import {
   Archive,
   CalendarClock,
@@ -407,7 +408,23 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
   }
 
   const bulkDownload = async () => {
-    await actions.download(selected)
+    const rows = (data?.rows || []).filter(r => selected.includes(r.token))
+    const eligible = rows.filter(r => {
+      if (r.file_name || r.status === 'done') return false
+      const dl = downloadMap.get(r.token)
+      if (dl && isDownloadBusy(r, dl)) return false
+      return Boolean(r.url)
+    })
+    const noUrl = rows.filter(r => !r.file_name && r.status !== 'done' && !r.url).length
+    if (!eligible.length) {
+      toast.info(`没有可下载的条目（已有文件或已在队列中${noUrl ? `，${noUrl} 条无播放地址` : ''}）`)
+      return
+    }
+    const skipped = rows.length - eligible.length
+    await actions.download(eligible.map(r => r.token))
+    if (skipped > 0) {
+      toast.info(`已跳过 ${skipped} 条（已有文件 / 已在队列 / 无播放地址）`)
+    }
   }
   const bulkRecycle = async () => {
     if (await confirmAction({ title: '移入回收站', description: `把已选 ${selected.length} 条移入回收站？可在回收站恢复。`, confirmText: '移入回收站', danger: true })) {
@@ -800,6 +817,7 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
             onFav={onFav}
             onRate={menu.rate}
             multi={multi}
+            downloads={downloadMap}
             menu={menu}
             sortKey={sortKey}
             sortDir={sortDir}

@@ -16,13 +16,15 @@ export function useLibraryActions() {
   const download = async (tokens: string[], limit = 0) => {
     unlockAudio()
     try {
-      const r = await post<{ ok: boolean; error?: string; started?: number }>('/api/download', {
+      const r = await post<{ ok: boolean; error?: string; started?: number; skipped?: number; errors?: string[] }>('/api/download', {
         tokens,
         limit,
         status: 'new',
       })
       if (!r.ok) throw new Error(r.error || '开始下载失败')
-      toast.success(`已加入下载队列${r.started ? ` · ${r.started} 条` : ''}`, {
+      const started = r.started || 0
+      const skipped = r.skipped || 0
+      toast.success(`已加入下载队列 · ${started} 条${skipped ? `，跳过 ${skipped} 条` : ''}`, {
         action: { label: '查看队列', onClick: () => navigate('/queue') },
       })
       invalidate()

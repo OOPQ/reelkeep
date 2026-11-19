@@ -9,8 +9,9 @@ import {
   Play,
   Star,
 } from 'lucide-react'
-import type { Row } from '@/types'
+import type { DownloadItem, Row } from '@/types'
 import { cn, formatCount, formatDate, rowTitle } from '@/lib/utils'
+import { downloadButtonLabel, isDownloadBusy } from './download-status'
 import { Checkbox } from '@/components/ui/checkbox'
 import { IconButton } from '@/components/ui/icon-button'
 import { RatingInput } from '@/components/rating-input'
@@ -32,6 +33,7 @@ type Props = {
   sortDir: SortDir
   onSort: (key: SortKey) => void
   multi: boolean
+  downloads: Map<string, DownloadItem>
   menu: RowMenuActions
 }
 
@@ -134,6 +136,7 @@ export function LibraryTable({
   sortDir,
   onSort,
   multi,
+  downloads,
   menu,
 }: Props) {
   const tableCols = useUiStore(s => s.tableCols)
@@ -182,6 +185,8 @@ export function LibraryTable({
 
   const renderRow = (row: Row) => {
     const isSelected = selected.includes(row.token)
+    const dl = downloads.get(row.token)
+    const busy = Boolean(dl && isDownloadBusy(row, dl))
     return (
       <RowContextMenu key={row.token} row={row} actions={menu}>
         <tr
@@ -271,9 +276,10 @@ export function LibraryTable({
                 <Copy className={cn('size-3.5', copied === row.token && 'text-[color:var(--success)]')} />
               </IconButton>
               <IconButton
-                label={row.file_name || row.status === 'done' ? '已下载' : '下载'}
+                label={downloadButtonLabel(row, dl)}
                 size="sm"
-                disabled={!!row.file_name || row.status === 'done'}
+                disabled={!!row.file_name || row.status === 'done' || busy}
+                title={dl?.error || downloadButtonLabel(row, dl)}
                 onClick={() => menu.download(row)}
               >
                 <Download className="size-3.5" />

@@ -107,7 +107,6 @@ export function PreviewDialog({ rows, token, autoplay = false, media, onClose, o
   const [hoverTime, setHoverTime] = React.useState<number | null>(null)
   const [hoverPct, setHoverPct] = React.useState(0)
   const stageRef = React.useRef<HTMLDivElement>(null)
-  const [mediaBox, setMediaBox] = React.useState<{ left: number; top: number; width: number; height: number } | null>(null)
   const longPressRate = useUiStore(s => s.longPressRate)
   const bumpCoverRev = useUiStore(s => s.bumpCoverRev)
   const setPreviewOrder = useUiStore(s => s.setPreviewOrder)
@@ -262,57 +261,6 @@ export function PreviewDialog({ rows, token, autoplay = false, media, onClose, o
     resumeApplied.current = false
     lastResumeSave.current = 0
   }, [token, autoplay, canPlay, row?.seconds])
-
-  // 媒体实际渲染区域（object-contain 后的内容框），用于只在画面范围内显示手型光标。
-  const updateMediaBox = React.useCallback(() => {
-    const stage = stageRef.current
-    if (!stage) return
-    const img = stage.querySelector('img') as HTMLImageElement | null
-    const el: HTMLElement | null = videoRef.current ?? img
-    if (!el) {
-      setMediaBox(null)
-      return
-    }
-    let iw = 0
-    let ih = 0
-    if (el instanceof HTMLVideoElement) {
-      iw = el.videoWidth
-      ih = el.videoHeight
-    } else if (el instanceof HTMLImageElement) {
-      iw = el.naturalWidth
-      ih = el.naturalHeight
-    }
-    if (!iw || !ih) {
-      setMediaBox(null)
-      return
-    }
-    const sr = stage.getBoundingClientRect()
-    const r = el.getBoundingClientRect()
-    if (!r.width || !r.height) {
-      setMediaBox(null)
-      return
-    }
-    const scale = Math.min(r.width / iw, r.height / ih)
-    const w = iw * scale
-    const h = ih * scale
-    const next = { left: r.left - sr.left + (r.width - w) / 2, top: r.top - sr.top + (r.height - h) / 2, width: w, height: h }
-    setMediaBox(prev => (prev && Math.abs(prev.left - next.left) < 0.5 && Math.abs(prev.top - next.top) < 0.5 && Math.abs(prev.width - next.width) < 0.5 && Math.abs(prev.height - next.height) < 0.5 ? prev : next))
-  }, [])
-
-  React.useEffect(() => {
-    updateMediaBox()
-    const stage = stageRef.current
-    const ro = stage ? new ResizeObserver(() => updateMediaBox()) : null
-    if (stage && ro) ro.observe(stage)
-    // 封面图片/视频元数据是异步就绪的，短时间内轮询修正内容框。
-    const iv = window.setInterval(updateMediaBox, 300)
-    const stop = window.setTimeout(() => window.clearInterval(iv), 5000)
-    return () => {
-      if (ro) ro.disconnect()
-      window.clearInterval(iv)
-      window.clearTimeout(stop)
-    }
-  }, [token, playing, videoReady, canPlay, downloadable, updateMediaBox])
 
   const prev = index > 0 ? rows[index - 1] : null
   const next = index >= 0 && index < rows.length - 1 ? rows[index + 1] : null
@@ -820,16 +768,8 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
           }}
         >
           <div className="pointer-events-none absolute inset-0 z-0">
-            <CoverImage token={row.token} full fit="contain" alt={rowTitle(row)} className={cn('h-full w-full', videoReady ? 'opacity-0' : 'opacity-100')} />
+            <CoverImage token={row.token} full fit="contain" alt={rowTitle(row)} className={cn('grid h-full w-full place-items-center', videoReady ? 'opacity-0' : 'opacity-100')} imgClassName={cn('pointer-events-auto h-auto w-auto max-h-full max-w-full object-contain', canPlay || downloadable ? 'cursor-pointer' : 'cursor-default')} />
           </div>
-
-          {/* 只在画面实际内容区域显示手型，留白处保持普通箭头；不用等鼠标移动。 */}
-          <div
-            data-media-hit
-            aria-hidden
-            className={cn('absolute z-[15]', (canPlay || downloadable) && 'cursor-pointer')}
-            style={mediaBox ?? { left: 0, top: 0, width: '100%', height: '100%' }}
-          />
 
           {(!playing || !isPlaying) && (canPlay || downloadable) ? (
             <div className="pointer-events-none absolute inset-0 z-20 grid place-items-center opacity-0 group-hover:opacity-100">
@@ -877,7 +817,10 @@ onPlay={e => {
               onVolumeChange={e => { setIsMuted(e.currentTarget.muted); setVolume(e.currentTarget.volume) }}
               onCanPlay={() => setVideoReady(true)}
               onError={() => { setVideoError(true); setPlaying(false); setIsPlaying(false); toast.error('视频加载失败：文件可能已被移动，或编码浏览器不支持') }}
-              className="absolute inset-0 z-10 h-full w-full object-contain outline-none"
+              className={cn(
+                'z-10 max-h-full max-w-full object-contain outline-none',
+                canPlay ? 'cursor-pointer' : 'cursor-default',
+              )}
             />
           ) : null}
 

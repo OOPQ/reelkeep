@@ -288,15 +288,14 @@ export function PreviewDialog({ rows, token, autoplay = false, media, onClose, o
       return
     }
     const sr = stage.getBoundingClientRect()
-    const r = el.getBoundingClientRect()
-    if (!r.width || !r.height) {
+    if (!sr.width || !sr.height) {
       setMediaBox(null)
       return
     }
-    const scale = Math.min(r.width / iw, r.height / ih)
+    const scale = Math.min(sr.width / iw, sr.height / ih)
     const w = iw * scale
     const h = ih * scale
-    const next = { left: r.left - sr.left + (r.width - w) / 2, top: r.top - sr.top + (r.height - h) / 2, width: w, height: h }
+    const next = { left: (sr.width - w) / 2, top: (sr.height - h) / 2, width: w, height: h }
     setMediaBox(prev => (prev && Math.abs(prev.left - next.left) < 0.5 && Math.abs(prev.top - next.top) < 0.5 && Math.abs(prev.width - next.width) < 0.5 && Math.abs(prev.height - next.height) < 0.5 ? prev : next))
   }, [])
 
@@ -822,21 +821,22 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
               setPlaying(true)
               return
             }
+            if (!videoReady) {
+              // 元数据还没就绪（视频元素尺寸为 0）时，第一次点击直接开始播放。
+              userPaused.current = false
+              expectPlaying.current = true
+              void videoRef.current.play().catch(() => {})
+              setIsPlaying(true)
+              return
+            }
             // 已在播放就暂停，暂停/未开始就恢复播放。
             togglePlay()
           }}
         >
           <div className="pointer-events-none absolute inset-0 z-0">
-            <CoverImage token={row.token} full fit="contain" alt={rowTitle(row)} className={cn('h-full w-full', videoReady ? 'opacity-0' : 'opacity-100')} />
+            <CoverImage token={row.token} full fit="contain" alt={rowTitle(row)} className={cn('grid h-full w-full place-items-center', videoReady ? 'opacity-0' : 'opacity-100')} imgClassName={cn('pointer-events-auto h-auto w-auto max-h-full max-w-full object-contain', canPlay || downloadable ? 'cursor-pointer' : 'cursor-default')} />
           </div>
 
-          {/* 命中层只覆盖实际画面区域：画面内手型，留白处普通箭头且不响应点击。 */}
-          <div
-            data-media-hit
-            aria-hidden
-            className={cn('absolute z-[15]', (canPlay || downloadable) && 'cursor-pointer')}
-            style={mediaBox ?? { left: 0, top: 0, width: '100%', height: '100%' }}
-          />
           {(!playing || !isPlaying) && (canPlay || downloadable || downloadBusy) ? (
             <div className="pointer-events-none absolute inset-0 z-20 grid place-items-center opacity-0 group-hover:opacity-100">
               <div className="absolute inset-0 bg-black/20" />
@@ -887,7 +887,8 @@ onPlay={e => {
               onVolumeChange={e => { setIsMuted(e.currentTarget.muted); setVolume(e.currentTarget.volume) }}
               onCanPlay={() => setVideoReady(true)}
               onError={() => { setVideoError(true); setPlaying(false); setIsPlaying(false); toast.error('视频加载失败：文件可能已被移动，或编码浏览器不支持') }}
-              className="absolute inset-0 z-10 h-full w-full object-contain outline-none"
+              style={mediaBox ? { width: mediaBox.width, height: mediaBox.height } : { width: 0, height: 0 }}
+              className={cn('z-10 object-contain outline-none', canPlay ? 'cursor-pointer' : 'cursor-default')}
             />
           ) : null}
 

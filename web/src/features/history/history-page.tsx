@@ -24,6 +24,7 @@ function coverOrFallback(row: Row) {
 
 function HistoryRow({ row, onPlay }: { row: Row; onPlay: () => void }) {
   const [broken, setBroken] = React.useState(false)
+  const coverRev = useUiStore(s => s.coverRev)
   return (
     <Card className="group flex items-center gap-3 p-2.5 transition-colors hover:border-[color:var(--border-strong)]">
       <button type="button" onClick={onPlay} className="relative h-[84px] w-[64px] shrink-0 overflow-hidden rounded-lg" aria-label="继续播放">
@@ -33,7 +34,7 @@ function HistoryRow({ row, onPlay }: { row: Row; onPlay: () => void }) {
           </div>
         ) : (
           <img
-            src={coverOrFallback(row)}
+            src={`${coverOrFallback(row)}&c=${coverRev}`}
             alt=""
             loading="lazy"
             onError={() => setBroken(true)}

@@ -35,6 +35,7 @@ function percent(n: number, max: number) {
 
 function Cover({ row, className }: { row: Row; className?: string }) {
   const [broken, setBroken] = React.useState(false)
+  const coverRev = useUiStore(s => s.coverRev)
   if (broken || !row.token) {
     return (
       <div className={cn('flex items-center justify-center bg-[color:var(--surface-2)] text-[color:var(--subtle)]', className)}>
@@ -44,7 +45,7 @@ function Cover({ row, className }: { row: Row; className?: string }) {
   }
   return (
     <img
-      src={coverUrl(row.token)}
+      src={`${coverUrl(row.token)}&c=${coverRev}`}
       alt=""
       loading="lazy"
       onError={() => setBroken(true)}

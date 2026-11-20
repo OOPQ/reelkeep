@@ -161,7 +161,8 @@ func (s *Server) handleCover(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(name, tk+"_") && inside(s.paths.Snapshots, p) {
 			if b, err := os.ReadFile(p); err == nil {
 				w.Header().Set("Content-Type", "image/jpeg")
-				w.Header().Set("Cache-Control", "no-store")
+				// 封面地址带 ?c=版本号，可放心让浏览器缓存，减少上一项/下一项的重复加载。
+				w.Header().Set("Cache-Control", "private, max-age=600")
 				_, _ = w.Write(b)
 				return
 			}
@@ -170,7 +171,7 @@ func (s *Server) handleCover(w http.ResponseWriter, r *http.Request) {
 	for _, p := range candidates {
 		if b, err := os.ReadFile(p); err == nil {
 			w.Header().Set("Content-Type", "image/jpeg")
-			w.Header().Set("Cache-Control", "no-store")
+			w.Header().Set("Cache-Control", "private, max-age=600")
 			_, _ = w.Write(b)
 			return
 		}
@@ -212,13 +213,13 @@ func (s *Server) handleCover(w http.ResponseWriter, r *http.Request) {
 	if !full {
 		if tb, terr := os.ReadFile(s.thumbPath(tk)); terr == nil {
 			w.Header().Set("Content-Type", "image/jpeg")
-			w.Header().Set("Cache-Control", "no-store")
+			w.Header().Set("Cache-Control", "private, max-age=600")
 			_, _ = w.Write(tb)
 			return
 		}
 	}
 	w.Header().Set("Content-Type", http.DetectContentType(b))
-	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Cache-Control", "private, max-age=600")
 	_, _ = w.Write(b)
 }
 

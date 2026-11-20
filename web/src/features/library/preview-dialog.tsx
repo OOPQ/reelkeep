@@ -21,7 +21,7 @@ import {
   X,
 } from 'lucide-react'
 import type { DownloadItem, MediaConfig, Row, Snapshot } from '@/types'
-import { cn, copyText, formatCount, formatDate, formatTime, mediaUrl, rowTitle, statusOf } from '@/lib/utils'
+import { cn, copyText, coverUrl, formatCount, formatDate, formatTime, mediaUrl, rowTitle, statusOf } from '@/lib/utils'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { post } from '@/lib/api'
@@ -88,9 +88,11 @@ export function PreviewDialog({ rows, token, autoplay = false, media, onClose, o
   const [hoverPct, setHoverPct] = React.useState(0)
   const stageRef = React.useRef<HTMLDivElement>(null)
   const longPressRate = useUiStore(s => s.longPressRate)
+  const coverRev = useUiStore(s => s.coverRev)
   const bumpCoverRev = useUiStore(s => s.bumpCoverRev)
   const setPreviewOrder = useUiStore(s => s.setPreviewOrder)
   const videoRef = React.useRef<HTMLVideoElement>(null)
+  const prefetchedCovers = React.useRef(new Set<string>())
   const qc = useQueryClient()
   const navigate = useNavigate()
 
@@ -249,6 +251,22 @@ export function PreviewDialog({ rows, token, autoplay = false, media, onClose, o
   const keepPlaying = () => playing || isPlaying || Boolean(videoRef.current && !videoRef.current.paused)
   const goPrev = () => { if (prev) { setNav({ dir: 'prev', token: prev.token }); saveResumeRef.current(); onNavigate(prev.token, keepPlaying()) } }
   const goNext = () => { if (next) { setNav({ dir: 'next', token: next.token }); saveResumeRef.current(); onNavigate(next.token, keepPlaying()) } }
+
+  // 预取前后各两项的封面：切换上一项/下一项时直接命中浏览器缓存，
+  // 不再先显示加载骨架。封面地址自带封面版本号，变更后会自动重新拉取。
+  React.useEffect(() => {
+    if (!row) return
+    if (prefetchedCovers.current.size > 400) prefetchedCovers.current.clear()
+    for (const r of [rows[index - 2], rows[index - 1], rows[index + 1], rows[index + 2]]) {
+      if (!r) continue
+      const src = `${coverUrl(r.token, true)}&c=${coverRev}`
+      if (prefetchedCovers.current.has(src)) continue
+      prefetchedCovers.current.add(src)
+      const img = new Image()
+      img.decoding = 'async'
+      img.src = src
+    }
+  }, [row, rows, index, coverRev])
 
   React.useEffect(() => {
     if (!row) return
@@ -800,7 +818,7 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
           }}
         >
           <div className="pointer-events-none absolute inset-0 z-0">
-            <CoverImage token={row.token} full fit="contain" alt={rowTitle(row)} className={cn('h-full w-full', videoReady ? 'opacity-0' : 'opacity-100')} />
+            <CoverImage token={row.token} full fit="contain" eager alt={rowTitle(row)} className={cn('h-full w-full', videoReady ? 'opacity-0' : 'opacity-100')} />
           </div>
 
           {controlsVisible && (!playing || !isPlaying) && (canPlay || downloadable || downloadBusy) ? (
@@ -828,7 +846,7 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
               ref={videoRef}
               key={row.token}
               src={videoSrc}
-              poster={`/api/cover?token=${encodeURIComponent(row.token)}&full=1`}
+              poster={`${coverUrl(row.token, true)}&c=${coverRev}`}
               autoPlay
               playsInline
               preload="auto"

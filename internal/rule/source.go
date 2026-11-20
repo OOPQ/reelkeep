@@ -126,7 +126,7 @@ func (s *RuleSource) Scrape(ctx context.Context, req source.ScrapeRequest, emit 
 			need bool
 		}
 		cands := make([]candidate, 0, len(rows))
-		pageSkipped := 0
+		pageStart := position
 		for _, r := range rows {
 			if total > 0 && position >= total {
 				break
@@ -135,19 +135,20 @@ func (s *RuleSource) Scrape(ctx context.Context, req source.ScrapeRequest, emit 
 			if seen[key] {
 				continue // 列表页里同一个条目可能出现多次（导航/推荐位）
 			}
-			need := s.pkg.Detail != nil && (s.pkg.Detail.Always || r.URL == "")
-			if need && req.KnownTokens != nil && req.KnownTokens[key] {
-				need = false // 增量：最近抓过的条目不再打详情
-			}
-			if !need && r.URL == "" {
-				continue
-			}
+			// 范围按列表位置计算：即使条目最近抓过、不需要详情，也要占一个位置；
+			// 否则增量模式下前面全是已知条目时，skip 永远减不完，目标条目会被一起跳过。
 			seen[key] = true
 			position++
 			if skip > 0 {
 				// 范围抓取：跳过前面的条目，不请求详情，节省时间。
 				skip--
-				pageSkipped++
+				continue
+			}
+			need := s.pkg.Detail != nil && (s.pkg.Detail.Always || r.URL == "")
+			if need && req.KnownTokens != nil && req.KnownTokens[key] {
+				need = false // 增量：最近抓过的条目不再打详情
+			}
+			if !need && r.URL == "" {
 				continue
 			}
 			cands = append(cands, candidate{row: r, need: need})
@@ -232,7 +233,6 @@ func (s *RuleSource) Scrape(ctx context.Context, req source.ScrapeRequest, emit 
 			return fmt.Errorf("抓取中断：详情页全部被反爬拦截（%d/%d），请稍后重试或更新源包: %w", challengeFails, needed, firstFatal)
 		}
 
-		pageNew := pageSkipped
 		for i := range cands {
 			if ctx.Err() != nil {
 				return ctx.Err()
@@ -253,7 +253,6 @@ func (s *RuleSource) Scrape(ctx context.Context, req source.ScrapeRequest, emit 
 				return err
 			}
 			emitted++
-			pageNew++
 			if req.Progress != nil {
 				req.Progress("details", emitted, 0)
 			}
@@ -262,8 +261,9 @@ func (s *RuleSource) Scrape(ctx context.Context, req source.ScrapeRequest, emit 
 			if total > 0 && position >= total {
 				return nil
 			}
-			// 站点忽略 page 参数或本页全是重复项时停止，避免无限翻页；同时留一个硬上限兜底。
-			if pageNew == 0 || page >= 2000 {
+			// 站点忽略 page 参数 / 本页没有新增任何列表位置时停止，避免死循环。
+			// 本页即使全是「最近抓过」的已知条目，只要位置在前进就继续翻页到够数。
+			if position == pageStart || page >= 2000 {
 				if emitted == 0 && firstErr != nil {
 					return firstErr
 				}

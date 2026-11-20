@@ -1,11 +1,12 @@
 import * as React from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { isDownloadBusy } from './download-status'
 import {
   Archive,
   CalendarClock,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
@@ -21,13 +22,14 @@ import {
   Library,
   ListChecks,
   Link2,
+  MoreHorizontal,
   Plus,
   RotateCcw,
   Search,
   SlidersHorizontal,
   Sparkles,
   Table2,
-  Tags,
+  X,
 } from 'lucide-react'
 import { useAppState } from '@/features/use-app-state'
 import { confirmAction } from '@/store/confirm'
@@ -100,6 +102,23 @@ const PER_OPTIONS = [
   { value: '0', label: '全部' },
 ]
 
+const STATUS_LABELS: Record<string, string> = Object.fromEntries(STATUS_OPTIONS.map(o => [o.value, o.label]))
+const RES_LABELS: Record<string, string> = Object.fromEntries(RES_OPTIONS.map(o => [o.value, o.label]))
+
+function FilterChip({ label, onClear }: { label: string; onClear: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClear}
+      className="inline-flex max-w-[220px] items-center gap-1 rounded-full border border-[color:var(--border)] bg-[color:var(--surface-2)] px-2 py-0.5 text-[10px] text-[color:var(--muted)] transition-colors hover:border-[color:var(--border-strong)] hover:text-[color:var(--foreground)]"
+      title={`清除筛选：${label}`}
+    >
+      <span className="truncate">{label}</span>
+      <X className="size-2.5 shrink-0" />
+    </button>
+  )
+}
+
 type SavedView = {
   name: string; query: string; status: string; source: string; flag: string; res: string; minDur: string; sortKey: SortKey; sortDir: SortDir; per: number
 }
@@ -108,7 +127,6 @@ export function LibraryPage() {
   const { data, isLoading, error, refetch, isFetching } = useAppState()
   const downloadMap = React.useMemo(() => new Map<string, DownloadItem>((data?.download?.items || []).map(item => [item.token, item])), [data?.download?.items])
   const actions = useLibraryActions()
-  const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const batchMode = searchParams.get('batch') === '1'
   const qc = useQueryClient()
@@ -159,9 +177,8 @@ const [sortDir, setSortDir] = React.useState<SortDir>((searchParams.get('sort')?
 const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
   const [page, setPage] = React.useState(1)
   const [filterOpen, setFilterOpen] = React.useState(false)
-  const [tagsOpen, setTagsOpen] = React.useState(false)
-  const [collectionsOpen, setCollectionsOpen] = React.useState(false)
-  const [colsOpen, setColsOpen] = React.useState(false)
+  const [displayOpen, setDisplayOpen] = React.useState(false)
+  const [moreOpen, setMoreOpen] = React.useState(false)
   const tableCols = useUiStore(s => s.tableCols)
   const setTableCol = useUiStore(s => s.setTableCol)
   const resetTableCols = useUiStore(s => s.resetTableCols)
@@ -205,6 +222,7 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
   const collectionName = collectionsQuery.data?.items.find(c => c.id === collectionId)?.name
   const allTags = tagsQuery.data?.items || []
   const selectedTagNames = allTags.filter(t => tagIds.includes(t.id)).map(t => t.name)
+  const selectedTags = allTags.filter(t => tagIds.includes(t.id))
   const serverMode = !collectionId && !batchMode && per > 0
   const baseRows = React.useMemo(() => collectionId ? (data?.rows || []).filter(r => collectionTokens.has(r.token)) : (data?.rows || []), [data?.rows, collectionId, collectionTokens])
   const filters: LibraryFilters = { q: deferredQuery, status, source, flag, res, minDur }
@@ -306,7 +324,7 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
     return opts
   }, [filterSources])
 
-  const filterCount = [res !== 'all', minDur !== ''].filter(Boolean).length
+  const filterCount = [flag !== 'none', res !== 'all', minDur !== '', tagIds.length > 0, !!collectionId].filter(Boolean).length
   const hasFilters = filterCount > 0 || query || status !== 'all' || source !== 'all' || flag !== 'none' || tagIds.length > 0 || !!collectionId
 
   const toggleTag = (id: number) => {
@@ -585,8 +603,8 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
         <StatCard icon={Clock3} label="总时长(h)" value={Number(stats?.hours || 0).toFixed(1)} sub={`今日 +${Number(stats?.todayHours || 0).toFixed(1)}h`} />
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative min-w-[220px] flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+        <div className="relative min-w-[180px] flex-1">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-[color:var(--subtle)]" />
           <Input
             value={query}
@@ -598,15 +616,18 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
         </div>
         <Select value={status} onValueChange={setStatus} options={STATUS_OPTIONS} className="w-[120px]" aria-label="状态" />
         <Select value={source} onValueChange={setSource} options={sourceOptions} className="w-[120px]" aria-label="来源" />
-        <Select value={flag} onValueChange={setFlag} options={FLAG_OPTIONS} className="w-[120px]" aria-label="标记" />
         <Popover open={filterOpen} onOpenChange={setFilterOpen}>
           <PopoverTrigger asChild>
             <Button size="sm" variant="outline" className={cn(filterCount > 0 && 'border-[color:var(--primary)] text-[color:var(--primary-2)]')}>
               <SlidersHorizontal className="size-3.5" /> 筛选{filterCount > 0 ? ` ${filterCount}` : ''}
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="w-[300px] p-3">
+          <PopoverContent className="max-h-[70vh] w-[340px] overflow-auto p-3">
             <div className="space-y-3">
+              <div>
+                <div className="ui-field-label mb-1.5">标记</div>
+                <Select value={flag} onValueChange={setFlag} options={FLAG_OPTIONS} className="w-full" aria-label="标记" />
+              </div>
               <div>
                 <div className="ui-field-label mb-1.5">分辨率</div>
                 <Select value={res} onValueChange={setRes} options={RES_OPTIONS} className="w-full" aria-label="分辨率" />
@@ -632,95 +653,103 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
                   aria-label="快捷排序"
                 />
               </div>
-              <Button size="sm" variant="ghost" className="w-full" onClick={() => { setRes('all'); setMinDur('') }}>
+              <div>
+                <div className="ui-field-label mb-1.5">合集</div>
+                <div className="max-h-[160px] space-y-0.5 overflow-auto">
+                  <button
+                    type="button"
+                    className="flex w-full items-center rounded-md px-2 py-1.5 text-left text-[11px] hover:bg-[color:var(--surface-2)]"
+                    onClick={() => setSearchParams(prev => { const n = new URLSearchParams(prev); n.delete('collection'); return n })}
+                  >
+                    全部合集
+                  </button>
+                  {(collectionsQuery.data?.items || []).map(c => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      className={cn('flex w-full items-center rounded-md px-2 py-1.5 text-left text-[11px] hover:bg-[color:var(--surface-2)]', collectionId === c.id && 'bg-[color:var(--surface-2)] text-[color:var(--primary-2)]')}
+                      onClick={() => setSearchParams(prev => { const n = new URLSearchParams(prev); n.set('collection', String(c.id)); return n })}
+                    >
+                      {c.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <div className="mb-1 flex items-center justify-between text-[10px] text-[color:var(--subtle)]">
+                  <span className="ui-field-label">标签（多选为交集）</span>
+                  {tagIds.length ? <button type="button" className="text-[color:var(--primary-2)]" onClick={() => setSearchParams(prev => { const n = new URLSearchParams(prev); n.delete('tags'); return n })}>清空</button> : null}
+                </div>
+                <div className="max-h-[180px] space-y-1 overflow-auto">
+                  {allTags.map(tag => (
+                    <label key={tag.id} className="flex cursor-pointer items-center gap-2 rounded-lg px-1.5 py-1 text-[11px] hover:bg-[color:var(--surface-2)]">
+                      <Checkbox checked={tagIds.includes(tag.id)} onCheckedChange={() => toggleTag(tag.id)} />
+                      <span className="size-2 rounded-full" style={{ background: tag.color || 'var(--primary)' }} />
+                      <span className="truncate">{tag.name}</span>
+                    </label>
+                  ))}
+                  {!allTags.length ? <div className="py-3 text-center text-[10px] text-[color:var(--subtle)]">还没有标签</div> : null}
+                </div>
+              </div>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="w-full"
+                onClick={() => {
+                  setFlag('none')
+                  setRes('all')
+                  setMinDur('')
+                  setSearchParams(prev => { const n = new URLSearchParams(prev); n.delete('tags'); n.delete('collection'); return n })
+                }}
+              >
                 <RotateCcw className="size-3.5" /> 重置筛选
               </Button>
             </div>
           </PopoverContent>
         </Popover>
-        <Popover open={collectionsOpen} onOpenChange={setCollectionsOpen}>
+        <Popover open={displayOpen} onOpenChange={setDisplayOpen}>
           <PopoverTrigger asChild>
-            <Button size="sm" variant="outline" className={cn(collectionId && 'border-[color:var(--primary)] text-[color:var(--primary-2)]')}>
-              <Layers className="size-3.5" /> 合集
-            </Button>
+            <Button size="sm" variant="outline"><Columns3 className="size-3.5" /> 显示</Button>
           </PopoverTrigger>
-          <PopoverContent className="w-[240px] p-2">
-            <button
-              type="button"
-              className="flex w-full items-center rounded-md px-2 py-1.5 text-left text-[11px] hover:bg-[color:var(--surface-2)]"
-              onClick={() => setSearchParams(prev => { const n = new URLSearchParams(prev); n.delete('collection'); return n })}
-            >
-              全部合集
-            </button>
-            {(collectionsQuery.data?.items || []).map(c => (
-              <button
-                key={c.id}
-                type="button"
-                className={cn('flex w-full items-center rounded-md px-2 py-1.5 text-left text-[11px] hover:bg-[color:var(--surface-2)]', collectionId === c.id && 'bg-[color:var(--surface-2)] text-[color:var(--primary-2)]')}
-                onClick={() => setSearchParams(prev => { const n = new URLSearchParams(prev); n.set('collection', String(c.id)); return n })}
-              >
-                {c.name}
-              </button>
-            ))}
-          </PopoverContent>
-        </Popover>
-        <Popover open={tagsOpen} onOpenChange={setTagsOpen}>
-          <PopoverTrigger asChild>
-            <Button size="sm" variant="outline" className={cn(tagIds.length > 0 && 'border-[color:var(--primary)] text-[color:var(--primary-2)]')}>
-              <Tags className="size-3.5" /> 标签{tagIds.length ? ` ${tagIds.length}` : ''}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-[260px] p-3">
-            <div className="mb-2 flex items-center justify-between text-[10px] text-[color:var(--subtle)]">
-              <span>多选为交集筛选</span>
-              {tagIds.length ? <button type="button" className="text-[color:var(--primary-2)]" onClick={() => setSearchParams(prev => { const n = new URLSearchParams(prev); n.delete('tags'); n.delete('collection'); return n })}>清空</button> : null}
-            </div>
-            <div className="max-h-[280px] space-y-1 overflow-auto">
-              {allTags.map(tag => (
-                <label key={tag.id} className="flex cursor-pointer items-center gap-2 rounded-lg px-1.5 py-1 text-[11px] hover:bg-[color:var(--surface-2)]">
-                  <Checkbox checked={tagIds.includes(tag.id)} onCheckedChange={() => toggleTag(tag.id)} />
-                  <span className="size-2 rounded-full" style={{ background: tag.color || 'var(--primary)' }} />
-                  <span className="truncate">{tag.name}</span>
-                </label>
-              ))}
-              {!allTags.length ? <div className="py-4 text-center text-[10px] text-[color:var(--subtle)]">还没有标签</div> : null}
+          <PopoverContent className="w-[240px] p-3">
+            <div className="space-y-2">
+              {view === 'table' ? (
+                <div className="space-y-1.5">
+                  <div className="ui-field-label">表格列</div>
+                  {(Object.keys(TABLE_COL_LABELS) as TableColKey[]).map(key => (
+                    <label key={key} className="flex cursor-pointer items-center justify-between gap-2 text-[11px]">
+                      <span>{TABLE_COL_LABELS[key]}</span>
+                      <Checkbox checked={tableCols[key]?.visible !== false} onCheckedChange={v => setTableCol(key, { visible: v === true })} />
+                    </label>
+                  ))}
+                  <Button size="sm" variant="ghost" className="w-full" onClick={resetTableCols}>
+                    <RotateCcw className="size-3.5" /> 恢复默认列
+                  </Button>
+                </div>
+              ) : null}
+              <div className="space-y-1 border-t border-[color:var(--border)] pt-2">
+                <Button size="sm" variant="ghost" className="w-full justify-start" onClick={saveView}>保存当前视图</Button>
+                {savedViews.length ? savedViews.map(v => (
+                  <Button key={v.name} size="sm" variant="ghost" className="w-full justify-start" onClick={() => { applyView(v.name); setDisplayOpen(false) }}>
+                    {v.name}
+                  </Button>
+                )) : <div className="px-1 py-1 text-[10px] text-[color:var(--subtle)]">还没有保存的视图</div>}
+              </div>
             </div>
           </PopoverContent>
         </Popover>
-        <Popover open={colsOpen} onOpenChange={setColsOpen}>
-          <PopoverTrigger asChild>
-            <Button size="sm" variant="outline">
-              <Columns3 className="size-3.5" /> 列
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-[220px] p-3">
-            <div className="space-y-1.5">
-              {(Object.keys(TABLE_COL_LABELS) as TableColKey[]).map(key => (
-                <label key={key} className="flex cursor-pointer items-center justify-between gap-2 text-[11px]">
-                  <span>{TABLE_COL_LABELS[key]}</span>
-                  <Checkbox
-                    checked={tableCols[key]?.visible !== false}
-                    onCheckedChange={v => setTableCol(key, { visible: v === true })}
-                  />
-                </label>
-              ))}
-              <Button size="sm" variant="ghost" className="mt-1 w-full" onClick={resetTableCols}>
-                <RotateCcw className="size-3.5" /> 恢复默认
-              </Button>
-            </div>
-          </PopoverContent>
-        </Popover>
-        <Button size="sm" variant="ghost" onClick={reset} disabled={!hasFilters}>
-          <RotateCcw className="size-3.5" /> 重置
+        <Button
+          size="sm"
+          variant={multi ? 'outline' : 'ghost'}
+          onClick={() => setMulti(!multi)}
+          aria-pressed={multi}
+          aria-label="多选模式"
+          title="多选模式"
+          className={cn(multi && 'text-[color:var(--primary-2)]')}
+        >
+          <ListChecks className="size-3.5" />
         </Button>
-        <Button size="sm" variant="ghost" onClick={saveView}>保存视图</Button>
-        {savedViews.length ? (
-          <select value="" onChange={e => applyView(e.target.value)} className="h-7 rounded-lg border border-[color:var(--border)] bg-[color:var(--surface-2)] px-2 text-[10px] text-[color:var(--muted)] outline-none">
-            <option value="">选择视图</option>
-            {savedViews.map(v => <option key={v.name} value={v.name}>{v.name}</option>)}
-          </select>
-        ) : null}
-        <div className="ml-auto flex items-center gap-1 rounded-[9px] border border-[color:var(--border)] bg-[color:var(--surface-2)] p-0.5">
+        <div className="flex items-center gap-1 rounded-[9px] border border-[color:var(--border)] bg-[color:var(--surface-2)] p-0.5">
           <Button size="sm" variant={view === 'table' ? 'outline' : 'ghost'} className="h-7 px-2" onClick={() => setView('table')} aria-pressed={view === 'table'}>
             <Table2 className="size-3.5" /> 表格
           </Button>
@@ -728,42 +757,87 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
             <LayoutGrid className="size-3.5" /> 画廊
           </Button>
         </div>
+        <div className="flex items-center">
+          <Button size="sm" variant="default" className="rounded-r-none" onClick={() => setScrapeOpen(true)}>
+            <Plus className="size-3.5" /> 获取数据
+          </Button>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button size="sm" variant="default" className="rounded-l-none border-l border-[color:color-mix(in_srgb,var(--primary)_55%,transparent)] px-1.5" aria-label="更多抓取方式">
+                <ChevronDown className="size-3.5" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[180px] p-1.5" align="end">
+              <button
+                type="button"
+                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[11px] hover:bg-[color:var(--surface-2)]"
+                onClick={() => setLinkOpen(true)}
+              >
+                <Link2 className="size-3.5" /> 链接抓取
+              </button>
+            </PopoverContent>
+          </Popover>
+        </div>
+        <Popover open={moreOpen} onOpenChange={setMoreOpen}>
+          <PopoverTrigger asChild>
+            <Button size="sm" variant="outline" aria-label="更多操作">
+              <MoreHorizontal className="size-3.5" /> 更多
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-[200px] p-1.5" align="end">
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[11px] hover:bg-[color:var(--surface-2)]"
+              onClick={() => { setMoreOpen(false); void gacha() }}
+              title="随机播放一部本地视频（快捷键 R）"
+            >
+              <Sparkles className="size-3.5" /> 抽一卡
+              <span className="ml-auto text-[9px] text-[color:var(--subtle)]">R</span>
+            </button>
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[11px] hover:bg-[color:var(--surface-2)]"
+              onClick={() => { setMoreOpen(false); setStatus('all'); setFlag('towatch') }}
+            >
+              <CalendarClock className="size-3.5" /> 待看
+            </button>
+            {addedTokens.length && !batchMode ? (
+              <button
+                type="button"
+                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[11px] hover:bg-[color:var(--surface-2)]"
+                onClick={() => { setMoreOpen(false); enterBatch() }}
+              >
+                <Layers className="size-3.5" /> 本批新增 {addedTokens.length}
+              </button>
+            ) : null}
+          </PopoverContent>
+        </Popover>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <Button size="sm" variant="default" onClick={() => setScrapeOpen(true)}>
-          <Plus className="size-3.5" /> 获取数据
-        </Button>
-        <Button size="sm" variant="outline" onClick={() => setLinkOpen(true)}>
-          <Link2 className="size-3.5" /> 链接抓取
-        </Button>
-        <Button size="sm" variant="outline" onClick={() => navigate('/queue')}>
-          <Download className="size-3.5" /> 下载队列
-        </Button>
-        <Button size="sm" variant="ghost" onClick={() => navigate('/tags')}>
-          <Tags className="size-3.5" /> 标签
-        </Button>
-        <Button size="sm" variant={multi ? 'outline' : 'ghost'} onClick={() => setMulti(!multi)}>
-          <ListChecks className="size-3.5" /> 多选
-        </Button>
-        <Button size="sm" variant="ghost" onClick={() => void gacha()} title="随机播放一部本地视频（快捷键 R）">
-          <Sparkles className="size-3.5" /> 抽一卡
-        </Button>
-        <Button size="sm" variant="ghost" onClick={() => { setStatus('all'); setFlag('towatch') }}>
-          <CalendarClock className="size-3.5" /> 待看
-        </Button>
-        {batchMode ? (
-          <Button size="sm" variant="outline" onClick={exitBatch}>退出本批</Button>
-        ) : addedTokens.length ? (
-          <Button size="sm" variant="ghost" onClick={enterBatch}>本批新增 {addedTokens.length}</Button>
-        ) : null}
-        {multi && selected.length > 0 ? (
-          <div className="ml-auto flex items-center gap-2 text-[10px] text-[color:var(--muted)]">
-            <span>已选 {selected.length}</span>
-            <Button size="sm" variant="ghost" className="h-7" onClick={clearSelected}>清空</Button>
-          </div>
-        ) : null}
-      </div>
+      {(query || status !== 'all' || source !== 'all' || flag !== 'none' || res !== 'all' || minDur !== '' || tagIds.length > 0 || collectionId) ? (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {query ? <FilterChip label={`搜索「${query}」`} onClear={() => setQuery('')} /> : null}
+          {status !== 'all' ? <FilterChip label={STATUS_LABELS[status] || status} onClear={() => setStatus('all')} /> : null}
+          {source !== 'all' ? <FilterChip label={sourceLabel} onClear={() => setSource('all')} /> : null}
+          {flag !== 'none' ? <FilterChip label={flagLabel} onClear={() => setFlag('none')} /> : null}
+          {res !== 'all' ? <FilterChip label={RES_LABELS[res] || res} onClear={() => setRes('all')} /> : null}
+          {minDur !== '' ? <FilterChip label={`≥${minDur} 分钟`} onClear={() => setMinDur('')} /> : null}
+          {collectionId && collectionName ? <FilterChip label={`合集「${collectionName}」`} onClear={() => setSearchParams(prev => { const n = new URLSearchParams(prev); n.delete('collection'); return n })} /> : null}
+          {selectedTags.map(t => (
+            <FilterChip
+              key={t.id}
+              label={`标签「${t.name}」`}
+              onClear={() => setSearchParams(prev => {
+                const n = new URLSearchParams(prev)
+                const cur = (n.get('tags') || '').split(',').filter(Boolean).map(Number).filter(id => id !== t.id)
+                if (cur.length) n.set('tags', cur.join(',')); else n.delete('tags')
+                return n
+              })}
+            />
+          ))}
+          <button type="button" className="ml-1 text-[10px] text-[color:var(--primary-2)] hover:underline" onClick={reset}>重置全部</button>
+        </div>
+      ) : null}
 
       {job?.running ? (
         <div className="flex items-center gap-3 rounded-[10px] border border-[color:color-mix(in_srgb,var(--primary)_35%,var(--border))] bg-[color:color-mix(in_srgb,var(--primary)_6%,var(--surface))] px-3 py-2">

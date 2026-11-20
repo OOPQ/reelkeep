@@ -79,7 +79,7 @@ function Brand({
             type="button"
             onClick={onSwitch}
             title={'切换项目：' + projectName}
-            className="mt-0.5 flex max-w-full items-center gap-1 text-left text-[10px] tracking-[.5px] text-[color:var(--subtle)] transition-colors hover:text-[color:var(--foreground)]"
+            className="brand-project mt-0.5 flex max-w-full items-center gap-1 text-left text-[10px] tracking-[.5px] text-[color:var(--subtle)] transition-colors hover:text-[color:var(--foreground)]"
           >
             <FolderOpen className="size-2.5 shrink-0" />
             <span className="truncate">{projectName}</span>

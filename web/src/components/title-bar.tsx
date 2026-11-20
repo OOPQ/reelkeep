@@ -23,6 +23,7 @@ export function TitleBar() {
         if (!alive) return
         setDesktop(!!d.desktop)
         setMaximized(!!d.maximized)
+        document.documentElement.classList.toggle('desktop-shell', !!d.desktop)
       })
       .catch(() => {})
     return () => {
@@ -54,9 +55,6 @@ export function TitleBar() {
         className="app-drag flex h-[38px] shrink-0 select-none items-center gap-2 border-b border-[color:var(--border)] bg-[color:var(--surface)] pl-3"
         onDoubleClick={() => windowAction('maximize')}
       >
-        <img src="/api/logo" alt="" className="size-5 shrink-0 rounded-[6px] object-cover" />
-        <span className="shrink-0 text-[11.5px] font-semibold tracking-[.3px]">Reelkeep</span>
-
         <button
           type="button"
           onClick={() => setOpen(true)}

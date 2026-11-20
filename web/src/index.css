@@ -88,14 +88,16 @@ html.light {
     -moz-osx-font-smoothing: grayscale;
     text-autospace: normal;
   }
-  button, input, select, textarea { font: inherit; }
-  button { color: inherit; }
+  button, input, select, textarea { font: inherit; }  button { color: inherit; }
   ::selection { background: color-mix(in srgb, var(--primary) 30%, transparent); }
   :focus-visible { outline: 2px solid color-mix(in srgb, var(--ring) 70%, transparent); outline-offset: 2px; }
   ::-webkit-scrollbar { width: 10px; height: 10px; }
   ::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--border-strong) 80%, transparent); border-radius: 10px; border: 3px solid var(--background); }
   html.light ::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--border-strong) 70%, transparent); border-color: var(--background); }
 }
+
+/* 桌面端标题栏已有项目切换，侧栏不再重复显示项目名 */
+html.desktop-shell .brand-project { display: none; }
 
 @layer utilities {
   .ui-mono { font-family: var(--font-mono); }

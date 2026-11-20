@@ -268,21 +268,28 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
   }, serverMode)
   const listPreviewRef = React.useRef(false)
   const setPreviewOrder = useUiStore(s => s.setPreviewOrder)
+  // 预览的翻页范围要覆盖「整个筛选结果」，而不是当前页：
+  // - 服务端分页（媒体库）：用 token 接口返回的全量顺序；
+  // - 本批新增 / 合集 / 全部：用内存里完整的 sorted，而不是 displayRows 那一页。
+  const viewOrder = React.useMemo(() => {
+    if (!serverMode) return sorted.map(r => r.token)
+    const tokens = rowTokensQuery.data?.tokens
+    return tokens && tokens.length ? tokens : displayRows.map(r => r.token)
+  }, [serverMode, sorted, rowTokensQuery.data, displayRows])
   const openPreviewList = React.useCallback((token: string, autoplay = false) => {
     listPreviewRef.current = true
-    const full = rowTokensQuery.data?.tokens
-    const order = full && full.length ? [...full] : displayRows.map(r => r.token)
-    // 兜底：点进来的条目一定在翻页顺序里，避免缓存里缺了它导致预览不弹。
+    const order = [...viewOrder]
+    // 兜底：点进来的条目一定在翻页顺序里，避免 token 列表还没刷新到最新时预览不弹。
     if (!order.includes(token)) order.unshift(token)
     openPreview(token, autoplay, order)
-  }, [openPreview, displayRows, rowTokensQuery.data])
+  }, [openPreview, viewOrder])
 
-  // token 列表晚到时补上，预览里的上一项/下一项立刻变成全量范围。
+  // token 列表 / 本批列表晚到时同步，但绝不能把当前打开的条目挤出顺序，
+  // 否则浮窗会因为找不到当前条目而「第一次点击没反应」。
   React.useEffect(() => {
-    if (!listPreviewRef.current || !previewToken) return
-    const full = rowTokensQuery.data?.tokens
-    if (full && full.length) setPreviewOrder(full)
-  }, [rowTokensQuery.data, previewToken, setPreviewOrder])
+    if (!listPreviewRef.current || !previewToken || !viewOrder.length) return
+    setPreviewOrder(viewOrder.includes(previewToken) ? [...viewOrder] : [previewToken, ...viewOrder])
+  }, [viewOrder, previewToken, setPreviewOrder])
 
   React.useEffect(() => { setPage(1) }, [deferredQuery, status, source, flag, res, minDur, per, sortKey, sortDir, tagIds, collectionId, batchMode])
   React.useEffect(() => { if (page > displayPages) setPage(displayPages) }, [page, displayPages])

@@ -59,6 +59,7 @@ export function useRowTokens(params: Omit<LibraryRowQuery, 'offset' | 'limit'>, 
       return res.json()
     },
     enabled,
-    staleTime: 30_000,
+    // 新条目入库后 token 顺序要尽快跟上，否则浮窗的上一项/下一项会停在旧范围。
+    staleTime: 5_000,
   })
 }

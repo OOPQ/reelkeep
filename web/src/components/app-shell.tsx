@@ -21,6 +21,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query'
 import { useAppState } from '@/features/use-app-state'
 import { useUiStore } from '@/store/ui'
+import type { Row } from '@/types'
 import { useLibraryActions } from '@/features/library/use-library-actions'
 import { PreviewDialog } from '@/features/library/preview-dialog'
 import { playDownloadChime } from '@/lib/sound'
@@ -246,6 +247,7 @@ export function AppShell() {
   const theme = useUiStore(s => s.theme)
   const setTheme = useUiStore(s => s.setTheme)
   const { data } = useAppState()
+  const qc = useQueryClient()
   const navigate = useNavigate()
   const actions = useLibraryActions()
   const previewToken = useUiStore(s => s.previewToken)
@@ -253,12 +255,19 @@ export function AppShell() {
   const previewOrder = useUiStore(s => s.previewOrder)
   const navigatePreview = useUiStore(s => s.navigatePreview)
   const closePreview = useUiStore(s => s.closePreview)
-  const previewRows = React.useMemo(() => {
+  const previewRows = React.useMemo<Row[]>(() => {
     const all = (data?.rows || []).filter(r => r.status !== 'recycled')
     if (!previewOrder.length) return all
     const map = new Map(all.map(r => [r.token, r]))
-    return previewOrder.map(t => map.get(t)).filter((r): r is NonNullable<typeof r> => Boolean(r))
-  }, [data?.rows, previewOrder])
+    const rows = previewOrder.map(t => map.get(t)).filter((r): r is Row => Boolean(r))
+    // 当前条目无论如何都要在顺序里：token 列表可能比行数据晚一步刷新，
+    // 缺了它 PreviewDialog 会直接返回 null，表现为「第一次点击打不开浮窗」。
+    if (previewToken && !rows.some(r => r.token === previewToken)) {
+      const current = map.get(previewToken)
+      if (current) rows.unshift(current)
+    }
+    return rows
+  }, [data?.rows, previewOrder, previewToken])
   const previewDownload = previewToken
     ? (data?.download?.items || []).find(i => i.token === previewToken)
     : undefined
@@ -353,12 +362,16 @@ export function AppShell() {
     if (addedTokens.length) {
       try { sessionStorage.setItem('pektino.batchTokens', JSON.stringify(addedTokens)); sessionStorage.setItem('pektino.batchAt', p.at || '') } catch { }
     }
+    // 列表和「翻页 token」一起刷新：新条目会先出现在列表里，
+    // 若 token 列表还停在抓取前，浮窗的总数、上一项/下一项都会对不上。
+    void qc.invalidateQueries({ queryKey: ['library-rows'] })
+    void qc.invalidateQueries({ queryKey: ['library-row-tokens'] })
     toast.success(`${title}：新增 ${p.added || 0}，更新 ${p.updated || 0}`, {
       description: p.count ? `本轮共处理 ${p.count} 条` : undefined,
       duration: 7000,
       action: addedTokens.length ? { label: '查看新增', onClick: () => navigate('/?batch=1') } : undefined,
     })
-  }, [data?.job, data?.job?.running, data?.job?.progress?.phase, data?.job?.progress?.at])
+  }, [data?.job, data?.job?.running, data?.job?.progress?.phase, data?.job?.progress?.at, qc, navigate])
 
   return (
     <div className="flex h-screen flex-col overflow-hidden">

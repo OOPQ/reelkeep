@@ -162,10 +162,11 @@ func Start(ctx context.Context, opt Options) (*Instance, error) {
 	dl.SetSettings(download.Settings{
 		Concurrent: settings.Concurrent, FFmpeg: settings.FFmpegPath, Proxy: settings.Proxy,
 		RetryCount: settings.RetryCount, RetryDelay: time.Duration(settings.RetryDelay) * time.Second,
-		TorrentLimitKB: settings.TorrentLimitKB,
-		HTTPLimitKB:    settings.HTTPLimitKB,
-		TorrentBackend: settings.TorrentBackend,
-		QbtURL:         settings.QbtURL, QbtUser: settings.QbtUser, QbtPass: settings.QbtPass,
+		TorrentLimitKB:  settings.TorrentLimitKB,
+		HTTPLimitKB:     settings.HTTPLimitKB,
+		HTTPConnections: settings.HTTPConnections,
+		TorrentBackend:  settings.TorrentBackend,
+		QbtURL:          settings.QbtURL, QbtUser: settings.QbtUser, QbtPass: settings.QbtPass,
 	})
 
 	srv := api.New(paths, st, reg, mgr, dl, settings, assets)
@@ -326,6 +327,11 @@ func listen(port int) (net.Listener, int, error) {
 			return ln, p, nil
 		}
 		fmt.Printf("端口 %d 不可用，尝试下一个…\n", p)
+	}
+	// Windows 上 Hyper-V/WSL/Docker 可能整段保留端口；兜底让系统分配一个空闲端口，
+	// 后续启动会通过项目锁文件里的 instance.port 找到这个实例。
+	if ln, err := net.Listen("tcp", "127.0.0.1:0"); err == nil {
+		return ln, ln.Addr().(*net.TCPAddr).Port, nil
 	}
 	return nil, 0, fmt.Errorf("%d-%d 全部端口被占用", port, port+19)
 }

@@ -7,16 +7,20 @@ import {
   Download,
   Eye,
   ExternalLink,
+  FileDown,
   FolderOpen,
+  Hash,
   Heart,
+  Link2,
   ListPlus,
   Play,
   Star,
   Trash2,
+  Type,
   X,
 } from 'lucide-react'
 import type { Row } from '@/types'
-import { cn } from '@/lib/utils'
+import { cn, type CopyKind } from '@/lib/utils'
 
 export type RowMenuActions = {
   open: (token: string, autoplay?: boolean) => void
@@ -27,7 +31,7 @@ export type RowMenuActions = {
   watched: (row: Row) => void
   rate: (row: Row, value: number) => void
   recycle: (row: Row) => void
-  copy: (row: Row) => void
+  copy: (row: Row, kind?: CopyKind) => void
   reveal: (row: Row) => void
   markDone: (row: Row) => void
   removeFromCollection?: (row: Row) => void
@@ -105,9 +109,29 @@ export function RowContextMenu({
           <ContextMenuPrimitive.Item className={itemClass} onSelect={() => actions.watched(row)}>
             <Eye className="size-3.5" /> {row.last_play ? '取消已看' : '标记已看'}
           </ContextMenuPrimitive.Item>
-          <ContextMenuPrimitive.Item className={itemClass} onSelect={() => actions.copy(row)}>
-            <Copy className="size-3.5" /> 复制链接
-          </ContextMenuPrimitive.Item>
+          <ContextMenuPrimitive.Sub>
+            <ContextMenuPrimitive.SubTrigger className={itemClass}>
+              <Copy className="size-3.5" /> 复制
+              <ChevronRight className="ml-auto size-3.5" />
+            </ContextMenuPrimitive.SubTrigger>
+            <ContextMenuPrimitive.Portal>
+              <ContextMenuPrimitive.SubContent className="ui-popover min-w-[160px] p-1" style={{ zIndex: 46 }}>
+                <ContextMenuPrimitive.Item className={itemClass} onSelect={() => actions.copy(row, 'download')}>
+                  <FileDown className="size-3.5" /> 复制文件下载链接
+                </ContextMenuPrimitive.Item>
+                <ContextMenuPrimitive.Item className={itemClass} onSelect={() => actions.copy(row, 'page')}>
+                  <Link2 className="size-3.5" /> 复制页面链接
+                </ContextMenuPrimitive.Item>
+                <ContextMenuPrimitive.Separator className="my-1 h-px bg-[color:var(--border)]" />
+                <ContextMenuPrimitive.Item className={itemClass} onSelect={() => actions.copy(row, 'title')}>
+                  <Type className="size-3.5" /> 复制标题
+                </ContextMenuPrimitive.Item>
+                <ContextMenuPrimitive.Item className={itemClass} onSelect={() => actions.copy(row, 'token')}>
+                  <Hash className="size-3.5" /> 复制 Token
+                </ContextMenuPrimitive.Item>
+              </ContextMenuPrimitive.SubContent>
+            </ContextMenuPrimitive.Portal>
+          </ContextMenuPrimitive.Sub>
           <ContextMenuPrimitive.Item
             className={itemClass}
             disabled={!row.file_name}

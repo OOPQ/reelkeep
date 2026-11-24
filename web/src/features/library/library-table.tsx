@@ -187,17 +187,33 @@ export function LibraryTable({
     const isSelected = selected.includes(row.token)
     const dl = downloads.get(row.token)
     const busy = Boolean(dl && isDownloadBusy(row, dl))
+    // 多选模式下点击整行勾选；封面/标题按钮也跟随行行为，操作列和评分列保持原交互。
+    const activate = (e: React.MouseEvent) => {
+      if (multi) {
+        e.stopPropagation()
+        onToggle(row.token)
+        return
+      }
+      onOpen(row.token, true)
+    }
     return (
       <RowContextMenu key={row.token} row={row} actions={menu}>
         <tr
           className={cn(
             'group border-b border-[color:color-mix(in_srgb,var(--border)_65%,transparent)] transition-colors last:border-0 hover:bg-[color:color-mix(in_srgb,var(--primary)_4%,transparent)]',
             isSelected && 'bg-[color:color-mix(in_srgb,var(--primary)_6%,transparent)]',
+            multi && 'cursor-pointer',
           )}
           style={virtual ? { height: rowHeight } : undefined}
+          onClick={e => {
+            if (!multi) return
+            const target = e.target as HTMLElement
+            if (target.closest('[data-row-action]')) return
+            onToggle(row.token)
+          }}
         >
           {multi ? (
-            <td className="px-2 py-2.5 text-center align-middle">
+            <td className="px-2 py-2.5 text-center align-middle" data-row-action>
               <div className="flex items-center justify-center">
                 <Checkbox aria-label={`选择 ${rowTitle(row)}`} checked={isSelected} onCheckedChange={() => onToggle(row.token)} />
               </div>
@@ -205,14 +221,14 @@ export function LibraryTable({
           ) : null}
           {visible.includes('cover') ? (
             <td className="px-2 py-2.5">
-              <button type="button" onClick={() => onOpen(row.token, true)} className="block" aria-label="打开预览">
+              <button type="button" onClick={activate} className="block" aria-label="打开预览">
                 <CoverImage token={row.token} full alt={rowTitle(row)} className="h-[86px] w-[64px] rounded-[7px]" />
               </button>
             </td>
           ) : null}
           {visible.includes('title') ? (
             <td className="max-w-0 px-2 py-2.5">
-              <button type="button" onClick={() => onOpen(row.token, true)} className="block max-w-full text-left">
+              <button type="button" onClick={activate} className="block max-w-full text-left">
                 <div className="truncate text-[11.5px] font-medium text-[color:var(--foreground)] hover:text-[color:var(--primary-2)]">
                   {row.title?.trim() || row.token}
                 </div>
@@ -256,10 +272,10 @@ export function LibraryTable({
           {visible.includes('res') ? <td className="px-2 py-2.5 text-[10px] text-[color:var(--muted)]">{row.res || '—'}</td> : null}
           {visible.includes('views') ? <td className="px-2 py-2.5 text-[10px] text-[color:var(--muted)]">{formatCount(row.views)}</td> : null}
           {visible.includes('likes') ? <td className="px-2 py-2.5 text-[10px] text-[color:var(--muted)]">{formatCount(row.likes)}</td> : null}
-          {visible.includes('rating') ? <td className="overflow-hidden px-2 py-2.5"><RatingInput compact value={row.rating} onChange={value => onRate(row, value)} /></td> : null}
+          {visible.includes('rating') ? <td className="overflow-hidden px-2 py-2.5" data-row-action><RatingInput compact value={row.rating} onChange={value => onRate(row, value)} /></td> : null}
           {visible.includes('first_seen') ? <td className="whitespace-nowrap px-2 py-2.5 text-[10px] text-[color:var(--muted)]">{formatDate(row.first_seen)}</td> : null}
           {visible.includes('status') ? <td className="px-2 py-2.5"><StatusBadge status={row.status} /></td> : null}
-          <td className="sticky right-0 border-l border-[color:var(--border)] bg-[color:var(--surface)] px-2 py-2.5 group-hover:bg-[color:color-mix(in_srgb,var(--primary)_4%,var(--surface))]">
+          <td className="sticky right-0 border-l border-[color:var(--border)] bg-[color:var(--surface)] px-2 py-2.5 group-hover:bg-[color:color-mix(in_srgb,var(--primary)_4%,var(--surface))]" data-row-action>
             <div className="flex items-center justify-center gap-0.5 opacity-70 transition-opacity group-hover:opacity-100">
               <IconButton label="预览 / 播放" size="sm" onClick={() => onOpen(row.token, true)}>
                 <Play className="size-3.5" />

@@ -64,9 +64,9 @@ export function SelectionBar({
               <Type className="size-3.5" /> 复制其他
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent>
-              <DropdownMenuItem onSelect={() => onCopy('title')}>标题</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => onCopy('title')}><Type className="size-3.5" /> 复制标题</DropdownMenuItem>
               <DropdownMenuItem onSelect={() => onCopy('token')}>
-                <Hash className="size-3.5" /> Token
+                <Hash className="size-3.5" /> 复制 Token
               </DropdownMenuItem>
             </DropdownMenuSubContent>
           </DropdownMenuSub>

@@ -279,15 +279,6 @@ export function CollectionsPage() {
     }
   }
 
-  const copy = async (row: Row) => {
-    try {
-      await navigator.clipboard.writeText(row.page_url || row.url)
-      toast.success('链接已复制')
-    } catch (e) {
-      toast.error('复制失败')
-    }
-  }
-
   const menu: RowMenuActions = {
     open: openPreviewList,
     download: row => { void actions.download([row.token]) },
@@ -297,7 +288,7 @@ export function CollectionsPage() {
     watched: row => { void actions.watched([row.token], !row.last_play) },
     rate: (row, value) => { void actions.rate([row.token], value) },
     recycle: row => { void actions.recycle([row.token]) },
-    copy: row => { void copy(row) },
+    copy: (row, kind) => { void actions.copy([row.token], rows, kind) },
     reveal: row => { void actions.reveal(row.token) },
     markDone: row => { void actions.mark([row.token], 'done') },
     removeFromCollection: row => { void removeItem(row) },

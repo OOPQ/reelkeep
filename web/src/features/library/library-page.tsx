@@ -427,7 +427,7 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
         actions.recycle([row.token])
       }
     },
-    copy: row => actions.copy([row.token], data?.rows || []),
+    copy: (row, kind) => actions.copy([row.token], data?.rows || [], kind),
     reveal: row => actions.reveal(row.token),
     markDone: row => actions.mark([row.token], 'done'),
   }

@@ -497,6 +497,13 @@ func (m *Manager) downloadSegment(ctx context.Context, t *Task, f *os.File, rt *
 				return nil
 			}
 			return fmt.Errorf("HTTP 416：范围 %d-%d 不可用", off, rt.end)
+		case code == http.StatusTooManyRequests:
+			_ = resp.Body.Close()
+			if attempt < attempts-1 {
+				sleepCtx(ctx, retryWait(delay, attempt))
+				continue
+			}
+			return errors.New("HTTP 429：请求过多，可把「单文件连接数」调小后重试")
 		case code >= 500:
 			_ = resp.Body.Close()
 			if attempt < attempts-1 {

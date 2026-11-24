@@ -247,7 +247,15 @@ func (m *Manager) runHTTPParallel(ctx context.Context, t *Task, final, part stri
 		return m.runHTTPSingle(ctx, t)
 	}
 	if fi.Size() != st.Total {
+		// .part 丢了或被截断：不能相信 sidecar 里的 Done（否则会跳过数据留下空洞），
+		// 重新分配文件并按 0 进度下载。
 		if err := f.Truncate(st.Total); err != nil {
+			return err
+		}
+		for i := range st.Segments {
+			st.Segments[i].Done = 0
+		}
+		if err := saveParallelState(part, st); err != nil {
 			return err
 		}
 	}

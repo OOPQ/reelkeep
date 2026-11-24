@@ -115,6 +115,41 @@ func TestHTTPParallelFallsBackWhenRangeIgnored(t *testing.T) {
 	}
 }
 
+func TestHTTPParallelResetsWhenPartMissing(t *testing.T) {
+	content := testContent(8 << 20)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.ServeContent(w, r, "a.mp4", time.Time{}, bytes.NewReader(content))
+	}))
+	defer srv.Close()
+
+	row := model.Row{Token: "p4", Status: "new", Source: "demo", URL: srv.URL + "/a.mp4"}
+	m, _, paths := newTestManager(t, source.EmptyRegistry(), row)
+	enableParallel(m, 4)
+
+	// sidecar 说分片 0 已完成，但 .part 实际不存在：不能跳过这段数据。
+	part := filepath.Join(paths.Content, "demo", "p4.mp4.part")
+	if err := os.MkdirAll(filepath.Dir(part), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	segs := splitSegments(int64(len(content)), 4)
+	segs[0].Done = segs[0].End - segs[0].Start + 1
+	if err := saveParallelState(part, parallelState{Version: 1, Total: int64(len(content)), Segments: segs}); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := m.Enqueue(model.DownloadTask{
+		Token: "p4", Source: "demo", URL: row.URL, Mode: "http", State: "queued",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	waitState(t, m, "p4", "done", 30*time.Second)
+
+	got, err := os.ReadFile(filepath.Join(paths.Content, "demo", "p4.mp4"))
+	if err != nil || !bytes.Equal(got, content) {
+		t.Fatalf(".part 丢失后重建的文件不一致: err=%v len=%d", err, len(got))
+	}
+}
+
 func TestHTTPParallelResumeFromState(t *testing.T) {
 	content := testContent(8 << 20)
 	var ranges []string

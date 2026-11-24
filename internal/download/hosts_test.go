@@ -6,6 +6,17 @@ import (
 	"time"
 )
 
+func TestHostShare(t *testing.T) {
+	m := &Manager{activeHosts: map[string]int{}}
+	cases := map[int]int{1: 16, 2: 8, 4: 4, 8: 2, 9: 1}
+	for active, want := range cases {
+		m.activeHosts["cdn.example.com"] = active
+		if got := m.hostShare("cdn.example.com"); got != want {
+			t.Fatalf("active=%d hostShare=%d，期望 %d", active, got, want)
+		}
+	}
+}
+
 func TestHostPoolRampAndSettle(t *testing.T) {
 	p := newHostPool(8)
 	h := "cdn.example.com"

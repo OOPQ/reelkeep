@@ -64,6 +64,7 @@ type Manager struct {
 	sessions    map[string]*torrentSession
 	tasks       map[string]*Task
 	active      map[string]int
+	activeHosts map[string]int
 	running     int
 	paused      bool
 	settings    Settings
@@ -76,6 +77,7 @@ type Manager struct {
 // Task 是内存里的任务和运行时状态。
 type Task struct {
 	M         model.DownloadTask
+	host      string
 	cancel    context.CancelFunc
 	running   bool
 	speed     int64
@@ -89,7 +91,7 @@ func NewManager(paths config.Paths, st *store.Store, reg *source.Registry, cooki
 	m := &Manager{
 		paths: paths, st: st, reg: reg, cookie: cookie,
 		onChange: onChange, onRow: onRow, logf: logf,
-		tasks: map[string]*Task{}, active: map[string]int{},
+		tasks: map[string]*Task{}, active: map[string]int{}, activeHosts: map[string]int{},
 		wake:  make(chan struct{}, 1),
 		hosts: newHostPool(adaptiveStart),
 	}
@@ -101,7 +103,9 @@ func NewManager(paths config.Paths, st *store.Store, reg *source.Registry, cooki
 			DialContext:           dialAny,
 			ResponseHeaderTimeout: 30 * time.Second,
 			MaxIdleConnsPerHost:   16,
-			ForceAttemptHTTP2:     true,
+			// 下载强制 HTTP/1.1：HTTP/2 会把多分片复用成一条 TCP 连接，
+			// 既拿不到多连接提速，也容易被站点的流并发/排队拖到超时。
+			ForceAttemptHTTP2: false,
 		},
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			if len(via) >= 5 {
@@ -260,11 +264,14 @@ func (m *Manager) dispatch() {
 		if m.active[src] >= perSource {
 			continue
 		}
-		if m.hosts.cooling(hostOf(t.M.URL, t.M.Source)) {
+		host := hostOf(t.M.URL, t.M.Source)
+		if m.hosts.cooling(host) {
 			continue // 该 host 刚被 429，先让别的任务跑
 		}
 		m.running++
 		m.active[src]++
+		m.activeHosts[host]++
+		t.host = host
 		t.running = true
 		t.M.State = "downloading"
 		t.M.StartedAt = now()
@@ -273,6 +280,21 @@ func (m *Manager) dispatch() {
 		t.cancel = cancel
 		go m.run(ctx, t)
 	}
+}
+
+// hostShare 返回当前正在跑该 host 的任务可分的连接数，保证 4 个任务不会让其中两个独占连接。
+func (m *Manager) hostShare(host string) int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	n := m.activeHosts[host]
+	if n < 1 {
+		n = 1
+	}
+	share := hostConnectionCap / n
+	if share < 1 {
+		share = 1
+	}
+	return share
 }
 
 // run 执行一条任务。
@@ -285,6 +307,12 @@ func (m *Manager) run(ctx context.Context, t *Task) {
 		m.active[src]--
 		if m.active[src] <= 0 {
 			delete(m.active, src)
+		}
+		if t.host != "" {
+			m.activeHosts[t.host]--
+			if m.activeHosts[t.host] <= 0 {
+				delete(m.activeHosts, t.host)
+			}
 		}
 		m.mu.Unlock()
 		m.wakeup()

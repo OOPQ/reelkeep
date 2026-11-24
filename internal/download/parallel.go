@@ -76,6 +76,13 @@ func (m *Manager) runHTTPDispatch(ctx context.Context, t *Task) error {
 	if max := m.getSettings().HTTPConnections; conns > max {
 		conns = max
 	}
+	// 同一 host 有多个任务在跑时按任务数平分连接，避免先起的任务占满名额、后面的任务一直 0 字节。
+	if share := m.hostShare(host); conns > share {
+		conns = share
+	}
+	if conns < 2 {
+		return m.runHTTPSingle(ctx, t)
+	}
 	st, ok := m.probeParallel(ctx, t, conns)
 	if !ok {
 		return m.runHTTPSingle(ctx, t)

@@ -12,7 +12,7 @@ const (
 	defaultPerSourceConcurrent = 4
 	maxPerSourceConcurrent     = 8
 	// hostConnectionCap 是同一 CDN host 同时允许的分片连接总数，避免多个任务叠加把站点打爆。
-	hostConnectionCap = 24
+	hostConnectionCap = 16
 	hostCooldown      = 45 * time.Second
 	adaptiveStart     = 4
 	adaptiveStep      = 2

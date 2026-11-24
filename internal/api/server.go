@@ -240,12 +240,36 @@ func (s *Server) Scan(manual bool) (int, error) {
 	s.mu.Lock()
 	rows := s.rows
 	dirty, _, _ := idx.Apply(rows, false)
-	s.rows = rows
+	kept, extra, removed := dedupeScannedRows(rows)
+	if len(extra) > 0 {
+		dirty = append(dirty, extra...)
+	}
+	dirty = dedupeDirty(dirty)
+	if len(removed) > 0 {
+		removedSet := make(map[string]bool, len(removed))
+		for _, t := range removed {
+			removedSet[strings.ToLower(t)] = true
+		}
+		filtered := dirty[:0]
+		for _, r := range dirty {
+			if !removedSet[strings.ToLower(r.Token)] {
+				filtered = append(filtered, r)
+			}
+		}
+		dirty = filtered
+	}
+	s.rows = kept
 	s.index = idx
 	s.mu.Unlock()
 
 	if len(dirty) > 0 {
 		if err := s.st.UpsertRows(dirty); err != nil {
+			return 0, err
+		}
+	}
+	if len(removed) > 0 {
+		// 合并的是「导入时误建的 local 行」，不写入 deleted_tokens，避免以后无法重新导入。
+		if err := s.st.RemovePermanently(removed, nil); err != nil {
 			return 0, err
 		}
 	}
@@ -255,10 +279,10 @@ func (s *Server) Scan(manual bool) (int, error) {
 	s.mu.Unlock()
 	s.refreshCoverMissing()
 	if manual {
-		s.logbuf.Add("scan", fmt.Sprintf("扫描 %s：文件 %d / 台账 %d，变更 %d",
-			s.paths.Content, len(idx.Files), len(rows), len(dirty)))
+		s.logbuf.Add("scan", fmt.Sprintf("扫描 %s：文件 %d / 台账 %d，变更 %d，合并重复 %d",
+			s.paths.Content, len(idx.Files), len(kept), len(dirty), len(removed)))
 	}
-	return len(dirty), nil
+	return len(dirty) + len(removed), nil
 }
 
 func (s *Server) refreshCoverMissing() {

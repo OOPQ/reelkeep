@@ -25,6 +25,7 @@ import (
 	"github.com/OOPQ/reelkeep/internal/model"
 	"github.com/OOPQ/reelkeep/internal/netproxy"
 	"github.com/OOPQ/reelkeep/internal/proc"
+	"github.com/OOPQ/reelkeep/internal/scan"
 	"github.com/OOPQ/reelkeep/internal/source"
 )
 
@@ -56,6 +57,101 @@ func (s *Server) handleProjectImport(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "added": added, "skipped": skipped, "changed": changed})
 }
 
+// isScannedLocal 判断是否是「识别已有文件」创建的临时 local 行。
+func isScannedLocal(r model.Row) bool {
+	if !strings.EqualFold(r.Source, "local") || strings.TrimSpace(r.URL) != "" || strings.TrimSpace(r.SourceID) == "" {
+		return false
+	}
+	return r.Note == "scan:init" || r.Note == "auto:file"
+}
+
+// dedupeScannedRows 把迅雷等外部下载留下的 local 重复行合并回真实台账行。
+// 只处理 local + scan:init/auto:file 的行，避免误删用户手动导入的本地文件。
+func dedupeScannedRows(rows []model.Row) (kept []model.Row, extraDirty []model.Row, removed []string) {
+	sidCount := map[string]int{}
+	for i := range rows {
+		if isScannedLocal(rows[i]) {
+			continue
+		}
+		if sid := strings.ToLower(strings.TrimSpace(rows[i].SourceID)); sid != "" {
+			sidCount[sid]++
+		}
+	}
+	canonical := map[string]int{}
+	for i := range rows {
+		r := &rows[i]
+		if isScannedLocal(*r) {
+			continue
+		}
+		if sid := strings.ToLower(strings.TrimSpace(r.SourceID)); sid != "" && sidCount[sid] == 1 {
+			canonical["sid:"+sid] = i
+		}
+		canonical["tok:"+strings.ToLower(r.Token)] = i
+		if uid := strings.ToLower(model.MediaUID(r.Source, r.SourceID, r.Token)); uid != "" {
+			canonical["uid:"+uid] = i
+		}
+	}
+
+	removedSet := map[string]bool{}
+	for i := range rows {
+		r := &rows[i]
+		if !isScannedLocal(*r) {
+			kept = append(kept, *r)
+			continue
+		}
+		idx := -1
+		if sid := strings.ToLower(strings.TrimSpace(r.SourceID)); sid != "" {
+			if j, ok := canonical["sid:"+sid]; ok && j != i {
+				idx = j
+			}
+		}
+		if idx < 0 {
+			if j, ok := canonical["tok:"+strings.ToLower(r.Token)]; ok && j != i {
+				idx = j
+			}
+		}
+		if idx < 0 {
+			kept = append(kept, *r)
+			continue
+		}
+		c := &rows[idx]
+		if c.FileName == "" && r.FileName != "" {
+			c.FileName, c.FilePath, c.FileSize, c.FileDate = r.FileName, r.FilePath, r.FileSize, r.FileDate
+			if c.Status != "recycled" {
+				c.Status = "done"
+				c.Note = "auto:file"
+			}
+			extraDirty = append(extraDirty, *c)
+		}
+		removed = append(removed, r.Token)
+		removedSet[strings.ToLower(r.Token)] = true
+	}
+	if len(removedSet) > 0 {
+		filtered := extraDirty[:0]
+		for _, r := range extraDirty {
+			if !removedSet[strings.ToLower(r.Token)] {
+				filtered = append(filtered, r)
+			}
+		}
+		extraDirty = filtered
+	}
+	return kept, extraDirty, removed
+}
+
+func dedupeDirty(rows []model.Row) []model.Row {
+	pos := make(map[string]int, len(rows))
+	out := make([]model.Row, 0, len(rows))
+	for _, r := range rows {
+		if i, ok := pos[r.Token]; ok {
+			out[i] = r
+			continue
+		}
+		pos[r.Token] = len(out)
+		out = append(out, r)
+	}
+	return out
+}
+
 // importProjectFiles 扫描 media/ 里台账没有的 mp4，补成 done 记录。
 func (s *Server) importProjectFiles() (int, int, error) {
 	files := walkMP4(s.paths.Content, 4)
@@ -63,12 +159,12 @@ func (s *Server) importProjectFiles() (int, int, error) {
 		return 0, 0, nil
 	}
 	s.mu.RLock()
-	known := make(map[string]bool, len(s.rows)*2)
+	known := make(map[string]bool, len(s.rows)*4)
 	for i := range s.rows {
-		known[strings.ToLower(s.rows[i].Token)] = true
-		// 已下载文件按稳定 uid 命名，扫盘时也要能认出来，避免重复登记
-		if uid := model.MediaUID(s.rows[i].Source, s.rows[i].SourceID, s.rows[i].Token); uid != "" {
-			known[strings.ToLower(uid)] = true
+		// token / MediaUID / source_id / 链接文件名都算「台账已有」，
+		// 迅雷把文件存成 source_id 时不能再新建一条 local 重复行。
+		for _, key := range scan.SourceKeys(s.rows[i]) {
+			known[key] = true
 		}
 	}
 	s.mu.RUnlock()

@@ -97,6 +97,45 @@ func TestApplyKeepsStatusWhenDirMissing(t *testing.T) {
 	}
 }
 
+func TestApplySourceIDFile(t *testing.T) {
+	dir := t.TempDir()
+	mustWrite(t, filepath.Join(dir, "42.mp4")) // 迅雷常见：只存 source_id
+	rows := []model.Row{{Token: "demo@42", Source: "demo", SourceID: "42", Status: "new"}}
+	dirty, found, _ := Build(dir).Apply(rows, false)
+	if found != 1 || len(dirty) == 0 || rows[0].Status != "done" || rows[0].FileName != "42.mp4" {
+		t.Fatalf("source_id 文件未绑定: found=%d dirty=%d row=%+v", found, len(dirty), rows[0])
+	}
+}
+
+func TestApplySourceHintDisambiguates(t *testing.T) {
+	dir := t.TempDir()
+	mustWrite(t, filepath.Join(dir, "a", "42.mp4"))
+	rows := []model.Row{
+		{Token: "a@42", Source: "a", SourceID: "42", Status: "new"},
+		{Token: "b@42", Source: "b", SourceID: "42", Status: "new"},
+	}
+	Build(dir).Apply(rows, false)
+	if rows[0].Status != "done" || rows[0].FileName != "42.mp4" {
+		t.Fatalf("目录来源 a 应绑定: %+v", rows[0])
+	}
+	if rows[1].Status == "done" || rows[1].FileName != "" {
+		t.Fatalf("来源 b 不应被误绑: %+v", rows[1])
+	}
+}
+
+func TestSourceKeys(t *testing.T) {
+	keys := SourceKeys(model.Row{Token: "demo@42", Source: "demo", SourceID: "42", URL: "https://cdn.example.com/v/xyz.mp4?tag=1"})
+	want := []string{"demo@42", model.MediaUID("demo", "42", "demo@42"), "42", "xyz"}
+	if len(keys) != len(want) {
+		t.Fatalf("keys=%v，期望 %v", keys, want)
+	}
+	for i := range want {
+		if keys[i] != want[i] {
+			t.Fatalf("keys=%v，期望 %v", keys, want)
+		}
+	}
+}
+
 func TestApplyStableMediaUID(t *testing.T) {
 	dir := t.TempDir()
 	uid := model.MediaUID("demo", "42", "demo@42")

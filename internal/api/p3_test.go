@@ -147,6 +147,69 @@ func TestImportProjectBindsExistingRow(t *testing.T) {
 	}
 }
 
+func TestImportProjectSourceIDNoDuplicate(t *testing.T) {
+	s, ts := newP3Server(t)
+	row := model.Row{Token: "pektino@ABC", Source: "pektino", SourceID: "ABC", Title: "ABC", Status: "new", URL: "https://video.example.com/ABC.mp4"}
+	if err := s.st.UpsertRows([]model.Row{row}); err != nil {
+		t.Fatal(err)
+	}
+	s.mu.Lock()
+	s.rows = append(s.rows, row)
+	s.mu.Unlock()
+	media := filepath.Join(s.paths.Content, "pektino", "ABC.mp4")
+	if err := os.MkdirAll(filepath.Dir(media), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(media, []byte("fake video"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out := postJSON(t, ts, "/api/project/import", map[string]any{})
+	if out["ok"] != true || int(out["added"].(float64)) != 0 {
+		t.Fatalf("source_id 文件不应新增 local 行: %v", out)
+	}
+	rows, err := s.st.LoadRows()
+	if err != nil || len(rows) != 1 {
+		t.Fatalf("台账应只有 1 行，实际 %d %v", len(rows), err)
+	}
+	if rows[0].Token != "pektino@ABC" || rows[0].Status != "done" || rows[0].FileName != "ABC.mp4" {
+		t.Fatalf("真实台账行未绑定: %+v", rows[0])
+	}
+}
+
+func TestScanMergesLocalDuplicate(t *testing.T) {
+	s, ts := newP3Server(t)
+	canonical := model.Row{Token: "pektino@ABC", Source: "pektino", SourceID: "ABC", Title: "ABC", Status: "new", URL: "https://video.example.com/ABC.mp4"}
+	local := model.Row{Token: "ABC", Source: "local", SourceID: "ABC", Title: "ABC", Status: "done", Note: "scan:init"}
+	if err := s.st.UpsertRows([]model.Row{canonical, local}); err != nil {
+		t.Fatal(err)
+	}
+	s.mu.Lock()
+	s.rows = append(s.rows, canonical, local)
+	s.mu.Unlock()
+	media := filepath.Join(s.paths.Content, "pektino", "ABC.mp4")
+	if err := os.MkdirAll(filepath.Dir(media), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(media, []byte("fake video"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	out := postJSON(t, ts, "/api/scan", map[string]any{})
+	if out["ok"] != true {
+		t.Fatalf("扫描失败: %v", out)
+	}
+	rows, err := s.st.LoadRows()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 || rows[0].Token != "pektino@ABC" {
+		t.Fatalf("local 重复行应被合并，实际 %+v", rows)
+	}
+	if rows[0].Status != "done" || rows[0].FileName != "ABC.mp4" || rows[0].FilePath != media {
+		t.Fatalf("真实台账行未绑定文件: %+v", rows[0])
+	}
+}
+
 func TestImportLocalMovesFiles(t *testing.T) {
 	s, ts := newP3Server(t)
 	ext := t.TempDir()

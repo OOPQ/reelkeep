@@ -242,6 +242,7 @@ skills/reelkeep-source  指导 LLM 生成/校验/安装源包的 skill
 - `deleted.json` / `deleted_tokens` 双向保留；彻底删除在扫盘路径上必须过滤
 - token 语义不变：默认源裸 token，其他源 `<source>@<id>`
 - 媒体索引规则不变：递归 4 层、去掉 ` (1)` 重名后缀、大小写不敏感
+- 扫盘按 token / MediaUID / source_id / 直链文件名匹配；迅雷等工具存成 `ABC.mp4` 也能绑定，旧的 local 重复行会在扫描时自动合并
 - HTTP 契约冻结在 [docs/api-contract.md](docs/api-contract.md)（25 项验收 + 金标字段 + 诊断基线）
 
 ## 开发

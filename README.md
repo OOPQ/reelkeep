@@ -4,7 +4,7 @@
 
 **Reelkeep 是 Pektino 的 Go 重写版。** 同一套 React 前端、同一份 SQLite 数据、同一套 `/api/*` 契约；后端从 PowerShell 5.1 换成单二进制 Go，为多端（Windows / macOS / Linux，后续 Android）留出同源代码。
 
-当前状态：**P0 / P1 / P2 / P3 / P6 完成，P4 下载器 90%，P5 桌面壳/安装器/CI 可用（Windows）**。可以打开任意文件夹作为项目、切换最近项目、桌面新窗口/浏览器新实例、导入媒体、浏览台账、封面/缩略图、时间轴快照、播放、榜单/链接抓取、刷新地址、下载（HTTP 续传 / HLS）。安装器/签名钩子/更新检查/五平台 CI 已就绪；自动安装更新与 macOS/Linux 安装包尚未完成。
+当前状态：**P0–P6 已完成**。可以打开任意文件夹作为项目、切换最近项目、桌面新窗口/浏览器新实例、导入媒体、浏览台账、封面/缩略图、时间轴快照、播放、榜单/链接抓取、刷新地址、下载（多连接分片 / HTTP 续传 / HLS）、扫盘自动绑定；Windows 安装器、macOS dmg、Linux deb 与五平台 CI 可用，Windows 自动更新已接入，代码签名仍为 TODO。
 
 ![源管理：导入、测试、启用/禁用外部源](docs/sources-page.png)
 
@@ -46,7 +46,7 @@ sudo dpkg -i reelkeep_<版本>_amd64.deb
 .\reelkeep.exe -project D:\project\pektino-project -no-browser
 ```
 
-打开 `http://127.0.0.1:8791/`。端口被占用会自动向后找，以窗口打印为准。
+打开 `http://127.0.0.1:8791/`。端口被占用会自动向后找；Windows 上若整段端口被 Hyper-V/WSL/Docker 保留，会回退到系统临时端口，以窗口标题/`data/instance.port` 为准。
 
 命令行参数：
 
@@ -159,7 +159,7 @@ qise 这类站点，高清/会员内容需要登录态。Reelkeep **不代填账
 
 「下载队列」页可以直接消耗台账里的 `url`：
 
-- HTTP 大文件自动多连接分片（默认 4，可在设置改成 1–16）；Range / `.part` / `.part.json` 断点续传、原子改名，进程重启后未完成任务回到队列；服务器不支持分片时自动回退单连接
+- HTTP 大文件自动多连接分片（默认 8 上限、按站点从 4 条开始自适应；可在设置改成 1–16）；Range / `.part` / `.part.json` 断点续传、原子改名，进程重启后未完成任务回到队列；服务器不支持分片时自动回退单连接
 - HLS 交给 ffmpeg；留空会自动查找 PATH、程序目录、常见安装目录和旧版项目配置（也可在设置里手填）；签名过期且源声明了 `410` 时先刷新详情再重试一次
 - 暂停/继续（全局或单条）、取消（清 `.part`）、清理完成、失败重试
 - 全局并发 + 每来源并发（默认 4，可调 1–8）；同一 CDN host 有总连接上限，429 后自动降连接并冷却
@@ -202,7 +202,7 @@ qise 这类站点，高清/会员内容需要登录态。Reelkeep **不代填账
 - 已有服务在跑时，双击桌面版只开窗口，不会重复启动服务
 - 构建：`.\scripts\build.ps1`（CLI + Windows 桌面版）；`.\scripts\installer.ps1`（NSIS 安装器）
 
-> Windows 安装器、macOS `.dmg`、Linux `.deb` 均已提供。Windows 可用 [SignPath Foundation](docs/release-signing.md) 免费代签；Linux 提供 `SHA256SUMS`/可选 GPG；macOS 为免费 ad-hoc 签名（未公证）。自动下载安装更新尚未实现。
+> Windows 安装器、macOS `.dmg`、Linux `.deb` 均已提供。Windows 可用 [SignPath Foundation](docs/release-signing.md) 免费代签；Linux 提供 `SHA256SUMS`/可选 GPG；macOS 为免费 ad-hoc 签名（未公证）。Windows 自动下载安装更新已接入；代码签名仍是 TODO。
 
 ## 架构
 
@@ -215,7 +215,7 @@ internal/store          SQLite：items / collections / deleted_tokens / audit_lo
 internal/scan           媒体目录 → 台账回填（与旧版判定逐条对齐）
 internal/source         源注册表（sources.json 控制启用/顺序/榜单）
 internal/rule           外部源包：加载/校验、安全抓取、HTML/JSON 提取、RuleSource
-internal/download       下载器：队列、HTTP 续传、HLS、暂停/取消
+internal/download       下载器：多连接分片、队列、HTTP 续传、HLS、暂停/取消
 internal/cover          封面缩略图
 internal/secrets        登录凭据（Windows DPAPI）
 internal/config         项目路径模型、settings、最近项目、导入源目录

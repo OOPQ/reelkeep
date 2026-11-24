@@ -43,6 +43,21 @@ export function rowTitle(row: Row) {
   return row.title?.trim() || row.token
 }
 
+export type CopyKind = 'page' | 'download' | 'title' | 'token'
+
+export function copyValue(row: Pick<Row, 'token' | 'url' | 'page_url' | 'title'>, kind: CopyKind) {
+  switch (kind) {
+    case 'download':
+      return row.url || ''
+    case 'page':
+      return row.page_url || row.url || ''
+    case 'title':
+      return row.title?.trim() || row.token
+    case 'token':
+      return row.token
+  }
+}
+
 export function rowFileSize(row: Row) {
   return Number(row.file_size) || 0
 }

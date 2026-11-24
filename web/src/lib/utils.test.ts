@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { coverUrl, formatTime } from './utils'
+import { coverUrl, copyValue, formatTime } from './utils'
 import { filterRows, sortRows } from '@/features/library/library-filters'
 import type { Row } from '@/types'
 
@@ -53,6 +53,20 @@ describe('coverUrl', () => {
   it('builds thumb and full urls', () => {
     expect(coverUrl('a b')).toBe('/api/cover?token=a%20b')
     expect(coverUrl('abc', true)).toBe('/api/cover?token=abc&full=1')
+  })
+})
+
+describe('copyValue', () => {
+  it('copies download link / page link / title / token', () => {
+    const r = row({ token: 'demo@1', title: ' Demo ', url: 'https://cdn/a.mp4', page_url: 'https://site/p/1' })
+    expect(copyValue(r, 'download')).toBe('https://cdn/a.mp4')
+    expect(copyValue(r, 'page')).toBe('https://site/p/1')
+    expect(copyValue(r, 'title')).toBe('Demo')
+    expect(copyValue(r, 'token')).toBe('demo@1')
+  })
+
+  it('falls back to token when title is empty', () => {
+    expect(copyValue(row({ token: 'x' }), 'title')).toBe('x')
   })
 })
 

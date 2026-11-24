@@ -935,7 +935,7 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
         onFav={() => actions.fav(selected, true)}
         onWatched={() => actions.watched(selected, true)}
         onMarkDone={() => actions.mark(selected, 'done')}
-        onCopy={() => actions.copy(selected, data?.rows || [])}
+        onCopy={kind => actions.copy(selected, data?.rows || [], kind)}
         onClear={clearSelected}
       />
 

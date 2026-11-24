@@ -1,5 +1,16 @@
-import { Check, Copy, Download, Eye, Heart, Layers, Trash2, X } from 'lucide-react'
+import { Check, ChevronDown, Copy, Download, Eye, FileDown, Heart, Hash, Layers, Link2, Trash2, Type, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import type { CopyKind } from '@/lib/utils'
 
 export function SelectionBar({
   count,
@@ -21,7 +32,7 @@ export function SelectionBar({
   onFav: () => void
   onWatched: () => void
   onMarkDone: () => void
-  onCopy: () => void
+  onCopy: (kind: CopyKind) => void
   onClear: () => void
 }) {
   if (!count) return null
@@ -34,7 +45,33 @@ export function SelectionBar({
       <Button size="sm" variant="ghost" className="h-7 px-2" onClick={onFav}><Heart className="size-3.5" /> 收藏</Button>
       <Button size="sm" variant="ghost" className="h-7 px-2" onClick={onWatched}><Eye className="size-3.5" /> 已看</Button>
       <Button size="sm" variant="ghost" className="h-7 px-2" onClick={onMarkDone}><Check className="size-3.5" /> 完成</Button>
-      <Button size="sm" variant="ghost" className="h-7 px-2" onClick={onCopy}><Copy className="size-3.5" /> 复制</Button>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button size="sm" variant="ghost" className="h-7 px-2" aria-label="复制">
+            <Copy className="size-3.5" /> 复制 <ChevronDown className="size-3" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent side="top" align="center" sideOffset={10}>
+          <DropdownMenuItem onSelect={() => onCopy('download')}>
+            <FileDown className="size-3.5" /> 复制文件下载链接
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => onCopy('page')}>
+            <Link2 className="size-3.5" /> 复制页面链接
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              <Type className="size-3.5" /> 复制其他
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              <DropdownMenuItem onSelect={() => onCopy('title')}>标题</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => onCopy('token')}>
+                <Hash className="size-3.5" /> Token
+              </DropdownMenuItem>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+        </DropdownMenuContent>
+      </DropdownMenu>
       <Button size="sm" variant="danger" className="h-7 px-2" onClick={onRecycle}><Trash2 className="size-3.5" /> 删除</Button>
       <Button size="sm" variant="ghost" className="h-7 px-2" onClick={onClear}><X className="size-3.5" /> 清空</Button>
     </div>

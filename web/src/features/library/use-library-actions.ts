@@ -2,8 +2,9 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { post } from '@/lib/api'
-import { copyText } from '@/lib/utils'
+import { copyText, copyValue, type CopyKind } from '@/lib/utils'
 import { unlockAudio } from '@/lib/sound'
+import type { Row } from '@/types'
 
 export function useLibraryActions() {
   const qc = useQueryClient()
@@ -125,13 +126,22 @@ export function useLibraryActions() {
     }
   }
 
-  const copy = async (tokens: string[], rows: Array<{ token: string; url: string; page_url: string }>) => {
-    const urls = tokens.map(t => {
+  const copy = async (tokens: string[], rows: Row[], kind: CopyKind = 'page') => {
+    const values = tokens.map(t => {
       const row = rows.find(r => r.token === t)
-      return row?.page_url || row?.url || ''
+      return row ? copyValue(row, kind) : ''
     }).filter(Boolean)
-    if (!urls.length) return
-    if (await copyText(urls.join('\n'))) toast.success(`已复制 ${urls.length} 个链接`)
+    const label: Record<CopyKind, string> = {
+      download: '下载链接',
+      page: '页面链接',
+      title: '标题',
+      token: 'Token',
+    }
+    if (!values.length) {
+      toast.info(kind === 'download' ? '选中的条目没有可复制的下载地址' : '没有可复制的内容')
+      return
+    }
+    if (await copyText(values.join('\n'))) toast.success(`已复制 ${values.length} 个${label[kind]}`)
     else toast.error('复制失败')
   }
 

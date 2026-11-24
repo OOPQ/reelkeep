@@ -32,16 +32,17 @@ func (s *Server) handleFFmpegInstall(w http.ResponseWriter, r *http.Request) {
 	}
 	if s.dl != nil {
 		s.dl.SetSettings(download.Settings{
-			Concurrent:      cfg.Concurrent,
-			FFmpeg:          cfg.FFmpegPath,
-			Proxy:           cfg.Proxy,
-			RetryCount:      cfg.RetryCount,
-			RetryDelay:      time.Duration(cfg.RetryDelay) * time.Second,
-			TorrentLimitKB:  cfg.TorrentLimitKB,
-			HTTPLimitKB:     cfg.HTTPLimitKB,
-			HTTPConnections: cfg.HTTPConnections,
-			TorrentBackend:  cfg.TorrentBackend,
-			QbtURL:          cfg.QbtURL, QbtUser: cfg.QbtUser, QbtPass: cfg.QbtPass,
+			Concurrent:          cfg.Concurrent,
+			FFmpeg:              cfg.FFmpegPath,
+			Proxy:               cfg.Proxy,
+			RetryCount:          cfg.RetryCount,
+			RetryDelay:          time.Duration(cfg.RetryDelay) * time.Second,
+			TorrentLimitKB:      cfg.TorrentLimitKB,
+			HTTPLimitKB:         cfg.HTTPLimitKB,
+			HTTPConnections:     cfg.HTTPConnections,
+			PerSourceConcurrent: cfg.PerSourceConcurrent,
+			TorrentBackend:      cfg.TorrentBackend,
+			QbtURL:              cfg.QbtURL, QbtUser: cfg.QbtUser, QbtPass: cfg.QbtPass,
 		})
 	}
 	s.logbuf.Add("config", "已安装 FFmpeg: "+path)

@@ -37,12 +37,14 @@ type Settings struct {
 	RetryDelay     time.Duration
 	TorrentLimitKB int
 	HTTPLimitKB    int
-	// HTTPConnections 是单个 HTTP 直链的并行分片连接数；1 = 单连接。
+	// HTTPConnections 是单个 HTTP 直链的最大并行分片连接数；1 = 单连接。
 	HTTPConnections int
-	TorrentBackend  string
-	QbtURL          string
-	QbtUser         string
-	QbtPass         string
+	// PerSourceConcurrent 是同一来源同时下载的文件数。
+	PerSourceConcurrent int
+	TorrentBackend      string
+	QbtURL              string
+	QbtUser             string
+	QbtPass             string
 }
 
 // Manager 管理下载队列。
@@ -65,6 +67,7 @@ type Manager struct {
 	running     int
 	paused      bool
 	settings    Settings
+	hosts       *hostPool
 	ctx         context.Context
 	cancel      context.CancelFunc
 	wake        chan struct{}
@@ -87,7 +90,8 @@ func NewManager(paths config.Paths, st *store.Store, reg *source.Registry, cooki
 		paths: paths, st: st, reg: reg, cookie: cookie,
 		onChange: onChange, onRow: onRow, logf: logf,
 		tasks: map[string]*Task{}, active: map[string]int{},
-		wake: make(chan struct{}, 1),
+		wake:  make(chan struct{}, 1),
+		hosts: newHostPool(adaptiveStart),
 	}
 	m.client = &http.Client{
 		Transport: &http.Transport{
@@ -130,6 +134,9 @@ func (m *Manager) SetSettings(s Settings) {
 		m.httpLimiter = nil
 	}
 	m.mu.Unlock()
+	if s.HTTPConnections > 0 {
+		m.hosts.setMaxConns(s.HTTPConnections)
+	}
 	m.wakeup()
 }
 
@@ -217,6 +224,13 @@ func (m *Manager) dispatch() {
 	if conc <= 0 {
 		conc = 8
 	}
+	perSource := s.PerSourceConcurrent
+	if perSource <= 0 {
+		perSource = defaultPerSourceConcurrent
+	}
+	if perSource > maxPerSourceConcurrent {
+		perSource = maxPerSourceConcurrent
+	}
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -243,8 +257,11 @@ func (m *Manager) dispatch() {
 			continue // 暂停后立刻继续时，旧 goroutine 可能还在退出
 		}
 		src := sourceKey(t.M.Source)
-		if m.active[src] >= perSourceLimit() {
+		if m.active[src] >= perSource {
 			continue
+		}
+		if m.hosts.cooling(hostOf(t.M.URL, t.M.Source)) {
+			continue // 该 host 刚被 429，先让别的任务跑
 		}
 		m.running++
 		m.active[src]++
@@ -257,8 +274,6 @@ func (m *Manager) dispatch() {
 		go m.run(ctx, t)
 	}
 }
-
-func perSourceLimit() int { return 2 }
 
 // run 执行一条任务。
 func (m *Manager) run(ctx context.Context, t *Task) {

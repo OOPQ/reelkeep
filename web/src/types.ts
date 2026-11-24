@@ -96,6 +96,7 @@ export type AppSettings = {
   torrentLimitKB?: number
   httpLimitKB?: number
   httpConnections?: number
+  perSourceConcurrent?: number
   sourceIndexUrl?: string
   torrentBackend?: string
   qbtUrl?: string

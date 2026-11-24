@@ -71,7 +71,12 @@ func (m *Manager) runHTTPDispatch(ctx context.Context, t *Task) error {
 	if m.getSettings().HTTPConnections <= 1 {
 		return m.runHTTPSingle(ctx, t)
 	}
-	st, ok := m.probeParallel(ctx, t, m.getSettings().HTTPConnections)
+	host := hostOf(t.M.URL, t.M.Source)
+	conns := m.hosts.Conn(host)
+	if max := m.getSettings().HTTPConnections; conns > max {
+		conns = max
+	}
+	st, ok := m.probeParallel(ctx, t, conns)
 	if !ok {
 		return m.runHTTPSingle(ctx, t)
 	}
@@ -272,6 +277,7 @@ func (m *Manager) runHTTPParallel(ctx context.Context, t *Task, final, part stri
 	m.mu.Unlock()
 
 	refreshed := false
+	start := time.Now()
 	for {
 		next, err := m.downloadParallelChunks(ctx, t, f, part, st)
 		st = next
@@ -299,6 +305,10 @@ func (m *Manager) runHTTPParallel(ctx context.Context, t *Task, final, part stri
 	}
 	if ctx.Err() != nil {
 		return ctx.Err()
+	}
+	if !resume {
+		// 用真实完成速度更新该 host 的连接数建议；续传样本会偏快，不参与。
+		m.hosts.report(hostOf(t.M.URL, t.M.Source), len(st.Segments), st.Total, time.Since(start))
 	}
 
 	// 校验每个分片都完整，再落盘改名。
@@ -444,8 +454,14 @@ func (m *Manager) downloadSegment(ctx context.Context, t *Task, f *os.File, rt *
 		}
 		m.applyHeaders(req, t)
 		req.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", off, rt.end))
+
+		host := hostOf(t.M.URL, t.M.Source)
+		if err := m.hosts.acquire(ctx, host); err != nil {
+			return err
+		}
 		resp, err := m.client.Do(req)
 		if err != nil {
+			m.hosts.release(host)
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
@@ -461,10 +477,12 @@ func (m *Manager) downloadSegment(ctx context.Context, t *Task, f *os.File, rt *
 			start, gotTotal, perr := parseContentRange(resp.Header.Get("Content-Range"))
 			if perr != nil || start != off || (gotTotal > 0 && gotTotal != total) {
 				_ = resp.Body.Close()
+				m.hosts.release(host)
 				return errRangeMismatch
 			}
 			err := m.readSegment(ctx, t, f, resp, rt, off, progress, buf)
 			_ = resp.Body.Close()
+			m.hosts.release(host)
 			if err == nil {
 				return nil
 			}
@@ -481,9 +499,11 @@ func (m *Manager) downloadSegment(ctx context.Context, t *Task, f *os.File, rt *
 			return err
 		case code == http.StatusOK:
 			_ = resp.Body.Close()
+			m.hosts.release(host)
 			return errRangeUnsupported
 		case code == http.StatusForbidden || code == http.StatusGone:
 			_ = resp.Body.Close()
+			m.hosts.release(host)
 			if t.M.RefreshOn410 {
 				return errRangeRefresh
 			}
@@ -493,19 +513,19 @@ func (m *Manager) downloadSegment(ctx context.Context, t *Task, f *os.File, rt *
 			return errors.New("retry attempts exhausted")
 		case code == http.StatusRequestedRangeNotSatisfiable:
 			_ = resp.Body.Close()
+			m.hosts.release(host)
 			if rt.start+rt.done.Load() > rt.end {
 				return nil
 			}
 			return fmt.Errorf("HTTP 416：范围 %d-%d 不可用", off, rt.end)
 		case code == http.StatusTooManyRequests:
 			_ = resp.Body.Close()
-			if attempt < attempts-1 {
-				sleepCtx(ctx, retryWait(delay, attempt))
-				continue
-			}
-			return errors.New("HTTP 429：请求过多，可把「单文件连接数」调小后重试")
+			m.hosts.release(host)
+			m.hosts.throttle(host)
+			return errors.New("HTTP 429：请求过多，已自动降低该站点连接数并冷却，稍后重试该任务")
 		case code >= 500:
 			_ = resp.Body.Close()
+			m.hosts.release(host)
 			if attempt < attempts-1 {
 				sleepCtx(ctx, retryWait(delay, attempt))
 				continue
@@ -513,6 +533,7 @@ func (m *Manager) downloadSegment(ctx context.Context, t *Task, f *os.File, rt *
 			return fmt.Errorf("HTTP %d", code)
 		default:
 			_ = resp.Body.Close()
+			m.hosts.release(host)
 			return fmt.Errorf("HTTP %d", code)
 		}
 	}

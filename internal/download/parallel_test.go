@@ -61,7 +61,7 @@ func TestHTTPParallelUsesMultipleConnections(t *testing.T) {
 
 	row := model.Row{Token: "p1", Status: "new", Source: "demo", URL: srv.URL + "/a.mp4"}
 	m, _, paths := newTestManager(t, source.EmptyRegistry(), row)
-	enableParallel(m, 4)
+	enableParallel(m, 8)
 	if _, err := m.Enqueue(model.DownloadTask{
 		Token: "p1", Source: "demo", URL: row.URL, Mode: "http", State: "queued",
 	}); err != nil {
@@ -78,6 +78,9 @@ func TestHTTPParallelUsesMultipleConnections(t *testing.T) {
 	mu.Unlock()
 	if max < 2 {
 		t.Fatalf("没有并发分片请求，最大并发 %d", max)
+	}
+	if got := m.hosts.Conn(hostOf(row.URL, row.Source)); got != 6 {
+		t.Fatalf("首次成功后应把该 host 的下次连接数提到 6，实际 %d", got)
 	}
 }
 

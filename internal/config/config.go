@@ -97,10 +97,12 @@ type Settings struct {
 	RetryDelay     int    `json:"retryDelay"`
 	TorrentLimitKB int    `json:"torrentLimitKB"`
 	HTTPLimitKB    int    `json:"httpLimitKB"`
-	TorrentBackend string `json:"torrentBackend"`
-	QbtURL         string `json:"qbtUrl"`
-	QbtUser        string `json:"qbtUser"`
-	QbtPass        string `json:"qbtPass"`
+	// HTTPConnections 是单个 HTTP 直链的并行分片连接数；1 表示原来的单连接模式。
+	HTTPConnections int    `json:"httpConnections"`
+	TorrentBackend  string `json:"torrentBackend"`
+	QbtURL          string `json:"qbtUrl"`
+	QbtUser         string `json:"qbtUser"`
+	QbtPass         string `json:"qbtPass"`
 	// SourceIndexURL 是「可用源」索引地址（JSON）；空表示用内置默认。
 	SourceIndexURL string `json:"sourceIndexUrl"`
 }
@@ -125,6 +127,14 @@ func LoadSettings(p Paths) Settings {
 	if s.RetryDelay <= 0 {
 		s.RetryDelay = 1
 	}
+	// HTTPConnections 默认 4：大多数直链服务器支持 Range，4 连接能明显提速；
+	// 不支持分片的服务器会自动回退单连接。
+	if s.HTTPConnections <= 0 {
+		s.HTTPConnections = 4
+	}
+	if s.HTTPConnections > 16 {
+		s.HTTPConnections = 16
+	}
 	if s.TorrentBackend == "" {
 		s.TorrentBackend = "builtin"
 	}
@@ -140,10 +150,11 @@ func SaveSettings(p Paths, s Settings) error {
 		return err
 	}
 	out := map[string]any{
-		"proxy":      s.Proxy,
-		"concurrent": s.Concurrent,
-		"retryCount": s.RetryCount,
-		"retryDelay": s.RetryDelay,
+		"proxy":           s.Proxy,
+		"concurrent":      s.Concurrent,
+		"retryCount":      s.RetryCount,
+		"retryDelay":      s.RetryDelay,
+		"httpConnections": s.HTTPConnections,
 	}
 	if s.FFmpegPath != "" {
 		out["ffmpegPath"] = s.FFmpegPath

@@ -78,13 +78,14 @@ func (s *Server) handleState(w http.ResponseWriter, r *http.Request) {
 		"download": s.downloadInfo(),
 		"project":  proj,
 		"settings": map[string]any{
-			"proxy":          cfg.Proxy,
-			"concurrent":     cfg.Concurrent,
-			"ffmpegPath":     cfg.FFmpegPath,
-			"retryCount":     cfg.RetryCount,
-			"retryDelay":     cfg.RetryDelay,
-			"httpLimitKB":    cfg.HTTPLimitKB,
-			"sourceIndexUrl": cfg.SourceIndexURL,
+			"proxy":           cfg.Proxy,
+			"concurrent":      cfg.Concurrent,
+			"ffmpegPath":      cfg.FFmpegPath,
+			"retryCount":      cfg.RetryCount,
+			"retryDelay":      cfg.RetryDelay,
+			"httpLimitKB":     cfg.HTTPLimitKB,
+			"httpConnections": cfg.HTTPConnections,
+			"sourceIndexUrl":  cfg.SourceIndexURL,
 		},
 		"sources": s.reg.Enabled(),
 		"media": map[string]any{
@@ -802,18 +803,19 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 	s.cfgMu.Lock()
 	defer s.cfgMu.Unlock()
 	var body struct {
-		Proxy          *string `json:"proxy"`
-		Concurrent     *int    `json:"concurrent"`
-		FFmpegPath     *string `json:"ffmpegPath"`
-		RetryCount     *int    `json:"retryCount"`
-		RetryDelay     *int    `json:"retryDelay"`
-		HTTPLimitKB    *int    `json:"httpLimitKB"`
-		TorrentLimitKB *int    `json:"torrentLimitKB"`
-		TorrentBackend *string `json:"torrentBackend"`
-		QbtURL         *string `json:"qbtUrl"`
-		QbtUser        *string `json:"qbtUser"`
-		QbtPass        *string `json:"qbtPass"`
-		SourceIndexURL *string `json:"sourceIndexUrl"`
+		Proxy           *string `json:"proxy"`
+		Concurrent      *int    `json:"concurrent"`
+		FFmpegPath      *string `json:"ffmpegPath"`
+		RetryCount      *int    `json:"retryCount"`
+		RetryDelay      *int    `json:"retryDelay"`
+		HTTPLimitKB     *int    `json:"httpLimitKB"`
+		HTTPConnections *int    `json:"httpConnections"`
+		TorrentLimitKB  *int    `json:"torrentLimitKB"`
+		TorrentBackend  *string `json:"torrentBackend"`
+		QbtURL          *string `json:"qbtUrl"`
+		QbtUser         *string `json:"qbtUser"`
+		QbtPass         *string `json:"qbtPass"`
+		SourceIndexURL  *string `json:"sourceIndexUrl"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "invalid json"})
@@ -885,6 +887,13 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 		}
 		cfg.HTTPLimitKB = *body.HTTPLimitKB
 	}
+	if body.HTTPConnections != nil {
+		if *body.HTTPConnections < 1 || *body.HTTPConnections > 16 {
+			bad(w, "单文件连接数需在 1–16 之间")
+			return
+		}
+		cfg.HTTPConnections = *body.HTTPConnections
+	}
 	if body.TorrentBackend != nil {
 		v := strings.ToLower(strings.TrimSpace(*body.TorrentBackend))
 		if v != "builtin" && v != "qbittorrent" {
@@ -927,15 +936,16 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 	websource.Configure(cfg.Proxy)
 	if s.dl != nil {
 		s.dl.SetSettings(download.Settings{
-			Concurrent:     cfg.Concurrent,
-			FFmpeg:         cfg.FFmpegPath,
-			Proxy:          cfg.Proxy,
-			RetryCount:     cfg.RetryCount,
-			RetryDelay:     time.Duration(cfg.RetryDelay) * time.Second,
-			TorrentLimitKB: cfg.TorrentLimitKB,
-			HTTPLimitKB:    cfg.HTTPLimitKB,
-			TorrentBackend: cfg.TorrentBackend,
-			QbtURL:         cfg.QbtURL, QbtUser: cfg.QbtUser, QbtPass: cfg.QbtPass,
+			Concurrent:      cfg.Concurrent,
+			FFmpeg:          cfg.FFmpegPath,
+			Proxy:           cfg.Proxy,
+			RetryCount:      cfg.RetryCount,
+			RetryDelay:      time.Duration(cfg.RetryDelay) * time.Second,
+			TorrentLimitKB:  cfg.TorrentLimitKB,
+			HTTPLimitKB:     cfg.HTTPLimitKB,
+			HTTPConnections: cfg.HTTPConnections,
+			TorrentBackend:  cfg.TorrentBackend,
+			QbtURL:          cfg.QbtURL, QbtUser: cfg.QbtUser, QbtPass: cfg.QbtPass,
 		})
 	}
 	s.logbuf.Add("config", fmt.Sprintf("代理=%s 并发=%d", cfg.Proxy, cfg.Concurrent))

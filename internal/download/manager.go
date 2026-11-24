@@ -37,10 +37,12 @@ type Settings struct {
 	RetryDelay     time.Duration
 	TorrentLimitKB int
 	HTTPLimitKB    int
-	TorrentBackend string
-	QbtURL         string
-	QbtUser        string
-	QbtPass        string
+	// HTTPConnections 是单个 HTTP 直链的并行分片连接数；1 = 单连接。
+	HTTPConnections int
+	TorrentBackend  string
+	QbtURL          string
+	QbtUser         string
+	QbtPass         string
 }
 
 // Manager 管理下载队列。
@@ -420,11 +422,16 @@ func (m *Manager) Enqueue(t model.DownloadTask) (bool, error) {
 
 func (m *Manager) removePart(t *Task) {
 	_, part := m.pathsFor(t)
+	remove := func() {
+		_ = os.Remove(part)
+		_ = os.Remove(parallelStatePath(part))
+	}
 	if err := os.Remove(part); err == nil {
+		_ = os.Remove(parallelStatePath(part))
 		return
 	}
 	// Windows 上文件可能仍被下载 goroutine 持有；短暂重试一次。
-	time.AfterFunc(200*time.Millisecond, func() { _ = os.Remove(part) })
+	time.AfterFunc(200*time.Millisecond, remove)
 }
 
 func jobIDForToken(token string) string {

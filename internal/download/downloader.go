@@ -19,8 +19,13 @@ import (
 	"github.com/OOPQ/reelkeep/internal/source"
 )
 
-// runHTTP 下载普通 http(s) 地址，支持断点续传。
+// runHTTP 下载普通 http(s) 地址：大文件优先走多连接分片，失败/不支持时回退单连接。
 func (m *Manager) runHTTP(ctx context.Context, t *Task) error {
+	return m.runHTTPDispatch(ctx, t)
+}
+
+// runHTTPSingle 是原来的单连接实现，支持断点续传；也是分片失败时的回退路径。
+func (m *Manager) runHTTPSingle(ctx context.Context, t *Task) error {
 	final, part := m.pathsFor(t)
 	if err := os.MkdirAll(filepath.Dir(final), 0o755); err != nil {
 		return err

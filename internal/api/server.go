@@ -554,13 +554,14 @@ func (s *Server) settingsPayload() map[string]any {
 	cfg := s.settings
 	s.mu.RUnlock()
 	return map[string]any{
-		"proxy":          cfg.Proxy,
-		"concurrent":     cfg.Concurrent,
-		"ffmpegPath":     cfg.FFmpegPath,
-		"retryCount":     cfg.RetryCount,
-		"retryDelay":     cfg.RetryDelay,
-		"httpLimitKB":    cfg.HTTPLimitKB,
-		"sourceIndexUrl": cfg.SourceIndexURL,
+		"proxy":           cfg.Proxy,
+		"concurrent":      cfg.Concurrent,
+		"ffmpegPath":      cfg.FFmpegPath,
+		"retryCount":      cfg.RetryCount,
+		"retryDelay":      cfg.RetryDelay,
+		"httpLimitKB":     cfg.HTTPLimitKB,
+		"httpConnections": cfg.HTTPConnections,
+		"sourceIndexUrl":  cfg.SourceIndexURL,
 	}
 }
 

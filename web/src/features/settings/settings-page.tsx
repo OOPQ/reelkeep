@@ -42,6 +42,7 @@ export function SettingsPage() {
   const [sourceIndex, setSourceIndex] = React.useState('')
   const [ffmpeg, setFfmpeg] = React.useState('')
   const [concurrent, setConcurrent] = React.useState('3')
+  const [httpConnections, setHttpConnections] = React.useState('4')
   const [retryCount, setRetryCount] = React.useState('4')
   const [retryDelay, setRetryDelay] = React.useState('1')
   const [httpLimit, setHttpLimit] = React.useState('0')
@@ -89,6 +90,7 @@ export function SettingsPage() {
     setSourceIndex(data.settings.sourceIndexUrl || '')
     setFfmpeg(data.settings.ffmpegPath || '')
     setConcurrent(String(data.settings.concurrent || 3))
+    setHttpConnections(String(data.settings.httpConnections || 4))
     setRetryCount(String(data.settings.retryCount || 4))
     setRetryDelay(String(data.settings.retryDelay || 1))
     setHttpLimit(String(data.settings.httpLimitKB || 0))
@@ -146,6 +148,7 @@ export function SettingsPage() {
         proxy: proxy.trim(),
         ffmpegPath: ffmpeg.trim(),
         concurrent: Number(concurrent) || 3,
+        httpConnections: Number(httpConnections) || 4,
         retryCount: Number(retryCount) || 4,
         retryDelay: Number(retryDelay) || 1,
         httpLimitKB: Number(httpLimit) || 0,
@@ -267,6 +270,12 @@ export function SettingsPage() {
           </Field>
           <Field label="并发下载数">
             <Select value={concurrent} onValueChange={setConcurrent} options={Array.from({ length: 16 }, (_, i) => ({ value: String(i + 1), label: String(i + 1) }))} className="w-[100px]" aria-label="并发下载数" />
+          </Field>
+          <Field label="单文件连接数">
+            <div className="flex items-center gap-2">
+              <Select value={httpConnections} onValueChange={setHttpConnections} options={[1, 2, 4, 6, 8, 12, 16].map(n => ({ value: String(n), label: n === 1 ? '1（单连接）' : String(n) }))} className="w-[120px]" aria-label="单文件连接数" />
+              <span className="text-[10px] text-[color:var(--subtle)]">HTTP 直链分片下载；服务器不支持 Range 时自动回退单连接</span>
+            </div>
           </Field>
           <Field label="HTTP 下载限速">
             <div className="flex items-center gap-2">

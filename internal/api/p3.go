@@ -46,8 +46,14 @@ func (s *Server) handleProjectImport(w http.ResponseWriter, r *http.Request) {
 		bad(w, err.Error())
 		return
 	}
-	s.logbuf.Add("project", fmt.Sprintf("识别已有媒体：新增 %d，跳过 %d", added, skipped))
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "added": added, "skipped": skipped})
+	// 识别已有文件不只是「补新行」：台账里已有、但还没绑文件的条目也要同步绑定。
+	changed, err := s.Scan(false)
+	if err != nil {
+		bad(w, err.Error())
+		return
+	}
+	s.logbuf.Add("project", fmt.Sprintf("识别已有媒体：新增 %d，跳过 %d，绑定 %d", added, skipped, changed))
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "added": added, "skipped": skipped, "changed": changed})
 }
 
 // importProjectFiles 扫描 media/ 里台账没有的 mp4，补成 done 记录。
@@ -208,10 +214,15 @@ func (s *Server) handleImportLocal(w http.ResponseWriter, r *http.Request) {
 		bad(w, err.Error())
 		return
 	}
-	s.logbuf.Add("import", fmt.Sprintf("本地导入：移动 %d 个，新增 %d 条", moved, added))
+	changed, err := s.Scan(false)
+	if err != nil {
+		bad(w, err.Error())
+		return
+	}
+	s.logbuf.Add("import", fmt.Sprintf("本地导入：移动 %d 个，新增 %d 条，绑定 %d 条", moved, added, changed))
 	writeJSON(w, http.StatusOK, map[string]any{
 		"ok": true, "moved": moved, "skipped": skipped, "failed": failed,
-		"added": added, "covers": 0, "dir": dest,
+		"added": added, "changed": changed, "covers": 0, "dir": dest,
 	})
 }
 

@@ -118,6 +118,35 @@ func TestImportProjectFiles(t *testing.T) {
 	}
 }
 
+func TestImportProjectBindsExistingRow(t *testing.T) {
+	s, ts := newP3Server(t)
+	row := model.Row{Token: "demo@42", Source: "demo", SourceID: "42", Title: "demo", Status: "new", URL: "https://example.com/demo@42.mp4"}
+	if err := s.st.UpsertRows([]model.Row{row}); err != nil {
+		t.Fatal(err)
+	}
+	s.mu.Lock()
+	s.rows = append(s.rows, row)
+	s.mu.Unlock()
+	media := filepath.Join(s.paths.Content, "demo", "demo@42.mp4")
+	if err := os.MkdirAll(filepath.Dir(media), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(media, []byte("fake video"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out := postJSON(t, ts, "/api/project/import", map[string]any{})
+	if out["ok"] != true || int(out["changed"].(float64)) < 1 {
+		t.Fatalf("识别已有文件没有绑定台账: %v", out)
+	}
+	rows, err := s.st.LoadRows()
+	if err != nil || len(rows) != 1 {
+		t.Fatalf("读取台账失败: %v rows=%d", err, len(rows))
+	}
+	if rows[0].Status != "done" || rows[0].FileName != "demo@42.mp4" || rows[0].FilePath != media {
+		t.Fatalf("台账未绑定文件: %+v", rows[0])
+	}
+}
+
 func TestImportLocalMovesFiles(t *testing.T) {
 	s, ts := newP3Server(t)
 	ext := t.TempDir()

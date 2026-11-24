@@ -185,7 +185,19 @@ export function SettingsPage() {
   }
 
   const openProject = () => action('open', () => post('/api/project/open', {}), '已打开项目文件夹')
-  const importFiles = () => action('import', () => post('/api/project/import', {}), '识别完成')
+  const importFiles = async () => {
+    setBusy('import')
+    try {
+      const r = await post<{ ok: boolean; error?: string; added?: number; changed?: number }>('/api/project/import', {})
+      if (!r.ok) throw new Error(r.error || '识别失败')
+      toast.success(`识别完成：新增 ${r.added || 0}，绑定 ${r.changed || 0}`)
+      after()
+    } catch (e) {
+      toast.error((e as Error).message)
+    } finally {
+      setBusy(null)
+    }
+  }
   const scan = () => action('scan', () => post('/api/scan', {}), '扫描完成')
   const repairCovers = async () => {
     if (!(await confirmAction({ title: '修复缺失封面', description: '会分批抓取详情页并补封面（每次最多 100 条，直到没有进展）；需要联网，可能耗时几分钟。', confirmText: '开始修复' }))) return

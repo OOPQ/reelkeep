@@ -216,14 +216,9 @@ func (m *Manager) copyBody(ctx context.Context, t *Task, resp *http.Response, f 
 	for {
 		n, err := resp.Body.Read(buf)
 		if n > 0 {
-			m.mu.Lock()
-			lim := m.httpLimiter
-			m.mu.Unlock()
-			if lim != nil {
-				if werr := lim.WaitN(ctx, n); werr != nil {
-					_ = f.Close()
-					return werr
-				}
+			if werr := m.waitHTTPLimit(ctx, n); werr != nil {
+				_ = f.Close()
+				return werr
 			}
 			if _, werr := f.Write(buf[:n]); werr != nil {
 				_ = f.Close()
@@ -420,6 +415,31 @@ func (m *Manager) applyHeaders(req *http.Request, t *Task) {
 			req.Header.Set("Cookie", c)
 		}
 	}
+}
+
+// waitHTTPLimit 按限速器 burst 分段等待，避免单次读取大于 burst 时 WaitN 直接报错。
+func (m *Manager) waitHTTPLimit(ctx context.Context, n int) error {
+	m.mu.Lock()
+	lim := m.httpLimiter
+	m.mu.Unlock()
+	if lim == nil || n <= 0 {
+		return nil
+	}
+	burst := lim.Burst()
+	if burst <= 0 {
+		burst = n
+	}
+	for n > 0 {
+		chunk := n
+		if chunk > burst {
+			chunk = burst
+		}
+		if err := lim.WaitN(ctx, chunk); err != nil {
+			return err
+		}
+		n -= chunk
+	}
+	return nil
 }
 
 func (m *Manager) updateProgress(t *Task, written int64) {

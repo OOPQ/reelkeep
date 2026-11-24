@@ -96,7 +96,7 @@ func NewManager(paths config.Paths, st *store.Store, reg *source.Registry, cooki
 			},
 			DialContext:           dialAny,
 			ResponseHeaderTimeout: 30 * time.Second,
-			MaxIdleConnsPerHost:   4,
+			MaxIdleConnsPerHost:   16,
 			ForceAttemptHTTP2:     true,
 		},
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {

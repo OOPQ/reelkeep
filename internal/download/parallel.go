@@ -526,13 +526,8 @@ func (m *Manager) readSegment(ctx context.Context, t *Task, f *os.File, resp *ht
 			if off+int64(n)-1 > rt.end {
 				return errRangeMismatch
 			}
-			m.mu.Lock()
-			lim := m.httpLimiter
-			m.mu.Unlock()
-			if lim != nil {
-				if err := lim.WaitN(ctx, n); err != nil {
-					return err
-				}
+			if err := m.waitHTTPLimit(ctx, n); err != nil {
+				return err
 			}
 			if _, err := f.WriteAt(buf[:n], off); err != nil {
 				return err

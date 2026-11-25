@@ -48,9 +48,10 @@ type Props = {
   downloadItem?: DownloadItem
   playerVolume?: number
   playerMuted?: boolean
+  onRemoveRow?: (token: string) => void
 }
 
-export function PreviewDialog({ rows, token, autoplay = false, media, onClose, onNavigate, onFav, downloadItem, playerVolume, playerMuted }: Props) {
+export function PreviewDialog({ rows, token, autoplay = false, media, onClose, onNavigate, onFav, downloadItem, playerVolume, playerMuted, onRemoveRow }: Props) {
   const index = React.useMemo(() => rows.findIndex(r => r.token === token), [rows, token])
   const row = index >= 0 ? rows[index] : null
   const [playing, setPlaying] = React.useState(false)
@@ -96,8 +97,8 @@ export function PreviewDialog({ rows, token, autoplay = false, media, onClose, o
   const longPressRate = useUiStore(s => s.longPressRate)
   const coverRev = useUiStore(s => s.coverRev)
   const bumpCoverRev = useUiStore(s => s.bumpCoverRev)
-  const setPreviewOrder = useUiStore(s => s.setPreviewOrder)
   const videoRef = React.useRef<HTMLVideoElement>(null)
+
   const prefetchedCovers = React.useRef(new Set<string>())
   const qc = useQueryClient()
   const navigate = useNavigate()
@@ -167,7 +168,7 @@ export function PreviewDialog({ rows, token, autoplay = false, media, onClose, o
       }
       const idx = Math.min(at < 0 ? 0 : at, rest.length - 1)
       const nextToken = rest[idx]
-      setPreviewOrder(rest)
+      onRemoveRow?.(deleted)
       setNav({ dir: at >= 0 && at < rest.length ? 'next' : 'prev', token: nextToken })
       setDeleting(false)
       onNavigate(nextToken, autoplay)

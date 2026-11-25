@@ -35,6 +35,7 @@ import { useAppState } from '@/features/use-app-state'
 import { confirmAction } from '@/store/confirm'
 import { useLibraryActions } from './use-library-actions'
 import { useUiStore } from '@/store/ui'
+import { usePreview } from '@/features/preview/preview-provider'
 import { TABLE_COL_LABELS, type TableColKey } from '@/store/ui'
 import { cn, formatCount } from '@/lib/utils'
 import { post } from '@/lib/api'
@@ -159,8 +160,8 @@ export function LibraryPage() {
   const setSelected = useUiStore(s => s.setSelected)
   const clearSelected = useUiStore(s => s.clearSelected)
   const toggleSelected = useUiStore(s => s.toggleSelected)
-  const previewToken = useUiStore(s => s.previewToken)
-  const openPreview = useUiStore(s => s.openPreview)
+  const preview = usePreview()
+  const previewToken = preview.session?.token ?? null
 
 const collectionId = Number(searchParams.get('collection')) || null
 const tagIds = React.useMemo(() => (searchParams.get('tags') || '')
@@ -266,8 +267,6 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
     dir: sortDir,
     tags: tagIds.join(','),
   }, serverMode)
-  const listPreviewRef = React.useRef(false)
-  const setPreviewOrder = useUiStore(s => s.setPreviewOrder)
   // 预览的翻页范围要覆盖「整个筛选结果」，而不是当前页：
   // - 服务端分页（媒体库）：用 token 接口返回的全量顺序；
   // - 本批新增 / 合集 / 全部：用内存里完整的 sorted，而不是 displayRows 那一页。
@@ -276,20 +275,25 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
     const tokens = rowTokensQuery.data?.tokens
     return tokens && tokens.length ? tokens : displayRows.map(r => r.token)
   }, [serverMode, sorted, rowTokensQuery.data, displayRows])
+  const viewRows = React.useMemo(() => {
+    const map = new Map((data?.rows || []).map(row => [row.token, row]))
+    return viewOrder.map(token => map.get(token)).filter((row): row is Row => Boolean(row))
+  }, [data?.rows, viewOrder])
   const openPreviewList = React.useCallback((token: string, autoplay = false) => {
-    listPreviewRef.current = true
-    const order = [...viewOrder]
+    const rows = [...viewRows]
     // 兜底：点进来的条目一定在翻页顺序里，避免 token 列表还没刷新到最新时预览不弹。
-    if (!order.includes(token)) order.unshift(token)
-    openPreview(token, autoplay, order)
-  }, [openPreview, viewOrder])
+    if (!rows.some(row => row.token === token)) {
+      const current = (data?.rows || []).find(row => row.token === token)
+      if (current) rows.unshift(current)
+    }
+    if (rows.length) preview.open(rows, token, { autoplay, source: 'library' })
+  }, [preview, viewRows, data?.rows])
 
-  // token 列表 / 本批列表晚到时同步，但绝不能把当前打开的条目挤出顺序，
-  // 否则浮窗会因为找不到当前条目而「第一次点击没反应」。
+  // token 列表 / 本批列表晚到时同步，但绝不能把当前打开的条目挤出顺序。
   React.useEffect(() => {
-    if (!listPreviewRef.current || !previewToken || !viewOrder.length) return
-    setPreviewOrder(viewOrder.includes(previewToken) ? [...viewOrder] : [previewToken, ...viewOrder])
-  }, [viewOrder, previewToken, setPreviewOrder])
+    if (preview.session?.source !== 'library' || !viewRows.length) return
+    preview.refreshRows(viewRows)
+  }, [preview.session?.source, viewRows, preview.refreshRows])
 
   React.useEffect(() => { setPage(1) }, [deferredQuery, status, source, flag, res, minDur, per, sortKey, sortDir, tagIds, collectionId, batchMode])
   React.useEffect(() => { if (page > displayPages) setPage(displayPages) }, [page, displayPages])
@@ -495,7 +499,6 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
   const gachaBusy = React.useRef(false)
   const gacha = async () => {
     if (gachaBusy.current) return
-    listPreviewRef.current = false // 抽卡自己带全量播放池，别被列表 token 覆盖
     let all: Row[]
     if (serverMode) {
       gachaBusy.current = true
@@ -515,7 +518,7 @@ const [per, setPer] = React.useState(Number(searchParams.get('per')) || 50)
     const pool = previewToken ? all.filter(r => r.token !== previewToken) : all
     const list = pool.length ? pool : all
     const picked = list[Math.floor(Math.random() * list.length)]
-    openPreview(picked.token, true, list.map(r => r.token))
+    preview.open(list, picked.token, { autoplay: true, source: 'gacha' })
   }
 
   React.useEffect(() => {

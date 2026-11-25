@@ -21,9 +21,10 @@ import {
 import { useQueryClient } from '@tanstack/react-query'
 import { useAppState } from '@/features/use-app-state'
 import { useUiStore } from '@/store/ui'
-import type { Row } from '@/types'
+import type { DownloadItem, MediaConfig, Row } from '@/types'
 import { useLibraryActions } from '@/features/library/use-library-actions'
 import { PreviewDialog } from '@/features/library/preview-dialog'
+import { PreviewProvider, usePreview } from '@/features/preview/preview-provider'
 import { playDownloadChime } from '@/lib/sound'
 import { cn, formatCount, projectNameFromRoot } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -243,6 +244,47 @@ function Topbar({ onHelp, onCommand }: { onHelp: () => void; onCommand: () => vo
   )
 }
 
+function PreviewHost({
+  rows,
+  downloadItems,
+  media,
+  playerVolume,
+  playerMuted,
+  onFav,
+}: {
+  rows: Row[]
+  downloadItems: DownloadItem[]
+  media?: MediaConfig
+  playerVolume?: number
+  playerMuted?: boolean
+  onFav: (row: Row) => void
+}) {
+  const { session, navigate, close, removeRow } = usePreview()
+  const resolvedRows = React.useMemo(() => {
+    if (!session) return []
+    const latest = new Map(rows.map(row => [row.token, row]))
+    return session.rows.map(row => latest.get(row.token) || row)
+  }, [rows, session])
+  const token = session?.token || null
+  const downloadItem = token ? downloadItems.find(item => item.token === token) : undefined
+  if (!session || !token) return null
+  return (
+    <PreviewDialog
+      rows={resolvedRows}
+      token={token}
+      autoplay={session.autoplay}
+      media={media}
+      downloadItem={downloadItem}
+      playerVolume={playerVolume}
+      playerMuted={playerMuted}
+      onClose={close}
+      onNavigate={navigate}
+      onFav={onFav}
+      onRemoveRow={removeRow}
+    />
+  )
+}
+
 export function AppShell() {
   const theme = useUiStore(s => s.theme)
   const setTheme = useUiStore(s => s.setTheme)
@@ -250,27 +292,6 @@ export function AppShell() {
   const qc = useQueryClient()
   const navigate = useNavigate()
   const actions = useLibraryActions()
-  const previewToken = useUiStore(s => s.previewToken)
-  const previewAutoplay = useUiStore(s => s.previewAutoplay)
-  const previewOrder = useUiStore(s => s.previewOrder)
-  const navigatePreview = useUiStore(s => s.navigatePreview)
-  const closePreview = useUiStore(s => s.closePreview)
-  const previewRows = React.useMemo<Row[]>(() => {
-    const all = (data?.rows || []).filter(r => r.status !== 'recycled')
-    if (!previewOrder.length) return all
-    const map = new Map(all.map(r => [r.token, r]))
-    const rows = previewOrder.map(t => map.get(t)).filter((r): r is Row => Boolean(r))
-    // 当前条目无论如何都要在顺序里：token 列表可能比行数据晚一步刷新，
-    // 缺了它 PreviewDialog 会直接返回 null，表现为「第一次点击打不开浮窗」。
-    if (previewToken && !rows.some(r => r.token === previewToken)) {
-      const current = map.get(previewToken)
-      if (current) rows.unshift(current)
-    }
-    return rows
-  }, [data?.rows, previewOrder, previewToken])
-  const previewDownload = previewToken
-    ? (data?.download?.items || []).find(i => i.token === previewToken)
-    : undefined
   const wasRunning = React.useRef(false)
   const lastResult = React.useRef('')
   const downloadWasRunning = React.useRef(false)
@@ -374,32 +395,30 @@ export function AppShell() {
   }, [data?.job, data?.job?.running, data?.job?.progress?.phase, data?.job?.progress?.at, qc, navigate])
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden">
-      <TitleBar />
-      <div className="flex min-h-0 flex-1 overflow-hidden">
-        <Sidebar />
-        <ShortcutHelp open={helpOpen} onOpenChange={setHelpOpen} />
-        <CommandPalette open={commandOpen} onOpenChange={setCommandOpen} />
-        <div className="flex min-w-0 flex-1 flex-col">
-          <Topbar onHelp={() => setHelpOpen(true)} onCommand={() => setCommandOpen(true)} />
-          <main className="min-h-0 flex-1 overflow-auto">
-            <Outlet />
-          </main>
+    <PreviewProvider>
+      <div className="flex h-screen flex-col overflow-hidden">
+        <TitleBar />
+        <div className="flex min-h-0 flex-1 overflow-hidden">
+          <Sidebar />
+          <ShortcutHelp open={helpOpen} onOpenChange={setHelpOpen} />
+          <CommandPalette open={commandOpen} onOpenChange={setCommandOpen} />
+          <div className="flex min-w-0 flex-1 flex-col">
+            <Topbar onHelp={() => setHelpOpen(true)} onCommand={() => setCommandOpen(true)} />
+            <main className="min-h-0 flex-1 overflow-auto">
+              <Outlet />
+            </main>
+          </div>
         </div>
       </div>
-      <PreviewDialog
-        rows={previewRows}
-        token={previewToken}
-        autoplay={previewAutoplay}
+      <PreviewHost
+        rows={data?.rows || []}
+        downloadItems={data?.download?.items || []}
         media={data?.media}
-        downloadItem={previewDownload}
         playerVolume={data?.settings?.playerVolume}
         playerMuted={data?.settings?.playerMuted}
-        onClose={closePreview}
-        onNavigate={navigatePreview}
         onFav={row => actions.fav([row.token], row.fav !== '1')}
       />
-    </div>
+    </PreviewProvider>
   )
 }
 

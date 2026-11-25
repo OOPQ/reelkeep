@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import { useAppState } from '@/features/use-app-state'
 import { useUiStore } from '@/store/ui'
+import { usePreview } from '@/features/preview/preview-provider'
 import { coverUrl, cn, formatCount } from '@/lib/utils'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -57,7 +58,7 @@ function Cover({ row, className }: { row: Row; className?: string }) {
 export function OverviewPage() {
   const { data } = useAppState(15_000)
   const navigate = useNavigate()
-  const openPreview = useUiStore(s => s.openPreview)
+  const preview = usePreview()
 
   const rows = React.useMemo(() => (data?.rows || []).filter(r => r.status !== 'recycled'), [data?.rows])
   const stats = data?.stats
@@ -117,6 +118,7 @@ export function OverviewPage() {
     () => rows.filter(r => r.last_play).sort((a, b) => (b.last_play || '').localeCompare(a.last_play || '')).slice(0, 4),
     [rows],
   )
+  const favoriteView = favorites.length ? favorites : continueRows
 
   const download = data?.download
   const active = download?.items?.filter(i => i.state === 'downloading' || i.state === 'queued' || i.state === 'paused').length || 0
@@ -163,7 +165,7 @@ export function OverviewPage() {
                 <button
                   key={row.token}
                   type="button"
-                  onClick={() => openPreview(row.token)}
+                  onClick={() => preview.open(recent, row.token, { source: 'overview' })}
                   className="group overflow-hidden rounded-lg border border-[color:var(--border)] bg-[color:var(--surface-2)] text-left transition-colors hover:border-[color:var(--border-strong)]"
                 >
                   <Cover row={row} className="aspect-video w-full" />
@@ -257,7 +259,7 @@ export function OverviewPage() {
           <div className="flex items-center gap-1.5 text-[11.5px] font-medium"><PlayCircle className="size-3.5 text-[color:var(--primary-2)]" /> 最常播放</div>
           <div className="mt-3 space-y-2">
             {mostPlayed.map((row, i) => (
-              <button key={row.token} type="button" onClick={() => openPreview(row.token)} className="flex w-full items-center gap-2 text-left">
+              <button key={row.token} type="button" onClick={() => preview.open(mostPlayed, row.token, { source: 'overview' })} className="flex w-full items-center gap-2 text-left">
                 <span className="w-4 shrink-0 text-[9px] text-[color:var(--subtle)]">{i + 1}</span>
                 <Cover row={row} className="h-8 w-12 shrink-0 rounded" />
                 <span className="min-w-0 flex-1 truncate text-[10px]">{row.title || row.token}</span>
@@ -272,7 +274,7 @@ export function OverviewPage() {
           <div className="flex items-center gap-1.5 text-[11.5px] font-medium"><Heart className="size-3.5 text-[color:var(--danger)]" /> 收藏 / 待看</div>
           <div className="mt-3 space-y-2">
             {(favorites.length ? favorites : continueRows).slice(0, 4).map(row => (
-              <button key={row.token} type="button" onClick={() => openPreview(row.token)} className="flex w-full items-center gap-2 text-left">
+              <button key={row.token} type="button" onClick={() => preview.open(favoriteView, row.token, { source: 'overview' })} className="flex w-full items-center gap-2 text-left">
                 <Cover row={row} className="h-8 w-12 shrink-0 rounded" />
                 <span className="min-w-0 flex-1 truncate text-[10px]">{row.title || row.token}</span>
                 <span className="shrink-0 text-[8.5px] text-[color:var(--subtle)]">{row.fav === '1' ? '收藏' : '待看'}</span>

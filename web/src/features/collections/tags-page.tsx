@@ -20,6 +20,7 @@ import { useAppState } from '@/features/use-app-state'
 import { useLibraryActions } from '@/features/library/use-library-actions'
 import { confirmAction } from '@/store/confirm'
 import { useUiStore } from '@/store/ui'
+import { usePreview } from '@/features/preview/preview-provider'
 import { post } from '@/lib/api'
 import { cn, formatCount, formatDate, rowTitle } from '@/lib/utils'
 import type { DownloadItem, Row } from '@/types'
@@ -78,7 +79,7 @@ export function TagsPage() {
   const multi = useUiStore(s => s.multi)
   const setMulti = useUiStore(s => s.setMulti)
 
-  const openPreview = useUiStore(s => s.openPreview)
+  const preview = usePreview()
 
   const collectionsQuery = useQuery<{ items: Collection[] }>({
     queryKey: ['tags'],
@@ -135,8 +136,8 @@ export function TagsPage() {
   const shownRows = React.useMemo(() => rows.slice(0, visible), [rows, visible])
 
   const openPreviewList = React.useCallback((token: string, autoplay = false) => {
-    openPreview(token, autoplay, rows.map(r => r.token))
-  }, [openPreview, rows])
+    if (rows.length) preview.open(rows, token, { autoplay, source: 'tag' })
+  }, [preview, rows])
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ['tags'] })

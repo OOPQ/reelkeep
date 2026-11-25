@@ -6,6 +6,7 @@ import { confirmAction } from '@/store/confirm'
 import { post } from '@/lib/api'
 import { toast } from 'sonner'
 import { useUiStore } from '@/store/ui'
+import { usePreview } from '@/features/preview/preview-provider'
 import { coverUrl, cn, rowTitle } from '@/lib/utils'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -86,7 +87,7 @@ function HistorySection({ group, defaultOpen, onPlay }: { group: HistoryGroup; d
 export function HistoryPage() {
   const { data, refetch, error, isFetching } = useAppState(15_000)
   const navigate = useNavigate()
-  const openPreview = useUiStore(s => s.openPreview)
+  const preview = usePreview()
   const [query, setQuery] = React.useState('')
 
   const played = React.useMemo(() => {
@@ -169,7 +170,7 @@ export function HistoryPage() {
               key={group.date}
               group={group}
               defaultOpen={index === 0}
-              onPlay={row => openPreview(row.token, true)}
+              onPlay={row => preview.open(played, row.token, { autoplay: true, source: 'history' })}
             />
           ))}
         </div>

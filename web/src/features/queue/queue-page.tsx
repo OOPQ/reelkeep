@@ -19,7 +19,7 @@ import { toast } from 'sonner'
 import { useAppState } from '@/features/use-app-state'
 import { useLibraryActions } from '@/features/library/use-library-actions'
 import { confirmAction } from '@/store/confirm'
-import { useUiStore } from '@/store/ui'
+import { usePreview } from '@/features/preview/preview-provider'
 import { post } from '@/lib/api'
 import { unlockAudio } from '@/lib/sound'
 import { cn, formatBytes, formatCount, rowTitle } from '@/lib/utils'
@@ -41,6 +41,17 @@ type DItem = { token: string; title?: string; state: string; bytes: number; tota
 
 const ACTIVE = new Set(['downloading', 'queued', 'paused'])
 
+// 队列里可能有台账已不存在的历史任务，给预览一个最小 Row 兜底。
+function taskRow(item: DItem): Row {
+  return {
+    token: item.token, status: item.state, fav: '0', rank: '', page: '', duration: '', seconds: '', res: '',
+    views: '', likes: '', uploaded: '', url: '', page_url: '', site: '', source: item.source || '',
+    source_id: '', title: item.title || item.token, cover_url: '', download_kind: '', download_headers: '',
+    extra: '', first_seen: item.addedAt || '', last_seen: '', sent_at: '', note: '', file_name: '',
+    file_path: '', file_size: '', file_date: '', play_count: '0', last_play: '', rating: '0',
+  }
+}
+
 const formatSpeed = (speed?: number) => {
   if (!speed || speed <= 0) return ''
   const mb = speed / 1048576
@@ -55,7 +66,7 @@ export function QueuePage() {
   const tabParam = searchParams.get('tab')
   const [tab, setTab] = React.useState<Tab>((tabParam as Tab) || 'active')
   const [jobId, setJobId] = React.useState<string | null>(null)
-  const openPreview = useUiStore(s => s.openPreview)
+  const preview = usePreview()
   const userPicked = React.useRef(Boolean(tabParam))
   React.useEffect(() => {
     if (!tabParam) return
@@ -96,6 +107,13 @@ export function QueuePage() {
     }
     return [...map.entries()].sort((a, b) => b[0].localeCompare(a[0]))
   }, [list, rowMap])
+  const previewRows = React.useMemo(() => {
+    const rows: Row[] = []
+    for (const [, group] of queueGroups) {
+      for (const item of group) rows.push(rowMap.get(item.token) || taskRow(item))
+    }
+    return rows
+  }, [queueGroups, rowMap])
   const failedTokens = groups.failed.map(i => i.token)
   const concurrency = data?.settings?.concurrent || 3
 
@@ -151,7 +169,12 @@ export function QueuePage() {
   }
 
   const open = (row: Row | undefined, token: string) => {
-    openPreview(token, Boolean(row?.file_name))
+    const rows = [...previewRows]
+    if (!rows.some(item => item.token === token)) {
+      if (!row) return
+      rows.unshift(row)
+    }
+    preview.open(rows, token, { autoplay: Boolean(row?.file_name), source: 'queue' })
   }
 
   if (isLoading) return <QueueSkeleton />

@@ -22,6 +22,7 @@ import { useAppState } from '@/features/use-app-state'
 import { useLibraryActions } from '@/features/library/use-library-actions'
 import { confirmAction } from '@/store/confirm'
 import { useUiStore } from '@/store/ui'
+import { usePreview } from '@/features/preview/preview-provider'
 import { post } from '@/lib/api'
 import { cn, formatCount, formatDate, rowTitle } from '@/lib/utils'
 import type { DownloadItem, Row } from '@/types'
@@ -87,7 +88,7 @@ export function CollectionsPage() {
   const multi = useUiStore(s => s.multi)
   const setMulti = useUiStore(s => s.setMulti)
 
-  const openPreview = useUiStore(s => s.openPreview)
+  const preview = usePreview()
 
   const collectionsQuery = useQuery<{ items: Collection[] }>({
     queryKey: ['collections'],
@@ -174,8 +175,8 @@ export function CollectionsPage() {
   }
 
   const openPreviewList = React.useCallback((token: string, autoplay = false) => {
-    openPreview(token, autoplay, rows.map(r => r.token))
-  }, [openPreview, rows])
+    if (rows.length) preview.open(rows, token, { autoplay, source: 'collection' })
+  }, [preview, rows])
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ['collections'] })

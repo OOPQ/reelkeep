@@ -2,9 +2,19 @@ import * as React from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { FileVideo, RefreshCw } from 'lucide-react'
 import { formatBytes } from '@/lib/utils'
-import { useUiStore } from '@/store/ui'
+import { usePreview } from '@/features/preview/preview-provider'
+import type { Row } from '@/types'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
+
+function fileRow(token: string, name: string): Row {
+  return {
+    token, status: 'done', fav: '0', rank: '', page: '', duration: '', seconds: '', res: '', views: '', likes: '',
+    uploaded: '', url: '', page_url: '', site: '', source: '', source_id: '', title: name, cover_url: '',
+    download_kind: '', download_headers: '', extra: '', first_seen: '', last_seen: '', sent_at: '', note: '',
+    file_name: '', file_path: '', file_size: '', file_date: '', play_count: '0', last_play: '', rating: '0',
+  }
+}
 
 type JobFile = {
   index: number
@@ -30,7 +40,7 @@ type Job = {
 }
 
 export function TorrentJobDialog({ jobId, onClose }: { jobId: string | null; onClose: () => void }) {
-  const openPreview = useUiStore(s => s.openPreview)
+  const preview = usePreview()
   const { data, isLoading } = useQuery<{ ok: boolean; jobs: Job[] }>({
     queryKey: ['torrent-jobs'],
     queryFn: async () => {
@@ -75,7 +85,7 @@ export function TorrentJobDialog({ jobId, onClose }: { jobId: string | null; onC
                   </span>
                   <span className="shrink-0 text-[9px] text-[color:var(--subtle)]">{f.selected ? f.state : '未选择'}</span>
                   {f.mediaToken ? (
-                    <Button size="sm" variant="outline" className="h-6 px-2 text-[9px]" onClick={() => { openPreview(f.mediaToken!); onClose() }}>
+                    <Button size="sm" variant="outline" className="h-6 px-2 text-[9px]" onClick={() => { preview.open([fileRow(f.mediaToken!, f.path)], f.mediaToken!, { source: 'torrent' }); onClose() }}>
                       打开
                     </Button>
                   ) : null}

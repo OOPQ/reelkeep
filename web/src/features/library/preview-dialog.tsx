@@ -22,6 +22,7 @@ import {
 } from 'lucide-react'
 import type { DownloadItem, MediaConfig, Row, Snapshot } from '@/types'
 import { cn, copyText, coverUrl, formatCount, formatDate, formatTime, mediaUrl, rowTitle, statusOf } from '@/lib/utils'
+import { clampVolume, loadPlayerMuted, loadPlayerVolume, savePlayerMuted, savePlayerVolume } from '@/lib/player-prefs'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { post } from '@/lib/api'
@@ -74,8 +75,9 @@ export function PreviewDialog({ rows, token, autoplay = false, media, onClose, o
   const [currentTime, setCurrentTime] = React.useState(0)
   const [duration, setDuration] = React.useState(0)
   const [isPlaying, setIsPlaying] = React.useState(false)
-  const [isMuted, setIsMuted] = React.useState(false)
-  const [volume, setVolume] = React.useState(1)
+  const [isMuted, setIsMuted] = React.useState(loadPlayerMuted)
+  const [volume, setVolume] = React.useState(loadPlayerVolume)
+  const prefsReady = React.useRef(false)
   const [dragging, setDragging] = React.useState(false)
   const [isFullscreen, setIsFullscreen] = React.useState(false)
   const [controlsVisible, setControlsVisible] = React.useState(true)
@@ -238,7 +240,7 @@ export function PreviewDialog({ rows, token, autoplay = false, media, onClose, o
     setCurrentTime(0)
     setDuration(Number(row?.seconds) || 0)
     setIsPlaying(false)
-    setIsMuted(false)
+    prefsReady.current = false
     setHoverSnap(null)
     setPendingSnap(null)
     setAccelerating(false)
@@ -852,7 +854,7 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
               preload="auto"
               muted={isMuted}
 onTimeUpdate={e => { const t = e.currentTarget.currentTime; setCurrentTime(t); if (t > 3 && Date.now() - lastResumeSave.current > 5000) { lastResumeSave.current = Date.now(); try { localStorage.setItem(`pektino.resume.${row.token}`, String(Math.floor(t))) } catch { } } }}
-onLoadedMetadata={e => { const d = e.currentTarget.duration || Number(row.seconds) || 0; setDuration(d); e.currentTarget.playbackRate = playbackRate; if (!resumeApplied.current) { resumeApplied.current = true; try { const saved = Number(localStorage.getItem(`pektino.resume.${row.token}`) || 0); if (saved > 3 && (!d || saved < d - 5)) { e.currentTarget.currentTime = saved; setCurrentTime(saved) } } catch { } } }}
+onLoadedMetadata={e => { const d = e.currentTarget.duration || Number(row.seconds) || 0; setDuration(d); e.currentTarget.volume = volume; e.currentTarget.muted = isMuted; e.currentTarget.playbackRate = playbackRate; prefsReady.current = true; if (!resumeApplied.current) { resumeApplied.current = true; try { const saved = Number(localStorage.getItem(`pektino.resume.${row.token}`) || 0); if (saved > 3 && (!d || saved < d - 5)) { e.currentTarget.currentTime = saved; setCurrentTime(saved) } } catch { } } }}
               onDurationChange={e => setDuration(e.currentTarget.duration || Number(row.seconds) || 0)}
               onPlaying={() => { setVideoReady(true); setIsPlaying(true) }}
 onPause={() => { setIsPlaying(false); saveResume(); if (!expectPlaying.current) userPaused.current = true }}
@@ -868,7 +870,16 @@ onPlay={e => {
                 if (videoRef.current) videoRef.current.playbackRate = playbackRate
                 recordPlay()
               }}
-              onVolumeChange={e => { setIsMuted(e.currentTarget.muted); setVolume(e.currentTarget.volume) }}
+              onVolumeChange={e => {
+                const v = e.currentTarget
+                const nextVolume = clampVolume(v.volume)
+                setIsMuted(v.muted)
+                setVolume(nextVolume)
+                if (prefsReady.current) {
+                  savePlayerVolume(nextVolume)
+                  savePlayerMuted(v.muted)
+                }
+              }}
               onCanPlay={() => setVideoReady(true)}
               onError={() => { setVideoError(true); setPlaying(false); setIsPlaying(false); toast.error('视频加载失败：文件可能已被移动，或编码浏览器不支持') }}
               className="absolute inset-0 z-10 h-full w-full object-contain outline-none"
@@ -903,7 +914,7 @@ onPlay={e => {
                   </span>
                 ) : null}
                 <div className="ml-auto flex items-center gap-1">
-                  <IconButton label={isMuted ? '取消静音' : '静音'} size="sm" onClick={() => { const v = videoRef.current; if (!v) return; v.muted = !v.muted; setIsMuted(v.muted) }}>
+                  <IconButton label={isMuted ? '取消静音' : '静音'} size="sm" onClick={() => { const v = videoRef.current; if (!v) return; v.muted = !v.muted; setIsMuted(v.muted); savePlayerMuted(v.muted) }}>
                     {isMuted ? <VolumeX className="size-3.5" /> : <Volume2 className="size-3.5" />}
                   </IconButton>
                   <input
@@ -913,7 +924,15 @@ onPlay={e => {
                     step={0.01}
                     value={isMuted ? 0 : volume}
                     aria-label="音量"
-                    onChange={e => { const v = videoRef.current; const next = Number(e.target.value); setVolume(next); setIsMuted(next === 0); if (v) { v.volume = next; v.muted = next === 0 } }}
+                    onChange={e => {
+                      const v = videoRef.current
+                      const next = clampVolume(Number(e.target.value))
+                      setVolume(next)
+                      setIsMuted(next === 0)
+                      savePlayerVolume(next)
+                      savePlayerMuted(next === 0)
+                      if (v) { v.volume = next; v.muted = next === 0 }
+                    }}
                     className="h-1 w-16 cursor-pointer accent-[color:var(--primary)]"
                   />
                   <select value={playbackRate} aria-label="播放倍速" onChange={e => setRate(Number(e.target.value))} className="h-6 rounded border border-white/20 bg-black/55 px-1 text-[9px] text-white outline-none">

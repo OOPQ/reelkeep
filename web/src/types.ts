@@ -99,6 +99,7 @@ export type AppSettings = {
   perSourceConcurrent?: number
   playerVolume?: number
   playerMuted?: boolean
+  playerPlayMode?: string
   sourceIndexUrl?: string
   torrentBackend?: string
   qbtUrl?: string

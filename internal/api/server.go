@@ -588,6 +588,7 @@ func (s *Server) settingsPayload() map[string]any {
 		"perSourceConcurrent": cfg.PerSourceConcurrent,
 		"playerVolume":        cfg.PlayerVolume,
 		"playerMuted":         cfg.PlayerMuted,
+		"playerPlayMode":      cfg.PlayerPlayMode,
 		"sourceIndexUrl":      cfg.SourceIndexURL,
 	}
 }

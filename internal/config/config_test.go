@@ -29,20 +29,20 @@ func TestPlayerPrefsPersist(t *testing.T) {
 	if err := p.Ensure(); err != nil {
 		t.Fatal(err)
 	}
-	if err := SaveSettings(p, Settings{Concurrent: 3, PlayerVolume: 0.35, PlayerMuted: true, PlayerVolumeSet: true}); err != nil {
+	if err := SaveSettings(p, Settings{Concurrent: 3, PlayerVolume: 0.35, PlayerMuted: true, PlayerPlayMode: "all", PlayerVolumeSet: true}); err != nil {
 		t.Fatal(err)
 	}
 	s := LoadSettings(p)
-	if s.PlayerVolume != 0.35 || !s.PlayerMuted {
-		t.Fatalf("音量偏好未持久化: %+v", s)
+	if s.PlayerVolume != 0.35 || !s.PlayerMuted || s.PlayerPlayMode != "all" {
+		t.Fatalf("播放偏好未持久化: %+v", s)
 	}
 	// 0 音量是合法值，不能被默认值覆盖。
-	if err := SaveSettings(p, Settings{Concurrent: 3, PlayerVolume: 0, PlayerMuted: false, PlayerVolumeSet: true}); err != nil {
+	if err := SaveSettings(p, Settings{Concurrent: 3, PlayerVolume: 0, PlayerMuted: false, PlayerPlayMode: "bogus", PlayerVolumeSet: true}); err != nil {
 		t.Fatal(err)
 	}
 	s = LoadSettings(p)
-	if s.PlayerVolume != 0 || s.PlayerMuted {
-		t.Fatalf("0 音量未保留: %+v", s)
+	if s.PlayerVolume != 0 || s.PlayerMuted || s.PlayerPlayMode != "off" {
+		t.Fatalf("0 音量/非法播放模式未正确处理: %+v", s)
 	}
 }
 

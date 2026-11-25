@@ -22,7 +22,7 @@ import {
 } from 'lucide-react'
 import type { DownloadItem, MediaConfig, Row, Snapshot } from '@/types'
 import { cn, copyText, coverUrl, formatCount, formatDate, formatTime, mediaUrl, rowTitle, statusOf } from '@/lib/utils'
-import { clampVolume, hasStoredPlayerPrefs, loadPlayerMuted, loadPlayerVolume, savePlayerMuted, savePlayerVolume } from '@/lib/player-prefs'
+import { clampVolume, hasStoredPlayerPrefs, loadPlayerMuted, loadPlayerPlayMode, loadPlayerVolume, normalizePlayMode, savePlayerMuted, savePlayerPlayMode, savePlayerVolume, type PlayMode } from '@/lib/player-prefs'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { post } from '@/lib/api'
@@ -48,10 +48,11 @@ type Props = {
   downloadItem?: DownloadItem
   playerVolume?: number
   playerMuted?: boolean
+  playerPlayMode?: string
   onRemoveRow?: (token: string) => void
 }
 
-export function PreviewDialog({ rows, token, autoplay = false, media, onClose, onNavigate, onFav, downloadItem, playerVolume, playerMuted, onRemoveRow }: Props) {
+export function PreviewDialog({ rows, token, autoplay = false, media, onClose, onNavigate, onFav, downloadItem, playerVolume, playerMuted, playerPlayMode, onRemoveRow }: Props) {
   const index = React.useMemo(() => rows.findIndex(r => r.token === token), [rows, token])
   const row = index >= 0 ? rows[index] : null
   const [playing, setPlaying] = React.useState(false)
@@ -81,6 +82,8 @@ export function PreviewDialog({ rows, token, autoplay = false, media, onClose, o
   const usingLocalPrefs = React.useRef(hasStoredPlayerPrefs())
   const [isMuted, setIsMuted] = React.useState(() => usingLocalPrefs.current ? loadPlayerMuted() : Boolean(playerMuted))
   const [volume, setVolume] = React.useState(() => usingLocalPrefs.current ? loadPlayerVolume() : clampVolume(playerVolume ?? 1))
+  const storedPlayMode = React.useRef(loadPlayerPlayMode())
+  const [playMode, setPlayModeState] = React.useState<PlayMode>(() => storedPlayMode.current ?? normalizePlayMode(playerPlayMode))
   const prefsReady = React.useRef(false)
   const prefsTimer = React.useRef(0)
   const [dragging, setDragging] = React.useState(false)
@@ -116,6 +119,18 @@ export function PreviewDialog({ rows, token, autoplay = false, media, onClose, o
   }, [])
 
   React.useEffect(() => () => window.clearTimeout(prefsTimer.current), [])
+
+  const changePlayMode = React.useCallback((mode: PlayMode) => {
+    setPlayModeState(mode)
+    storedPlayMode.current = mode
+    savePlayerPlayMode(mode)
+    void post('/api/config', { playerPlayMode: mode }).catch(() => {})
+  }, [])
+
+  React.useEffect(() => {
+    if (storedPlayMode.current !== null) return
+    setPlayModeState(normalizePlayMode(playerPlayMode))
+  }, [playerPlayMode])
 
   // 项目配置晚到（或首次进入）时用后端值初始化；一旦本地改过就不再覆盖。
   React.useEffect(() => {
@@ -283,6 +298,17 @@ export function PreviewDialog({ rows, token, autoplay = false, media, onClose, o
   const prev = index > 0 ? rows[index - 1] : null
   const next = index >= 0 && index < rows.length - 1 ? rows[index + 1] : null
   const keepPlaying = () => playing || isPlaying || Boolean(videoRef.current && !videoRef.current.paused)
+  // 自动下一部只跳有本地文件的行，避免落到只有封面的条目上。
+  const isPlayableRow = (r: Row) => Boolean(r.file_name && media?.base && media?.key)
+  const findNextPlayable = (wrap: boolean): Row | null => {
+    for (let step = 1; step <= rows.length; step++) {
+      const at = index + step
+      if (at >= rows.length && !wrap) return null
+      const candidate = rows[at % rows.length]
+      if (candidate && candidate.token !== token && isPlayableRow(candidate)) return candidate
+    }
+    return null
+  }
   const goPrev = () => { if (prev) { setNav({ dir: 'prev', token: prev.token }); saveResumeRef.current(); onNavigate(prev.token, keepPlaying()) } }
   const goNext = () => { if (next) { setNav({ dir: 'next', token: next.token }); saveResumeRef.current(); onNavigate(next.token, keepPlaying()) } }
 
@@ -885,12 +911,39 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
               playsInline
               preload="auto"
               muted={isMuted}
+              loop={playMode === 'one'}
 onTimeUpdate={e => { const t = e.currentTarget.currentTime; setCurrentTime(t); if (t > 3 && Date.now() - lastResumeSave.current > 5000) { lastResumeSave.current = Date.now(); try { localStorage.setItem(`pektino.resume.${row.token}`, String(Math.floor(t))) } catch { } } }}
-onLoadedMetadata={e => { const d = e.currentTarget.duration || Number(row.seconds) || 0; setDuration(d); e.currentTarget.volume = volume; e.currentTarget.muted = isMuted; e.currentTarget.playbackRate = playbackRate; prefsReady.current = true; if (!resumeApplied.current) { resumeApplied.current = true; try { const saved = Number(localStorage.getItem(`pektino.resume.${row.token}`) || 0); if (saved > 3 && (!d || saved < d - 5)) { e.currentTarget.currentTime = saved; setCurrentTime(saved) } } catch { } } }}
+onLoadedMetadata={e => { const d = e.currentTarget.duration || Number(row.seconds) || 0; setDuration(d); e.currentTarget.volume = volume; e.currentTarget.muted = isMuted; e.currentTarget.loop = playMode === 'one'; e.currentTarget.playbackRate = playbackRate; prefsReady.current = true; if (!resumeApplied.current) { resumeApplied.current = true; try { const saved = Number(localStorage.getItem(`pektino.resume.${row.token}`) || 0); if (saved > 3 && (!d || saved < d - 5)) { e.currentTarget.currentTime = saved; setCurrentTime(saved) } } catch { } } }}
               onDurationChange={e => setDuration(e.currentTarget.duration || Number(row.seconds) || 0)}
               onPlaying={() => { setVideoReady(true); setIsPlaying(true) }}
 onPause={() => { setIsPlaying(false); saveResume(); if (!expectPlaying.current) userPaused.current = true }}
-              onEnded={() => { expectPlaying.current = false; userPaused.current = true; setIsPlaying(false); saveResume() }}
+              onEnded={() => {
+                expectPlaying.current = false
+                saveResume()
+                const replay = () => {
+                  const v = videoRef.current
+                  if (v) { v.currentTime = 0; void v.play() }
+                }
+                // 单集循环 / 列表只有一项时直接重播当前视频。
+                if (playMode === 'one' || (playMode === 'all' && rows.length <= 1)) {
+                  replay()
+                  return
+                }
+                if (playMode === 'next' || playMode === 'all') {
+                  const target = findNextPlayable(playMode === 'all')
+                  if (target) {
+                    userPaused.current = false
+                    onNavigate(target.token, true)
+                    return
+                  }
+                  if (playMode === 'all') {
+                    replay()
+                    return
+                  }
+                }
+                userPaused.current = true
+                setIsPlaying(false)
+              }}
 onPlay={e => {
                 expectPlaying.current = false
                 if (userPaused.current) {
@@ -963,6 +1016,18 @@ onPlay={e => {
                     }}
                     className="h-1 w-16 cursor-pointer accent-[color:var(--primary)]"
                   />
+                  <select
+                    value={playMode}
+                    aria-label="播放模式"
+                    title="播放模式"
+                    onChange={e => changePlayMode(e.target.value as PlayMode)}
+                    className="h-6 max-w-[92px] rounded border border-white/20 bg-black/55 px-1 text-[9px] text-white outline-none"
+                  >
+                    <option value="off" className="bg-[color:var(--surface)]">顺序播放</option>
+                    <option value="one" className="bg-[color:var(--surface)]">单集循环</option>
+                    <option value="next" className="bg-[color:var(--surface)]">自动下一部</option>
+                    <option value="all" className="bg-[color:var(--surface)]">列表循环</option>
+                  </select>
                   <select value={playbackRate} aria-label="播放倍速" onChange={e => setRate(Number(e.target.value))} className="h-6 rounded border border-white/20 bg-black/55 px-1 text-[9px] text-white outline-none">
                     {[1, 1.25, 1.5, 2].map(rate => <option key={rate} value={rate} className="bg-[color:var(--surface)]">{rate}×</option>)}
                   </select>

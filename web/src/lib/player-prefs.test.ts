@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { clampVolume, hasStoredPlayerPrefs, loadPlayerMuted, loadPlayerVolume, savePlayerMuted, savePlayerVolume } from './player-prefs'
+import { clampVolume, hasStoredPlayerPrefs, loadPlayerMuted, loadPlayerPlayMode, loadPlayerVolume, normalizePlayMode, savePlayerMuted, savePlayerPlayMode, savePlayerVolume } from './player-prefs'
 
 let data: Map<string, string>
 
@@ -36,5 +36,12 @@ describe('player prefs', () => {
     expect(clampVolume(-1)).toBe(0)
     expect(clampVolume(2)).toBe(1)
     expect(clampVolume(Number.NaN)).toBe(1)
+  })
+
+  it('normalizes and remembers play mode', () => {
+    expect(loadPlayerPlayMode()).toBe(null)
+    expect(normalizePlayMode('bogus')).toBe('off')
+    savePlayerPlayMode('all')
+    expect(loadPlayerPlayMode()).toBe('all')
   })
 })

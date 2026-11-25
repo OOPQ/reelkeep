@@ -104,6 +104,7 @@ type Settings struct {
 	// PlayerVolume / PlayerMuted 是预览播放器的音量偏好，随项目持久化。
 	PlayerVolume    float64 `json:"playerVolume"`
 	PlayerMuted     bool    `json:"playerMuted"`
+	PlayerPlayMode  string  `json:"playerPlayMode"`
 	PlayerVolumeSet bool    `json:"playerVolumeSet"`
 	TorrentBackend  string  `json:"torrentBackend"`
 	QbtURL          string  `json:"qbtUrl"`
@@ -158,6 +159,11 @@ func LoadSettings(p Paths) Settings {
 	if s.PlayerVolume > 1 {
 		s.PlayerVolume = 1
 	}
+	switch s.PlayerPlayMode {
+	case "one", "next", "all":
+	default:
+		s.PlayerPlayMode = "off"
+	}
 	if s.TorrentBackend == "" {
 		s.TorrentBackend = "builtin"
 	}
@@ -181,6 +187,7 @@ func SaveSettings(p Paths, s Settings) error {
 		"perSourceConcurrent": s.PerSourceConcurrent,
 		"playerVolume":        s.PlayerVolume,
 		"playerMuted":         s.PlayerMuted,
+		"playerPlayMode":      s.PlayerPlayMode,
 		"playerVolumeSet":     s.PlayerVolumeSet,
 	}
 	if s.FFmpegPath != "" {

@@ -88,6 +88,7 @@ func (s *Server) handleState(w http.ResponseWriter, r *http.Request) {
 			"perSourceConcurrent": cfg.PerSourceConcurrent,
 			"playerVolume":        cfg.PlayerVolume,
 			"playerMuted":         cfg.PlayerMuted,
+			"playerPlayMode":      cfg.PlayerPlayMode,
 			"sourceIndexUrl":      cfg.SourceIndexURL,
 		},
 		"sources": s.reg.Enabled(),
@@ -816,6 +817,7 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 		PerSourceConcurrent *int     `json:"perSourceConcurrent"`
 		PlayerVolume        *float64 `json:"playerVolume"`
 		PlayerMuted         *bool    `json:"playerMuted"`
+		PlayerPlayMode      *string  `json:"playerPlayMode"`
 		TorrentLimitKB      *int     `json:"torrentLimitKB"`
 		TorrentBackend      *string  `json:"torrentBackend"`
 		QbtURL              *string  `json:"qbtUrl"`
@@ -918,6 +920,16 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 	if body.PlayerMuted != nil {
 		cfg.PlayerMuted = *body.PlayerMuted
 		cfg.PlayerVolumeSet = true
+	}
+	if body.PlayerPlayMode != nil {
+		mode := strings.ToLower(strings.TrimSpace(*body.PlayerPlayMode))
+		switch mode {
+		case "off", "one", "next", "all":
+			cfg.PlayerPlayMode = mode
+		default:
+			bad(w, "播放模式只能是 off/one/next/all")
+			return
+		}
 	}
 	if body.TorrentBackend != nil {
 		v := strings.ToLower(strings.TrimSpace(*body.TorrentBackend))

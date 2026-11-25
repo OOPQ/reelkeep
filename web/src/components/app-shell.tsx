@@ -250,6 +250,7 @@ function PreviewHost({
   media,
   playerVolume,
   playerMuted,
+  playerPlayMode,
   onFav,
 }: {
   rows: Row[]
@@ -257,6 +258,7 @@ function PreviewHost({
   media?: MediaConfig
   playerVolume?: number
   playerMuted?: boolean
+  playerPlayMode?: string
   onFav: (row: Row) => void
 }) {
   const { session, navigate, close, removeRow } = usePreview()
@@ -277,6 +279,7 @@ function PreviewHost({
       downloadItem={downloadItem}
       playerVolume={playerVolume}
       playerMuted={playerMuted}
+      playerPlayMode={playerPlayMode}
       onClose={close}
       onNavigate={navigate}
       onFav={onFav}
@@ -416,6 +419,7 @@ export function AppShell() {
         media={data?.media}
         playerVolume={data?.settings?.playerVolume}
         playerMuted={data?.settings?.playerMuted}
+        playerPlayMode={data?.settings?.playerPlayMode}
         onFav={row => actions.fav([row.token], row.fav !== '1')}
       />
     </PreviewProvider>

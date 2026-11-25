@@ -9,6 +9,7 @@ import {
   Download,
   ExternalLink,
   FastForward,
+  FileDown,
   List,
   Maximize,
   Minimize,
@@ -21,7 +22,7 @@ import {
   X,
 } from 'lucide-react'
 import type { DownloadItem, MediaConfig, Row, Snapshot } from '@/types'
-import { cn, copyText, coverUrl, formatCount, formatDate, formatTime, mediaUrl, rowTitle, statusOf } from '@/lib/utils'
+import { cn, copyText, copyValue, coverUrl, formatCount, formatDate, formatTime, mediaUrl, rowTitle, statusOf } from '@/lib/utils'
 import { clampVolume, hasStoredPlayerPrefs, loadPlayerMuted, loadPlayerPlayMode, loadPlayerVolume, normalizePlayMode, savePlayerMuted, savePlayerPlayMode, savePlayerVolume, type PlayMode } from '@/lib/player-prefs'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -65,7 +66,7 @@ export function PreviewDialog({ rows, token, autoplay = false, media, onClose, o
   const expectPlaying = React.useRef(false)
   const [videoReady, setVideoReady] = React.useState(false)
   const [videoError, setVideoError] = React.useState(false)
-  const [copied, setCopied] = React.useState(false)
+  const [copied, setCopied] = React.useState<'page' | 'download' | null>(null)
   const [seek, setSeek] = React.useState<number | null>(null)
   const [busySnap, setBusySnap] = React.useState(false)
   const [pendingSnap, setPendingSnap] = React.useState<{ id: string; name: string } | null>(null)
@@ -281,7 +282,7 @@ export function PreviewDialog({ rows, token, autoplay = false, media, onClose, o
     userPaused.current = false
     setVideoReady(false)
     setVideoError(false)
-    setCopied(false)
+    setCopied(null)
     setSeek(null)
     setVolumeHint('')
     setCurrentTime(0)
@@ -512,10 +513,15 @@ if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopImmediatePropaga
   const memberships = tagsQuery.data?.items || []
   const collectionMemberships = collectionsQuery.data?.items || []
 
-  const copy = async () => {
-    if (await copyText(row.page_url || row.url)) {
-      setCopied(true)
-      window.setTimeout(() => setCopied(false), 1600)
+  const copy = async (kind: 'page' | 'download') => {
+    const value = copyValue(row, kind)
+    if (!value) {
+      toast.error(kind === 'download' ? '该条目没有下载链接' : '该条目没有页面链接')
+      return
+    }
+    if (await copyText(value)) {
+      setCopied(kind)
+      window.setTimeout(() => setCopied(current => current === kind ? null : current), 1600)
     }
   }
 
@@ -1212,8 +1218,11 @@ onPlay={e => {
               <Star className={cn('size-3.5', row.fav === '1' && 'fill-current')} />
               {row.fav === '1' ? '已收藏' : '收藏'}
             </Button>
-            <Button size="sm" variant="outline" onClick={copy}>
-              <Copy className="size-3.5" /> {copied ? '已复制' : '复制链接'}
+            <Button size="sm" variant="outline" onClick={() => void copy('page')}>
+              <Copy className="size-3.5" /> {copied === 'page' ? '已复制' : '复制页面链接'}
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => void copy('download')} disabled={!row.url}>
+              <FileDown className="size-3.5" /> {copied === 'download' ? '已复制' : '复制下载链接'}
             </Button>
             {row.source !== 'local' && row.page_url ? (
               <Button size="sm" variant="outline" asChild>

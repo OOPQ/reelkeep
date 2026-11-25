@@ -586,6 +586,8 @@ func (s *Server) settingsPayload() map[string]any {
 		"httpLimitKB":         cfg.HTTPLimitKB,
 		"httpConnections":     cfg.HTTPConnections,
 		"perSourceConcurrent": cfg.PerSourceConcurrent,
+		"playerVolume":        cfg.PlayerVolume,
+		"playerMuted":         cfg.PlayerMuted,
 		"sourceIndexUrl":      cfg.SourceIndexURL,
 	}
 }

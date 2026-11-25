@@ -7,6 +7,14 @@ export function clampVolume(value: number) {
   return Math.min(1, Math.max(0, value))
 }
 
+export function hasStoredPlayerPrefs() {
+  try {
+    return localStorage.getItem(VOLUME_KEY) != null || localStorage.getItem(MUTED_KEY) != null
+  } catch {
+    return false
+  }
+}
+
 export function loadPlayerVolume() {
   try {
     const raw = localStorage.getItem(VOLUME_KEY)

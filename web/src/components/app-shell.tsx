@@ -393,6 +393,8 @@ export function AppShell() {
         autoplay={previewAutoplay}
         media={data?.media}
         downloadItem={previewDownload}
+        playerVolume={data?.settings?.playerVolume}
+        playerMuted={data?.settings?.playerMuted}
         onClose={closePreview}
         onNavigate={navigatePreview}
         onFav={row => actions.fav([row.token], row.fav !== '1')}

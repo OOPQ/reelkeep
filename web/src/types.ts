@@ -97,6 +97,8 @@ export type AppSettings = {
   httpLimitKB?: number
   httpConnections?: number
   perSourceConcurrent?: number
+  playerVolume?: number
+  playerMuted?: boolean
   sourceIndexUrl?: string
   torrentBackend?: string
   qbtUrl?: string

@@ -100,11 +100,15 @@ type Settings struct {
 	// HTTPConnections 是单个 HTTP 直链的最大并行分片连接数；1 表示单连接模式。
 	HTTPConnections int `json:"httpConnections"`
 	// PerSourceConcurrent 是同一来源同时下载的文件数。
-	PerSourceConcurrent int    `json:"perSourceConcurrent"`
-	TorrentBackend      string `json:"torrentBackend"`
-	QbtURL              string `json:"qbtUrl"`
-	QbtUser             string `json:"qbtUser"`
-	QbtPass             string `json:"qbtPass"`
+	PerSourceConcurrent int `json:"perSourceConcurrent"`
+	// PlayerVolume / PlayerMuted 是预览播放器的音量偏好，随项目持久化。
+	PlayerVolume    float64 `json:"playerVolume"`
+	PlayerMuted     bool    `json:"playerMuted"`
+	PlayerVolumeSet bool    `json:"playerVolumeSet"`
+	TorrentBackend  string  `json:"torrentBackend"`
+	QbtURL          string  `json:"qbtUrl"`
+	QbtUser         string  `json:"qbtUser"`
+	QbtPass         string  `json:"qbtPass"`
 	// SourceIndexURL 是「可用源」索引地址（JSON）；空表示用内置默认。
 	SourceIndexURL string `json:"sourceIndexUrl"`
 }
@@ -143,6 +147,17 @@ func LoadSettings(p Paths) Settings {
 	if s.PerSourceConcurrent > 8 {
 		s.PerSourceConcurrent = 8
 	}
+	if !s.PlayerVolumeSet {
+		s.PlayerVolume = 1
+		s.PlayerMuted = false
+		s.PlayerVolumeSet = true
+	}
+	if s.PlayerVolume < 0 {
+		s.PlayerVolume = 0
+	}
+	if s.PlayerVolume > 1 {
+		s.PlayerVolume = 1
+	}
 	if s.TorrentBackend == "" {
 		s.TorrentBackend = "builtin"
 	}
@@ -164,6 +179,9 @@ func SaveSettings(p Paths, s Settings) error {
 		"retryDelay":          s.RetryDelay,
 		"httpConnections":     s.HTTPConnections,
 		"perSourceConcurrent": s.PerSourceConcurrent,
+		"playerVolume":        s.PlayerVolume,
+		"playerMuted":         s.PlayerMuted,
+		"playerVolumeSet":     s.PlayerVolumeSet,
 	}
 	if s.FFmpegPath != "" {
 		out["ffmpegPath"] = s.FFmpegPath

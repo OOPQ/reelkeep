@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { clampVolume, loadPlayerMuted, loadPlayerVolume, savePlayerMuted, savePlayerVolume } from './player-prefs'
+import { clampVolume, hasStoredPlayerPrefs, loadPlayerMuted, loadPlayerVolume, savePlayerMuted, savePlayerVolume } from './player-prefs'
 
 let data: Map<string, string>
 
@@ -19,11 +19,13 @@ describe('player prefs', () => {
   it('defaults to full volume and unmuted', () => {
     expect(loadPlayerVolume()).toBe(1)
     expect(loadPlayerMuted()).toBe(false)
+    expect(hasStoredPlayerPrefs()).toBe(false)
   })
 
   it('remembers volume and mute state', () => {
     savePlayerVolume(0.35)
     savePlayerMuted(true)
+    expect(hasStoredPlayerPrefs()).toBe(true)
     expect(loadPlayerVolume()).toBe(0.35)
     expect(loadPlayerMuted()).toBe(true)
     savePlayerMuted(false)

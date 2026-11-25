@@ -22,7 +22,7 @@ import {
 } from 'lucide-react'
 import type { DownloadItem, MediaConfig, Row, Snapshot } from '@/types'
 import { cn, copyText, coverUrl, formatCount, formatDate, formatTime, mediaUrl, rowTitle, statusOf } from '@/lib/utils'
-import { clampVolume, loadPlayerMuted, loadPlayerVolume, savePlayerMuted, savePlayerVolume } from '@/lib/player-prefs'
+import { clampVolume, hasStoredPlayerPrefs, loadPlayerMuted, loadPlayerVolume, savePlayerMuted, savePlayerVolume } from '@/lib/player-prefs'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { post } from '@/lib/api'
@@ -46,9 +46,11 @@ type Props = {
   onNavigate: (token: string, autoplay?: boolean) => void
   onFav: (row: Row) => void
   downloadItem?: DownloadItem
+  playerVolume?: number
+  playerMuted?: boolean
 }
 
-export function PreviewDialog({ rows, token, autoplay = false, media, onClose, onNavigate, onFav, downloadItem }: Props) {
+export function PreviewDialog({ rows, token, autoplay = false, media, onClose, onNavigate, onFav, downloadItem, playerVolume, playerMuted }: Props) {
   const index = React.useMemo(() => rows.findIndex(r => r.token === token), [rows, token])
   const row = index >= 0 ? rows[index] : null
   const [playing, setPlaying] = React.useState(false)
@@ -75,9 +77,11 @@ export function PreviewDialog({ rows, token, autoplay = false, media, onClose, o
   const [currentTime, setCurrentTime] = React.useState(0)
   const [duration, setDuration] = React.useState(0)
   const [isPlaying, setIsPlaying] = React.useState(false)
-  const [isMuted, setIsMuted] = React.useState(loadPlayerMuted)
-  const [volume, setVolume] = React.useState(loadPlayerVolume)
+  const usingLocalPrefs = React.useRef(hasStoredPlayerPrefs())
+  const [isMuted, setIsMuted] = React.useState(() => usingLocalPrefs.current ? loadPlayerMuted() : Boolean(playerMuted))
+  const [volume, setVolume] = React.useState(() => usingLocalPrefs.current ? loadPlayerVolume() : clampVolume(playerVolume ?? 1))
   const prefsReady = React.useRef(false)
+  const prefsTimer = React.useRef(0)
   const [dragging, setDragging] = React.useState(false)
   const [isFullscreen, setIsFullscreen] = React.useState(false)
   const [controlsVisible, setControlsVisible] = React.useState(true)
@@ -97,6 +101,33 @@ export function PreviewDialog({ rows, token, autoplay = false, media, onClose, o
   const prefetchedCovers = React.useRef(new Set<string>())
   const qc = useQueryClient()
   const navigate = useNavigate()
+
+  // 音量同时写 localStorage（当前 WebView 内即时生效）和项目配置（桌面端重启后仍保留）。
+  const persistPrefs = React.useCallback((nextVolume: number, nextMuted: boolean) => {
+    const vol = clampVolume(nextVolume)
+    usingLocalPrefs.current = true
+    savePlayerVolume(vol)
+    savePlayerMuted(nextMuted)
+    window.clearTimeout(prefsTimer.current)
+    prefsTimer.current = window.setTimeout(() => {
+      void post('/api/config', { playerVolume: vol, playerMuted: nextMuted }).catch(() => {})
+    }, 400)
+  }, [])
+
+  React.useEffect(() => () => window.clearTimeout(prefsTimer.current), [])
+
+  // 项目配置晚到（或首次进入）时用后端值初始化；一旦本地改过就不再覆盖。
+  React.useEffect(() => {
+    if (usingLocalPrefs.current) return
+    if (playerVolume != null) {
+      setVolume(clampVolume(playerVolume))
+      if (videoRef.current) videoRef.current.volume = clampVolume(playerVolume)
+    }
+    if (playerMuted != null) {
+      setIsMuted(playerMuted)
+      if (videoRef.current) videoRef.current.muted = playerMuted
+    }
+  }, [playerVolume, playerMuted])
 
   const undoRemove = async (tokenToRestore: string) => {
     try {
@@ -875,10 +906,7 @@ onPlay={e => {
                 const nextVolume = clampVolume(v.volume)
                 setIsMuted(v.muted)
                 setVolume(nextVolume)
-                if (prefsReady.current) {
-                  savePlayerVolume(nextVolume)
-                  savePlayerMuted(v.muted)
-                }
+                if (prefsReady.current) persistPrefs(nextVolume, v.muted)
               }}
               onCanPlay={() => setVideoReady(true)}
               onError={() => { setVideoError(true); setPlaying(false); setIsPlaying(false); toast.error('视频加载失败：文件可能已被移动，或编码浏览器不支持') }}
@@ -914,7 +942,7 @@ onPlay={e => {
                   </span>
                 ) : null}
                 <div className="ml-auto flex items-center gap-1">
-                  <IconButton label={isMuted ? '取消静音' : '静音'} size="sm" onClick={() => { const v = videoRef.current; if (!v) return; v.muted = !v.muted; setIsMuted(v.muted); savePlayerMuted(v.muted) }}>
+                  <IconButton label={isMuted ? '取消静音' : '静音'} size="sm" onClick={() => { const v = videoRef.current; if (!v) return; v.muted = !v.muted; setIsMuted(v.muted); persistPrefs(volume, v.muted) }}>
                     {isMuted ? <VolumeX className="size-3.5" /> : <Volume2 className="size-3.5" />}
                   </IconButton>
                   <input
@@ -929,8 +957,7 @@ onPlay={e => {
                       const next = clampVolume(Number(e.target.value))
                       setVolume(next)
                       setIsMuted(next === 0)
-                      savePlayerVolume(next)
-                      savePlayerMuted(next === 0)
+                      persistPrefs(next, next === 0)
                       if (v) { v.volume = next; v.muted = next === 0 }
                     }}
                     className="h-1 w-16 cursor-pointer accent-[color:var(--primary)]"

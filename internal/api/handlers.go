@@ -86,6 +86,8 @@ func (s *Server) handleState(w http.ResponseWriter, r *http.Request) {
 			"httpLimitKB":         cfg.HTTPLimitKB,
 			"httpConnections":     cfg.HTTPConnections,
 			"perSourceConcurrent": cfg.PerSourceConcurrent,
+			"playerVolume":        cfg.PlayerVolume,
+			"playerMuted":         cfg.PlayerMuted,
 			"sourceIndexUrl":      cfg.SourceIndexURL,
 		},
 		"sources": s.reg.Enabled(),
@@ -804,20 +806,22 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 	s.cfgMu.Lock()
 	defer s.cfgMu.Unlock()
 	var body struct {
-		Proxy               *string `json:"proxy"`
-		Concurrent          *int    `json:"concurrent"`
-		FFmpegPath          *string `json:"ffmpegPath"`
-		RetryCount          *int    `json:"retryCount"`
-		RetryDelay          *int    `json:"retryDelay"`
-		HTTPLimitKB         *int    `json:"httpLimitKB"`
-		HTTPConnections     *int    `json:"httpConnections"`
-		PerSourceConcurrent *int    `json:"perSourceConcurrent"`
-		TorrentLimitKB      *int    `json:"torrentLimitKB"`
-		TorrentBackend      *string `json:"torrentBackend"`
-		QbtURL              *string `json:"qbtUrl"`
-		QbtUser             *string `json:"qbtUser"`
-		QbtPass             *string `json:"qbtPass"`
-		SourceIndexURL      *string `json:"sourceIndexUrl"`
+		Proxy               *string  `json:"proxy"`
+		Concurrent          *int     `json:"concurrent"`
+		FFmpegPath          *string  `json:"ffmpegPath"`
+		RetryCount          *int     `json:"retryCount"`
+		RetryDelay          *int     `json:"retryDelay"`
+		HTTPLimitKB         *int     `json:"httpLimitKB"`
+		HTTPConnections     *int     `json:"httpConnections"`
+		PerSourceConcurrent *int     `json:"perSourceConcurrent"`
+		PlayerVolume        *float64 `json:"playerVolume"`
+		PlayerMuted         *bool    `json:"playerMuted"`
+		TorrentLimitKB      *int     `json:"torrentLimitKB"`
+		TorrentBackend      *string  `json:"torrentBackend"`
+		QbtURL              *string  `json:"qbtUrl"`
+		QbtUser             *string  `json:"qbtUser"`
+		QbtPass             *string  `json:"qbtPass"`
+		SourceIndexURL      *string  `json:"sourceIndexUrl"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "invalid json"})
@@ -902,6 +906,18 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		cfg.PerSourceConcurrent = *body.PerSourceConcurrent
+	}
+	if body.PlayerVolume != nil {
+		if *body.PlayerVolume < 0 || *body.PlayerVolume > 1 {
+			bad(w, "音量需在 0–1 之间")
+			return
+		}
+		cfg.PlayerVolume = *body.PlayerVolume
+		cfg.PlayerVolumeSet = true
+	}
+	if body.PlayerMuted != nil {
+		cfg.PlayerMuted = *body.PlayerMuted
+		cfg.PlayerVolumeSet = true
 	}
 	if body.TorrentBackend != nil {
 		v := strings.ToLower(strings.TrimSpace(*body.TorrentBackend))

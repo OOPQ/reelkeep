@@ -390,8 +390,10 @@ export function AppShell() {
     // 若 token 列表还停在抓取前，浮窗的总数、上一项/下一项都会对不上。
     void qc.invalidateQueries({ queryKey: ['library-rows'] })
     void qc.invalidateQueries({ queryKey: ['library-row-tokens'] })
+    const failedLinks = Number(p.failed) || 0
+    const desc = [p.count ? `本轮共处理 ${p.count} 条` : '', failedLinks ? `${failedLinks} 条链接失败` : ''].filter(Boolean).join(' · ')
     toast.success(`${title}：新增 ${p.added || 0}，更新 ${p.updated || 0}`, {
-      description: p.count ? `本轮共处理 ${p.count} 条` : undefined,
+      description: desc || undefined,
       duration: 7000,
       action: addedTokens.length ? { label: '查看新增', onClick: () => navigate('/?batch=1') } : undefined,
     })

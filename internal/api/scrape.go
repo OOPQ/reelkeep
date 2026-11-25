@@ -132,6 +132,7 @@ type scrapeJob struct {
 	Limit       int
 	Skip        int
 	TargetURL   string
+	TargetURLs  []string
 	Running     bool
 	Started     time.Time
 	Finished    time.Time
@@ -141,10 +142,17 @@ type scrapeJob struct {
 	Added       int
 	Updated     int
 	Skipped     int
+	Failed      int
 	AddedTokens []string
 	Err         string
 	Logs        []string
 	Cancel      context.CancelFunc
+}
+
+type linkTarget struct {
+	URL     string
+	Source  string
+	Scraper source.URLScraper
 }
 
 func (j *scrapeJob) logf(format string, args ...any) {
@@ -209,7 +217,7 @@ func (j *scrapeJob) info() map[string]any {
 		"phase": j.Phase, "done": j.Done, "total": j.Total,
 		"elapsed": round1(elapsed), "speed": round1(speed), "eta": round1(eta),
 		"at":    time.Now().Format("15:04:05"),
-		"added": j.Added, "updated": j.Updated, "count": j.Added + j.Updated,
+		"added": j.Added, "updated": j.Updated, "count": j.Added + j.Updated, "failed": j.Failed,
 		"addedTokens": append([]string{}, j.AddedTokens...),
 		"kind":        "scrape", "error": j.Err,
 	}
@@ -251,43 +259,29 @@ func (s *Server) jobInfo() any {
 // handleScrape 启动一次抓取任务。
 func (s *Server) handleScrape(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		Source      string `json:"source"`
-		Rank        string `json:"rank"`
-		URL         string `json:"url"`
-		Pages       []int  `json:"pages"`
-		Limit       int    `json:"limit"`
-		Skip        int    `json:"skip"`
-		SkipDeleted *bool  `json:"skipDeleted"`
-		Incremental *bool  `json:"incremental"`
+		Source      string   `json:"source"`
+		Rank        string   `json:"rank"`
+		URL         string   `json:"url"`
+		URLs        []string `json:"urls"`
+		Pages       []int    `json:"pages"`
+		Limit       int      `json:"limit"`
+		Skip        int      `json:"skip"`
+		SkipDeleted *bool    `json:"skipDeleted"`
+		Incremental *bool    `json:"incremental"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "invalid json"})
 		return
 	}
-	if body.URL != "" {
-		if strings.HasPrefix(strings.ToLower(strings.TrimSpace(body.URL)), "magnet:") {
-			bad(w, "暂不支持磁力链接")
+	urls := normalizeLinkURLs(body.URL, body.URLs)
+	if len(urls) > 0 {
+		if len(urls) > 50 {
+			bad(w, "一次最多抓取 50 个链接")
 			return
 		}
-		srcKey := body.Source
-		var src source.Source
-		var ok bool
-		if srcKey == "" {
-			srcKey, src, ok = s.pickLinkSource(body.URL)
-		} else {
-			src, ok = s.reg.Get(srcKey)
-		}
-		if !ok {
-			bad(w, "未知源："+srcKey)
-			return
-		}
-		us, ok := src.(source.URLScraper)
-		if !ok {
-			bad(w, "源 "+srcKey+" 不支持链接抓取")
-			return
-		}
-		if !hasCap(src.Capabilities(), "scrape") {
-			bad(w, "源 "+srcKey+" 不支持抓取")
+		targets, jobSource, err := s.resolveLinkTargets(urls, body.Source)
+		if err != nil {
+			bad(w, err.Error())
 			return
 		}
 		skipDeleted := true
@@ -296,8 +290,8 @@ func (s *Server) handleScrape(w http.ResponseWriter, r *http.Request) {
 		}
 		ctx, cancel := context.WithCancel(context.Background())
 		j := &scrapeJob{
-			Source: srcKey, Rank: "url", TargetURL: body.URL, Total: 1,
-			Running: true, Started: time.Now(), Phase: "details", Cancel: cancel,
+			Source: jobSource, Rank: "url", TargetURL: urls[0], TargetURLs: urls,
+			Total: len(urls), Running: true, Started: time.Now(), Phase: "details", Cancel: cancel,
 		}
 		s.jobMu.Lock()
 		if s.job != nil && s.job.isRunning() {
@@ -308,8 +302,8 @@ func (s *Server) handleScrape(w http.ResponseWriter, r *http.Request) {
 		}
 		s.job = j
 		s.jobMu.Unlock()
-		go s.runScrapeURL(ctx, j, us, skipDeleted)
-		s.logbuf.Add("scrape", "开始链接抓取 "+body.URL)
+		go s.runScrapeURLs(ctx, j, targets, skipDeleted)
+		s.logbuf.Add("scrape", fmt.Sprintf("开始链接抓取 %d 条", len(urls)))
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "job": j.info()})
 		return
 	}
@@ -469,43 +463,128 @@ func usePlaylistScraper(us source.URLScraper) bool {
 	return true
 }
 
-// runScrapeURL 处理「链接抓取」：只产出一条记录。
-func (s *Server) runScrapeURL(ctx context.Context, j *scrapeJob, us source.URLScraper, skipDeleted bool) {
+func normalizeLinkURLs(single string, list []string) []string {
+	raw := append([]string{}, list...)
+	if strings.TrimSpace(single) != "" {
+		raw = append([]string{single}, raw...)
+	}
+	seen := make(map[string]bool, len(raw))
+	out := make([]string, 0, len(raw))
+	for _, v := range raw {
+		v = strings.TrimSpace(v)
+		if v == "" || seen[v] {
+			continue
+		}
+		seen[v] = true
+		out = append(out, v)
+	}
+	return out
+}
+
+// resolveLinkTargets 为每个链接单独选源，支持一次粘贴多个不同站点的链接。
+func (s *Server) resolveLinkTargets(urls []string, explicit string) ([]linkTarget, string, error) {
+	targets := make([]linkTarget, 0, len(urls))
+	common := ""
+	for _, raw := range urls {
+		if strings.HasPrefix(strings.ToLower(raw), "magnet:") {
+			return nil, "", fmt.Errorf("暂不支持磁力链接")
+		}
+		srcKey := explicit
+		var src source.Source
+		var ok bool
+		if srcKey == "" {
+			srcKey, src, ok = s.pickLinkSource(raw)
+		} else {
+			src, ok = s.reg.Get(srcKey)
+		}
+		if !ok {
+			return nil, "", fmt.Errorf("链接 %s：未知源 %s", raw, srcKey)
+		}
+		us, ok := src.(source.URLScraper)
+		if !ok {
+			return nil, "", fmt.Errorf("链接 %s：源 %s 不支持链接抓取", raw, srcKey)
+		}
+		if !hasCap(src.Capabilities(), "scrape") {
+			return nil, "", fmt.Errorf("链接 %s：源 %s 不支持抓取", raw, srcKey)
+		}
+		targets = append(targets, linkTarget{URL: raw, Source: srcKey, Scraper: us})
+		switch {
+		case common == "":
+			common = srcKey
+		case common != srcKey:
+			common = "url"
+		}
+	}
+	return targets, common, nil
+}
+
+// runScrapeURLs 处理「链接抓取」：逐个链接抓取，最后一次性入库。
+func (s *Server) runScrapeURLs(ctx context.Context, j *scrapeJob, targets []linkTarget, skipDeleted bool) {
 	runID := time.Now().Format("20060102-150405") + "-" + sanitizeName(j.Source) + "-url"
-	j.logf("run=%s source=%s url=%s", runID, j.Source, j.TargetURL)
+	j.logf("run=%s source=%s urls=%d", runID, j.Source, len(targets))
 
 	var rows []model.Row
-	playlistName := ""
-	var err error
-	// 只有源包真的声明了 playlist 段才走清单抓取，否则按单条链接处理。
-	if usePlaylistScraper(us) {
-		rows, playlistName, err = us.(source.PlaylistScraper).ScrapePlaylist(ctx, j.TargetURL)
-	} else {
-		var row model.Row
-		row, err = us.ScrapeURL(ctx, j.TargetURL)
-		if err == nil {
-			rows = []model.Row{row}
-		}
+	type playlistBatch struct {
+		name string
+		rows []model.Row
 	}
-	if err != nil {
-		j.logf("链接抓取失败: %v", err)
-		s.writeScrapeDiag(runID, j, nil, "failed", err.Error(), 0, 0, 0)
-		j.finish(err)
+	var playlists []playlistBatch
+	failures := 0
+	var firstErr error
+
+	for i, target := range targets {
+		if err := ctx.Err(); err != nil {
+			j.finish(err)
+			return
+		}
+		j.logf("[%d/%d] %s", i+1, len(targets), target.URL)
+		var got []model.Row
+		playlistName := ""
+		var err error
+		// 只有源包真的声明了 playlist 段才走清单抓取，否则按单条链接处理。
+		if usePlaylistScraper(target.Scraper) {
+			got, playlistName, err = target.Scraper.(source.PlaylistScraper).ScrapePlaylist(ctx, target.URL)
+		} else {
+			var row model.Row
+			row, err = target.Scraper.ScrapeURL(ctx, target.URL)
+			if err == nil {
+				got = []model.Row{row}
+			}
+		}
+		if err != nil {
+			failures++
+			if firstErr == nil {
+				firstErr = err
+			}
+			j.logf("链接抓取失败 %s: %v", target.URL, err)
+			if s.srcMgr != nil {
+				s.srcMgr.RecordResult(target.Source, err)
+			}
+			j.progress(i+1, len(targets))
+			continue
+		}
 		if s.srcMgr != nil {
-			s.srcMgr.RecordResult(j.Source, err)
+			s.srcMgr.RecordResult(target.Source, nil)
 		}
-		s.logbuf.Add("scrape", "链接抓取失败："+err.Error())
-		return
+		rows = append(rows, got...)
+		if playlistName != "" {
+			playlists = append(playlists, playlistBatch{name: playlistName, rows: got})
+		}
+		j.progress(i+1, len(targets))
 	}
+
 	if len(rows) == 0 {
-		err = fmt.Errorf("没有抓取到任何条目")
+		err := firstErr
+		if err == nil {
+			err = fmt.Errorf("没有抓取到任何条目")
+		}
 		j.logf("%v", err)
 		s.writeScrapeDiag(runID, j, nil, "failed", err.Error(), 0, 0, 0)
 		j.finish(err)
 		return
 	}
 	for i := range rows {
-		if j.Source == "other" {
+		if j.Source == "other" || rows[i].Source == "other" {
 			rows[i].Source = "other"
 			rows[i].Site = "other"
 			if strings.HasPrefix(rows[i].Token, "web@") {
@@ -518,27 +597,21 @@ func (s *Server) runScrapeURL(ctx context.Context, j *scrapeJob, us source.URLSc
 		j.logf("入库失败: %v", mergeErr)
 		s.writeScrapeDiag(runID, j, rows, "failed", mergeErr.Error(), added, updated, skipped)
 		j.finish(mergeErr)
-		if s.srcMgr != nil {
-			s.srcMgr.RecordResult(j.Source, mergeErr)
-		}
 		return
 	}
-	if playlistName != "" {
-		s.attachPlaylistCollection(playlistName, rows)
+	for _, p := range playlists {
+		s.attachPlaylistCollection(p.name, p.rows)
 	}
 	j.mu.Lock()
 	j.Added, j.Updated, j.Skipped = added, updated, skipped
+	j.Failed = failures
 	j.AddedTokens = addedTokens
-	j.Total, j.Done = len(rows), len(rows)
+	j.Total, j.Done = len(targets), len(targets)
 	j.mu.Unlock()
-	j.logf("完成: 新增 %d，更新 %d，跳过 %d", added, updated, skipped)
+	j.logf("完成: 链接 %d，新增 %d，更新 %d，跳过 %d，失败 %d", len(targets), added, updated, skipped, failures)
 	s.writeScrapeDiag(runID, j, rows, "ok", "", added, updated, skipped)
 	j.finish(nil)
-	if s.srcMgr != nil {
-		s.srcMgr.RecordResult(j.Source, nil)
-	}
-	s.logbuf.Add("scrape", fmt.Sprintf("链接抓取完成：%d 条", len(rows)))
-
+	s.logbuf.Add("scrape", fmt.Sprintf("链接抓取完成：%d 条链接 / %d 条记录", len(targets), len(rows)))
 }
 
 // handleRefreshURL 重新解析选中条目的播放地址（签名过期时用）。

@@ -9,10 +9,12 @@ import { formatBytes } from '@/lib/utils'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Select } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { parseScrapeRange } from './scrape-range'
+import { MAX_SCRAPE_LINKS, parseScrapeLinks } from './link-input'
 
 export function ScrapeDialog({
   open,
@@ -177,6 +179,7 @@ export function LinkScrapeDialog({
   const qc = useQueryClient()
   const navigate = useNavigate()
   const [url, setUrl] = React.useState('')
+  const links = React.useMemo(() => parseScrapeLinks(url), [url])
   const [busy, setBusy] = React.useState(false)
   const [step, setStep] = React.useState<'input' | 'files'>('input')
   const [files, setFiles] = React.useState<{ index: number; path: string; length: number }[]>([])
@@ -192,17 +195,20 @@ export function LinkScrapeDialog({
   const close = () => { reset(); onOpenChange(false) }
 
   const start = async () => {
-    const value = url.trim()
-    if (!value) return
-    if (value.toLowerCase().startsWith('magnet:')) {
+    if (!links.length) return
+    if (links.length > MAX_SCRAPE_LINKS) {
+      toast.error(`一次最多抓取 ${MAX_SCRAPE_LINKS} 个链接`)
+      return
+    }
+    if (links.some(link => link.toLowerCase().startsWith('magnet:'))) {
       toast.error('暂不支持磁力链接')
       return
     }
     setBusy(true)
     try {
-      const r = await post<{ ok: boolean; error?: string }>('/api/scrape', { url: value })
+      const r = await post<{ ok: boolean; error?: string }>('/api/scrape', { urls: links })
       if (!r.ok) throw new Error(r.error || '抓取失败')
-      toast.success('已开始抓取链接')
+      toast.success(links.length > 1 ? `已提交 ${links.length} 个链接` : '已开始抓取链接')
       try { sessionStorage.setItem('pektino.scrapePending', '1'); sessionStorage.setItem('pektino.scrapePendingAt', String(Date.now())) } catch { }
       qc.invalidateQueries({ queryKey: ['state'] })
       close()
@@ -249,8 +255,9 @@ export function LinkScrapeDialog({
                 <Download className="size-3.5" /> {busy ? '加入中…' : `下载 ${selected.length} 个文件`}
               </Button>
             ) : (
-              <Button size="sm" onClick={start} disabled={busy || !url.trim()}>
-                {busy ? <RefreshCw className="size-3.5 animate-spin" /> : <Link2 className="size-3.5" />} 确认链接
+              <Button size="sm" onClick={start} disabled={busy || !links.length}>
+                {busy ? <RefreshCw className="size-3.5 animate-spin" /> : <Link2 className="size-3.5" />}
+                {links.length > 1 ? `抓取 ${links.length} 条` : '确认链接'}
               </Button>
             )}
           </div>
@@ -259,9 +266,15 @@ export function LinkScrapeDialog({
         <div className="space-y-3 p-4">
           {step === 'input' ? (
             <>
-              <Input value={url} onChange={e => setUrl(e.target.value)} placeholder="视频页 / .m3u8 / .mp4" autoFocus />
+              <Textarea
+                value={url}
+                onChange={e => setUrl(e.target.value)}
+                rows={5}
+                placeholder={'每行一个链接，可一次粘贴多条\nhttps://example.com/v/1\nhttps://example.com/v/2'}
+                autoFocus
+              />
               <div className="text-[10px] leading-5 text-[color:var(--subtle)]">
-                目前仅支持网页链接和直链；磁力链接暂不支持。
+                支持一次粘贴多条链接，每行一条（也支持空格/逗号分隔）；已识别 {links.length} 条，最多 {MAX_SCRAPE_LINKS} 条。磁力链接暂不支持。
               </div>
             </>
           ) : (

@@ -126,6 +126,7 @@ export type JobProgress = {
   added?: number
   updated?: number
   count?: number
+  failed?: number
   kind?: string
   error?: string
   finishedAt?: number

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -16,8 +17,9 @@ import (
 )
 
 type fakeURLSource struct {
-	token  string
-	newURL string
+	token    string
+	newURL   string
+	tokenFor func(string) string
 }
 
 func (f *fakeURLSource) ID() string             { return "fake" }
@@ -27,8 +29,12 @@ func (f *fakeURLSource) Scrape(ctx context.Context, req source.ScrapeRequest, em
 }
 func (f *fakeURLSource) HealthCheck(ctx context.Context) error { return nil }
 func (f *fakeURLSource) ScrapeURL(ctx context.Context, rawURL string) (model.Row, error) {
+	token := f.token
+	if f.tokenFor != nil {
+		token = f.tokenFor(rawURL)
+	}
 	return model.Row{
-		Token: f.token, Source: "fake", SourceID: "9", URL: f.newURL,
+		Token: token, Source: "fake", SourceID: strings.TrimPrefix(token, "fake@"), URL: f.newURL,
 		PageURL: rawURL, Title: "Fake Video", Status: "new",
 	}, nil
 }
@@ -106,6 +112,44 @@ func TestScrapeByURL(t *testing.T) {
 	}
 	if row.URL != "https://cdn.example.com/v.mp4" || row.PageURL != "https://example.com/v/9" {
 		t.Fatalf("入库内容不对: %+v", row)
+	}
+}
+
+func TestScrapeMultipleURLs(t *testing.T) {
+	fs := &fakeURLSource{
+		token:  "fake@9",
+		newURL: "https://cdn.example.com/v.mp4",
+		tokenFor: func(raw string) string {
+			return "fake@" + strings.TrimPrefix(raw, "https://example.com/v/")
+		},
+	}
+	s, st, ts := newP2Server(t, fs, nil)
+	b, _ := json.Marshal(map[string]any{
+		"source": "fake",
+		"urls":   []string{"https://example.com/v/1", "https://example.com/v/2", "https://example.com/v/3"},
+	})
+	resp, err := http.Post(ts.URL+"/api/scrape", "application/json", bytes.NewReader(b))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out map[string]any
+	_ = json.NewDecoder(resp.Body).Decode(&out)
+	_ = resp.Body.Close()
+	if out["ok"] != true {
+		t.Fatalf("批量链接抓取没有启动: %v", out)
+	}
+	waitJob(t, s)
+	rows, err := st.LoadRows()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 3 {
+		t.Fatalf("批量链接应入库 3 条，实际 %d: %+v", len(rows), rows)
+	}
+	for _, token := range []string{"fake@1", "fake@2", "fake@3"} {
+		if _, ok, err := st.GetRow(token); err != nil || !ok {
+			t.Fatalf("缺少 %s: %v", token, err)
+		}
 	}
 }
 

@@ -96,7 +96,7 @@ ok, api, rowsRev, rows?, stats, log, job, download, project, settings, sources, 
 | GET | `/api/sources/export?id=` | 导出源包 |
 | POST | `/api/sources/test` | 抓取预览 |
 | GET/POST | `/api/sources/auth*` | 手动 Cookie / 状态 / 测试 |
-| POST | `/api/scrape` | 榜单抓取；`{url}` 为链接抓取 |
+| POST | `/api/scrape` | 榜单抓取；`{url}` / `{urls}` 为链接抓取（批量） |
 | POST | `/api/refresh-url` | 重新解析播放地址（≤20 条） |
 | GET | `/api/diagnostics/scrape` | 抓取诊断列表 |
 | GET | `/api/diagnostics/scrape/file?run=&name=` | 诊断文件 |
